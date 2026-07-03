@@ -30,7 +30,14 @@ the frozen cross-track contract the backend and frontend build against.
   token donation cannot move the share price.
 - **Protective freeze only (KTD-SC4).** `freeze(pool)` is keeper-gated and moves
   zero funds; it blocks new flows into a toxic pool. Funds leave only via a
-  keeper-proposed, depositor-approved exit (`propose_exit` → `approve_exit`).
+  keeper-proposed, depositor-approved exit (`propose_exit` → `approve_exit`), and
+  the exit is only valid for a frozen source pool.
+- **On-chain pool allowlist (KTD-SC1).** Every `allocate`/exit destination is
+  checked against an admin-managed allowlist — the Sentinel-vetted Safe set. Even
+  a compromised keeper can only move funds into an admin-vetted pool, never to an
+  arbitrary address. Set via `set_pool_allowed`.
+- **Atomic setup.** `__constructor` runs in the deploy transaction (admin/keeper/
+  config), so there is no separate, front-runnable `init`.
 - **Blend seam is config-swappable (KTD-SC1).** The vault calls pools through a
   generated client whose address comes from config, so `cargo test` runs against
   the in-repo `mock_pool` and testnet/mainnet is an env change, not a code change.

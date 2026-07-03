@@ -21,11 +21,12 @@ pub enum DataKey {
     // ── persistent ──
     Token(Currency),
     ConfiguredPool(Currency),
+    AllowedPool(Address),
     Shares(Address, Currency),
     TotalShares(Currency),
     TotalAssets(Currency),
     ActivePool(Currency),
-    PoolHoldings(Address),
+    PoolHoldings(Currency, Address),
     Consent(Address),
     Frozen(Address),
     PendingExit(Currency),
@@ -72,9 +73,6 @@ pub fn set_admin(env: &Env, admin: &Address) {
 }
 pub fn get_admin(env: &Env) -> Address {
     env.storage().instance().get(&DataKey::Admin).unwrap()
-}
-pub fn has_admin(env: &Env) -> bool {
-    env.storage().instance().has(&DataKey::Admin)
 }
 
 pub fn set_keeper(env: &Env, keeper: &Address) {
@@ -129,6 +127,15 @@ pub fn get_configured_pool(env: &Env, currency: Currency) -> Option<Address> {
     get_persist(env, &DataKey::ConfiguredPool(currency))
 }
 
+// ── persistent: pool allowlist (the on-chain Sentinel-vetted Safe set) ──
+
+pub fn set_pool_allowed(env: &Env, pool: &Address, allowed: bool) {
+    set_persist(env, &DataKey::AllowedPool(pool.clone()), &allowed);
+}
+pub fn is_pool_allowed(env: &Env, pool: &Address) -> bool {
+    get_persist::<bool>(env, &DataKey::AllowedPool(pool.clone())).unwrap_or(false)
+}
+
 // ── persistent: shares / totals ──
 
 pub fn get_shares(env: &Env, user: &Address, currency: Currency) -> i128 {
@@ -160,12 +167,17 @@ pub fn get_active_pool(env: &Env, currency: Currency) -> Option<Address> {
 pub fn set_active_pool(env: &Env, currency: Currency, pool: &Address) {
     set_persist(env, &DataKey::ActivePool(currency), pool);
 }
-
-pub fn get_pool_holdings(env: &Env, pool: &Address) -> i128 {
-    get_persist(env, &DataKey::PoolHoldings(pool.clone())).unwrap_or(0)
+pub fn clear_active_pool(env: &Env, currency: Currency) {
+    env.storage()
+        .persistent()
+        .remove(&DataKey::ActivePool(currency));
 }
-pub fn set_pool_holdings(env: &Env, pool: &Address, amount: i128) {
-    set_persist(env, &DataKey::PoolHoldings(pool.clone()), &amount);
+
+pub fn get_pool_holdings(env: &Env, currency: Currency, pool: &Address) -> i128 {
+    get_persist(env, &DataKey::PoolHoldings(currency, pool.clone())).unwrap_or(0)
+}
+pub fn set_pool_holdings(env: &Env, currency: Currency, pool: &Address, amount: i128) {
+    set_persist(env, &DataKey::PoolHoldings(currency, pool.clone()), &amount);
 }
 
 // ── persistent: consent / frozen / pending exit ──

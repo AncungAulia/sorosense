@@ -328,8 +328,9 @@ flowchart TB
 - SAC test-token setup in `testutils` (register-stellar-asset vs a minimal SEP-41 mock) — execution-time detail in U6.
 
 **Deferred — post-demo (origin-aligned):**
-- Multi-depositor freeze-exit governance for shared buckets (quorum vs first-approver). Demo assumes effectively single-approver per bucket; the `approve_exit` share-holding check is the guard for now.
-- Multisig keeper; mainnet pool addresses; protocol fee; yield-accrual modeling beyond keeper allocate/deallocate deltas.
+- Multi-depositor freeze-exit governance for shared buckets (quorum vs first-approver). Demo assumes effectively single-approver per bucket; the `approve_exit` share-holding check is the guard for now. (The on-chain pool allowlist means a dust approver can only move funds to an admin-vetted Safe pool, not steal — so this is a griefing bound, not a theft vector.)
+- **Mark-to-market NAV.** `total_assets` tracks principal only (moved on deposit/withdraw); it does not reconcile realized pool P&L. Yield/loss accrual is out of demo scope (origin defers it). Consequence to close before mainnet: a pool that loses value while held would leave the share price stale, so a late withdrawer could be short — mitigated in the demo by Sentinel freeze + exit keeping funds out of losing pools, and by withdraw failing safe (it reverts rather than over-paying when the vault is illiquid). Post-demo: add a keeper/oracle `report_gain/report_loss` hook that marks `total_assets` before redemptions.
+- Multisig keeper; mainnet pool addresses; protocol fee.
 
 ---
 

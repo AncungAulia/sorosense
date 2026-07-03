@@ -54,19 +54,20 @@ pub struct ExitProposal {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum Error {
-    AlreadyInitialized = 1,
-    NotAuthorized = 2, // caller is not admin
-    Paused = 3,
-    TokenNotSet = 4,
-    NoConsent = 5,
-    NonPositiveAmount = 6,
-    BelowMinFirstDeposit = 7,
-    InsufficientShares = 8,
-    PoolFrozen = 9,
-    CapExceeded = 10,
-    InsufficientHoldings = 11,
-    EmptyBucket = 12,
-    NoPendingExit = 13,
-    ExitMismatch = 14,
-    NotAStakeholder = 15,
+    Paused = 1,
+    TokenNotSet = 2,
+    NoConsent = 3,
+    NonPositiveAmount = 4,
+    BelowMinFirstDeposit = 5,
+    InsufficientShares = 6,
+    PoolFrozen = 7,
+    CapExceeded = 8,
+    InsufficientHoldings = 9,
+    EmptyBucket = 10,
+    NoPendingExit = 11,
+    NotAStakeholder = 12,
+    /// Target pool is not in the admin-vetted Safe set (KTD-SC1 allowlist).
+    PoolNotAllowed = 13,
+    /// A freeze-exit was approved for a pool that is not actually frozen.
+    SourceNotFrozen = 14,
 }

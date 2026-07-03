@@ -8,15 +8,13 @@
 //! lives off-chain in the backend; this contract enforces that only consented,
 //! guarded, correctly-authorized movements execute (KTD2).
 
+mod allocate;
 mod blend;
 mod events;
-mod storage;
-mod types;
-
-// Feature-bearing modules are pulled in as work lands (U3–U5).
-mod allocate;
 mod guard;
 mod shares;
+mod storage;
+mod types;
 
 #[cfg(test)]
 mod test;
@@ -30,13 +28,11 @@ pub struct Vault;
 
 #[contractimpl]
 impl Vault {
-    /// One-time setup: admin (config authority), keeper (Sentinel/agent role), and
-    /// the vault config (per-pool cap, min first deposit, virtual-offset constant).
-    pub fn init(env: Env, admin: Address, keeper: Address, config: Config) {
-        if storage::has_admin(&env) {
-            panic_with_error!(&env, Error::AlreadyInitialized);
-        }
-        admin.require_auth();
+    /// Atomic deploy-time setup (runs once, inside the deploy transaction — no
+    /// separate init call, so it cannot be front-run). Sets admin (config
+    /// authority), keeper (Sentinel/agent role), and config (per-pool cap, min
+    /// first deposit, virtual-offset constant).
+    pub fn __constructor(env: Env, admin: Address, keeper: Address, config: Config) {
         storage::set_admin(&env, &admin);
         storage::set_keeper(&env, &keeper);
         storage::set_config(&env, &config);
@@ -141,6 +137,7 @@ impl Vault {
             Some(x) => x,
             None => panic_with_error!(&env, Error::NoPendingExit),
         };
+        guard::require_not_paused(&env);
         if storage::get_shares(&env, &depositor, currency) <= 0 {
             panic_with_error!(&env, Error::NotAStakeholder);
         }
@@ -156,7 +153,8 @@ impl Vault {
     // ── Keeper / agent writes (run under consent; no depositor signature) ──
 
     /// Supply pooled bucket funds into a pool. Keeper-only, consent-gated (bucket
-    /// has consented deposits), frozen-guarded, cap-bounded.
+    /// has consented deposits); the allowlist / frozen / cap guards are enforced by
+    /// `supply_to_pool` so every inbound path shares one definition.
     pub fn allocate(env: Env, pool: Address, currency: Currency, amount: i128) {
         guard::require_keeper(&env);
         guard::require_not_paused(&env);
@@ -167,13 +165,6 @@ impl Vault {
         // bucket has nothing consented to allocate (KTD-SC2, defense in depth).
         if storage::get_total_shares(&env, currency) == 0 {
             panic_with_error!(&env, Error::EmptyBucket);
-        }
-        if storage::is_frozen(&env, &pool) {
-            panic_with_error!(&env, Error::PoolFrozen);
-        }
-        let config = storage::get_config(&env);
-        if storage::get_pool_holdings(&env, &pool) + amount > config.per_pool_cap {
-            panic_with_error!(&env, Error::CapExceeded);
         }
         allocate::supply_to_pool(&env, &pool, currency, amount);
         events::Allocated {
@@ -190,10 +181,10 @@ impl Vault {
         if amount <= 0 {
             panic_with_error!(&env, Error::NonPositiveAmount);
         }
-        if amount > storage::get_pool_holdings(&env, &pool) {
+        if amount > storage::get_pool_holdings(&env, currency, &pool) {
             panic_with_error!(&env, Error::InsufficientHoldings);
         }
-        allocate::withdraw_from_pool(&env, &pool, amount);
+        allocate::withdraw_from_pool(&env, &pool, currency, amount);
         events::Deallocated {
             currency,
             pool,
@@ -249,8 +240,24 @@ impl Vault {
         storage::set_token(&env, currency, &token);
     }
 
-    /// Point a currency bucket at a target/configured pool (the U21 risky-pool
-    /// seam — lets the demo re-target a bucket without re-deploying). Admin-only.
+    /// Add or remove a pool from the on-chain allowlist — the Sentinel-vetted Safe
+    /// set that every `allocate`/exit destination is checked against (KTD-SC1). This
+    /// is the on-chain backstop: even a compromised keeper can only move funds into
+    /// an admin-vetted pool. Admin-only.
+    pub fn set_pool_allowed(env: Env, pool: Address, allowed: bool) {
+        Self::require_admin(&env);
+        storage::set_pool_allowed(&env, &pool, allowed);
+    }
+
+    /// Whether a pool is in the allowlist (read).
+    pub fn pool_allowed(env: Env, pool: Address) -> bool {
+        storage::is_pool_allowed(&env, &pool)
+    }
+
+    /// Record a currency bucket's advisory target pool — an off-chain hint the
+    /// backend/demo reads (and the U21 risky-pool re-target seam). Where funds may
+    /// actually go is enforced by the allowlist (`set_pool_allowed`), not here.
+    /// Admin-only.
     pub fn set_configured_pool(env: Env, currency: Currency, pool: Address) {
         Self::require_admin(&env);
         storage::set_configured_pool(&env, currency, &pool);

@@ -28,17 +28,13 @@ fn setup<'a>() -> Ctx<'a> {
 
     let admin = Address::generate(&env);
     let keeper = Address::generate(&env);
-    let vault_id = env.register(Vault, ());
+    let config = Config {
+        per_pool_cap: CAP,
+        min_first_deposit: MIN_FIRST,
+        virtual_offset: VIRT,
+    };
+    let vault_id = env.register(Vault, (admin.clone(), keeper.clone(), config));
     let vault = VaultClient::new(&env, &vault_id);
-    vault.init(
-        &admin,
-        &keeper,
-        &Config {
-            per_pool_cap: CAP,
-            min_first_deposit: MIN_FIRST,
-            virtual_offset: VIRT,
-        },
-    );
 
     // USD stablecoin SAC + two Blend test-double pools holding it.
     let issuer = Address::generate(&env);
@@ -51,6 +47,9 @@ fn setup<'a>() -> Ctx<'a> {
     let pool_b = env.register(mock_pool::MockPool, ());
     mock_pool::MockPoolClient::new(&env, &pool_a).init(&usd);
     mock_pool::MockPoolClient::new(&env, &pool_b).init(&usd);
+    // Both pools are in the on-chain Sentinel-vetted Safe set.
+    vault.set_pool_allowed(&pool_a, &true);
+    vault.set_pool_allowed(&pool_b, &true);
 
     Ctx {
         env,
@@ -272,20 +271,16 @@ mod allocate {
     fn allocate_requires_keeper_auth() {
         // Without mocked auth the keeper-gated call fails.
         let env = Env::default();
+        env.mock_all_auths();
         let admin = Address::generate(&env);
         let keeper = Address::generate(&env);
-        let vault_id = env.register(Vault, ());
+        let config = Config {
+            per_pool_cap: CAP,
+            min_first_deposit: MIN_FIRST,
+            virtual_offset: VIRT,
+        };
+        let vault_id = env.register(Vault, (admin.clone(), keeper.clone(), config));
         let vault = VaultClient::new(&env, &vault_id);
-        env.mock_all_auths();
-        vault.init(
-            &admin,
-            &keeper,
-            &Config {
-                per_pool_cap: CAP,
-                min_first_deposit: MIN_FIRST,
-                virtual_offset: VIRT,
-            },
-        );
         let issuer = Address::generate(&env);
         let usd = env.register_stellar_asset_contract_v2(issuer).address();
         vault.set_token(&Currency::Usd, &usd);
@@ -295,10 +290,69 @@ mod allocate {
         vault.deposit(&d, &Currency::Usd, &100_000);
         let pool = env.register(mock_pool::MockPool, ());
         mock_pool::MockPoolClient::new(&env, &pool).init(&usd);
+        vault.set_pool_allowed(&pool, &true);
 
         // Drop all mocked auth — the keeper gate must now reject.
         env.set_auths(&[]);
         assert!(vault.try_allocate(&pool, &Currency::Usd, &100_000).is_err());
+    }
+
+    #[test]
+    fn allocate_to_unallowed_pool_panics() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        // A pool the admin never vetted — even the keeper cannot send funds there.
+        let rogue = ctx.env.register(mock_pool::MockPool, ());
+        assert!(ctx
+            .vault
+            .try_allocate(&rogue, &Currency::Usd, &100_000)
+            .is_err());
+    }
+
+    #[test]
+    fn deallocate_over_held_panics() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        assert!(ctx
+            .vault
+            .try_deallocate(&ctx.pool_a, &Currency::Usd, &100_001)
+            .is_err());
+    }
+
+    #[test]
+    fn full_deallocate_clears_active_pool() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        ctx.vault.deallocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        // No pool holds the bucket anymore — active_pool must read null.
+        assert_eq!(ctx.vault.active_pool(&Currency::Usd), None);
+    }
+
+    #[test]
+    fn partial_allocations_accumulate_against_cap() {
+        let ctx = setup();
+        deposited(&ctx, CAP + 100);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &(CAP - 10));
+        // A second allocation that would push the pool over the cap is rejected.
+        assert!(ctx
+            .vault
+            .try_allocate(&ctx.pool_a, &Currency::Usd, &20)
+            .is_err());
+    }
+
+    #[test]
+    fn allocate_before_token_set_panics() {
+        let ctx = setup();
+        // EUR bucket has no SAC registered; a consented EUR deposit can't even
+        // form, so allocate on the empty bucket rejects first — assert no success.
+        let d = Address::generate(&ctx.env);
+        ctx.vault.set_policy_consent(&d);
+        assert!(ctx
+            .vault
+            .try_deposit(&d, &Currency::Eur, &100_000)
+            .is_err());
     }
 
     #[test]
@@ -372,6 +426,42 @@ mod guard {
         ctx.vault.unpause();
         ctx.vault.deposit(&d, &Currency::Usd, &100_000);
         assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+    }
+
+    #[test]
+    fn approve_exit_is_blocked_while_paused() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        ctx.vault.freeze(&ctx.pool_a);
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let exit_id = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        ctx.vault.pause();
+        // Even a valid exit approval must not move funds during an emergency pause.
+        assert!(ctx.vault.try_approve_exit(&d, &exit_id).is_err());
+    }
+
+    #[test]
+    fn admin_only_calls_reject_non_admin() {
+        // Without mocked auth, an admin-gated call must fail the admin gate.
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let keeper = Address::generate(&env);
+        let config = Config {
+            per_pool_cap: CAP,
+            min_first_deposit: MIN_FIRST,
+            virtual_offset: VIRT,
+        };
+        let vault_id = env.register(Vault, (admin.clone(), keeper.clone(), config));
+        let vault = VaultClient::new(&env, &vault_id);
+        let pool = env.register(mock_pool::MockPool, ());
+
+        env.set_auths(&[]);
+        assert!(vault.try_pause().is_err());
+        assert!(vault.try_set_pool_allowed(&pool, &true).is_err());
     }
 
     #[test]
@@ -461,5 +551,42 @@ mod integration {
         // An address holding no USD shares cannot approve the bucket's exit.
         let stranger = Address::generate(&ctx.env);
         assert!(ctx.vault.try_approve_exit(&stranger, &exit_id).is_err());
+    }
+
+    #[test]
+    fn exit_into_frozen_target_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        ctx.vault.freeze(&ctx.pool_a);
+        ctx.vault.freeze(&ctx.pool_b); // the "safe" target is also frozen
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let exit_id = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        assert!(ctx.vault.try_approve_exit(&d, &exit_id).is_err());
+    }
+
+    #[test]
+    fn approve_exit_with_no_pending_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert!(ctx.vault.try_approve_exit(&d, &999).is_err());
+    }
+
+    #[test]
+    fn withdraw_while_allocated_reverts() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        // Funds are in the pool, not liquid in the vault — withdraw reverts
+        // (fail-safe; the backend deallocates first). Shares are untouched.
+        assert!(ctx
+            .vault
+            .try_withdraw(&d, &Currency::Usd, &100_000)
+            .is_err());
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
     }
 }
