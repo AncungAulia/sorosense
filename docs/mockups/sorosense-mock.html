@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>SoroSense</title>
+<style>
+  :root{
+    --bg:#efefed; --card:#ffffff; --card2:#e8e8e5; --ink:#0a0a0a; --ink2:#1c1e1c;
+    --muted:#8b8e88; --faint:#a9aca6; --line:#ededea; --line2:#e3e3df;
+    --green:#16a34a; --green2:#22c55e; --green-soft:#e9f7ee;
+    --blue:#2563eb; --amber:#b45309; --amber-soft:#fbf1e2; --red:#dc2626; --red-soft:#fdecec;
+    --sh-card:0 1px 2px rgba(10,10,10,.04), 0 10px 26px -12px rgba(10,10,10,.12);
+    --sh-pill:0 1px 2px rgba(10,10,10,.05), 0 6px 16px -6px rgba(10,10,10,.16);
+    --r:26px;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--sans);color:var(--ink);background:#d9d9d6;display:grid;place-items:center;min-height:100dvh;padding:22px;-webkit-font-smoothing:antialiased}
+  .phone{position:relative;width:390px;height:844px;max-height:calc(100dvh - 44px);background:var(--bg);border-radius:46px;overflow:hidden;border:9px solid #0a0a0a;box-shadow:0 30px 80px -24px rgba(0,0,0,.5)}
+  @media (max-width:440px){body{padding:0}.phone{width:100vw;height:100dvh;max-height:none;border-radius:0;border:none}}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:30px;background:#0a0a0a;border-radius:16px;z-index:60}
+  .status{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-size:14px;font-weight:600;z-index:50;pointer-events:none}
+  .bat{width:24px;height:12px;border-radius:3px;border:1.5px solid rgba(10,10,10,.35);position:relative}
+  .bat::after{content:"";position:absolute;inset:2px;width:12px;background:var(--ink);border-radius:1px}
+
+  .view{position:absolute;inset:0;top:52px;bottom:86px;overflow-y:auto;overflow-x:hidden;padding:8px 20px 30px;display:none;scrollbar-width:none}
+  .view::-webkit-scrollbar{display:none}
+  .view.active{display:block}
+
+  .num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .hero{font-size:56px;font-weight:800;letter-spacing:-.035em;line-height:1}
+  .hero .c{color:var(--faint)}
+  .label{color:var(--muted);font-size:16px;font-weight:500}
+  .muted{color:var(--muted)} .faint{color:var(--faint)}
+  .tiny{font-size:12.5px} .sm{font-size:13.5px}
+  .center{text-align:center}
+  h2{font-size:15px;font-weight:600;color:var(--muted);margin:0 0 10px;letter-spacing:.01em}
+
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  :focus-visible{outline:none;box-shadow:0 0 0 3px var(--bg),0 0 0 5.5px var(--green)}
+  .pill-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:58px;border-radius:30px;font-size:17px;font-weight:650;transition:transform .12s ease,filter .12s}
+  .pill-btn:active{transform:scale(.985)}
+  .b-white{background:#fff;color:var(--ink);box-shadow:var(--sh-pill)}
+  .b-black{background:#0a0a0a;color:#fff}
+  .b-black:active{filter:brightness(1.25)}
+  .b-soft{background:var(--card2);color:var(--ink)}
+
+  .card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh-card)}
+  .card.flat{box-shadow:none;background:var(--card2)}
+  .pad{padding:20px}
+  .row{display:flex;align-items:center;gap:12px}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .stack>*+*{margin-top:14px}
+
+  .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(180deg,#fff,#e9e9e6);box-shadow:0 1px 3px rgba(0,0,0,.12);display:grid;place-items:center;font-weight:700;font-size:17px;color:var(--ink2)}
+  .icobtn{width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--sh-pill);display:grid;place-items:center}
+  .coin{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;letter-spacing:.02em;flex:0 0 auto}
+  .coin.usd{background:#eaf2ff;color:#2563eb} .coin.eur{background:#eef0ff;color:#4f46e5}
+  .coin.mxn{background:#eaf7ee;color:#16a34a} .coin.rwa{background:#f1efe6;color:#8a7b3f}
+
+  .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:8px;background:#f1f1ee;color:var(--muted);font-size:12px;font-weight:600}
+  .badge-free{background:#e7f0ff;color:#2563eb}
+  .tag{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:13px;font-weight:650}
+  .tag .dot{width:7px;height:7px;border-radius:50%}
+  .t-safe{background:var(--green-soft);color:var(--green)} .t-safe .dot{background:var(--green)}
+  .t-watch{background:var(--amber-soft);color:var(--amber)} .t-watch .dot{background:var(--amber)}
+  .t-block{background:var(--red-soft);color:var(--red)} .t-block .dot{background:var(--red)}
+
+  .togglepill{display:inline-flex;align-items:center;gap:9px;height:40px;padding:0 8px 0 14px;border-radius:999px;background:#fff;box-shadow:var(--sh-pill);font-weight:650;font-size:15px}
+  .togglepill .cv{width:16px;height:16px;border-radius:50%;border:2px solid var(--blue)}
+
+  .listrow{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px 0}
+  .listrow+.listrow{border-top:1px solid var(--line)}
+  .grow{flex:1;min-width:0}
+  .apy{font-weight:700;color:var(--green)}
+
+  ic{display:inline-grid;place-items:center}
+  svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  svg.i.sm{width:18px;height:18px}
+
+  /* segmented + stepper (Plasma sim) */
+  .seg{display:flex;gap:2px}
+  .seg button{flex:1;height:40px;border-radius:12px;font-weight:600;font-size:14px;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.09)}
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepper button{width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.09);font-size:20px;display:grid;place-items:center;color:var(--ink)}
+  .stepper .v{min-width:82px;text-align:center;font-weight:700;font-size:17px}
+  .bars{display:flex;align-items:flex-end;gap:4px;height:120px;margin:14px 0}
+  .bars .bar{flex:1;background:linear-gradient(180deg,var(--green2),var(--green));border-radius:5px 5px 2px 2px;min-height:6px;transition:height .55s cubic-bezier(.2,.85,.2,1)}
+  .barsicon{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+  .barsicon i{width:4px;border-radius:1px;background:var(--green);display:block}
+
+  /* bottom nav */
+  .nav{position:absolute;left:0;right:0;bottom:0;height:86px;display:flex;align-items:flex-start;justify-content:center;gap:4px;padding:8px 14px calc(20px + env(safe-area-inset-bottom));z-index:40;background:linear-gradient(180deg,rgba(239,239,237,0),var(--bg) 40%)}
+  .nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:52px;padding:0 22px;border-radius:22px;color:var(--faint);font-size:11.5px;font-weight:600}
+  .nav button[aria-current="page"]{color:var(--ink);background:#fff;box-shadow:var(--sh-pill)}
+
+  /* overlay sub-screen */
+  .sub{position:absolute;inset:0;background:var(--bg);z-index:45;transform:translateX(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);overflow-y:auto;padding:52px 20px 30px;scrollbar-width:none}
+  .sub::-webkit-scrollbar{display:none}
+  .sub.show{transform:none}
+  .subhead{display:flex;align-items:center;justify-content:center;position:relative;height:44px;margin-bottom:20px}
+  .subhead .back{position:absolute;left:0}
+  .subhead h1{font-size:18px;font-weight:600;margin:0}
+
+  /* sheet */
+  .scrim{position:absolute;inset:0;background:rgba(10,10,10,.4);z-index:50;opacity:0;pointer-events:none;transition:.25s}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:51;background:#fff;border-radius:28px 28px 0 0;padding:8px 20px calc(22px + env(safe-area-inset-bottom));transform:translateY(102%);transition:transform .33s cubic-bezier(.2,.85,.25,1);max-height:88%;overflow-y:auto}
+  .sheet.show{transform:none}
+  .grab{width:40px;height:5px;border-radius:3px;background:#e2e2df;margin:6px auto 16px}
+  .opt{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px;border:1.5px solid var(--line2);border-radius:18px;background:#fff;margin-bottom:10px;transition:border-color .12s,background .12s}
+  .opt[aria-pressed="true"]{border-color:var(--green);background:var(--green-soft)}
+  .opt .tick{margin-left:auto;color:var(--green);opacity:0}
+  .opt[aria-pressed="true"] .tick{opacity:1}
+  .field{display:flex;align-items:center;gap:6px;border:1.5px solid var(--line2);border-radius:18px;padding:16px 18px;font-size:22px;font-weight:700}
+  .field input{border:none;outline:none;font:inherit;width:100%;background:none}
+
+  .switch{width:48px;height:29px;border-radius:999px;background:#d7d7d3;position:relative;transition:background .2s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+  .switch[aria-checked="true"]{background:var(--blue)} .switch[aria-checked="true"]::after{transform:translateX(19px)}
+
+  .toast{position:absolute;left:20px;right:20px;bottom:100px;z-index:70;background:#0a0a0a;color:#fff;border-radius:18px;padding:15px 16px;font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:11px;transform:translateY(16px);opacity:0;pointer-events:none;transition:.24s}
+  .toast.show{transform:none;opacity:1}
+  .toast .ck{width:22px;height:22px;border-radius:50%;background:var(--green);display:grid;place-items:center;flex:0 0 auto}
+
+  /* auth */
+  .auth{position:absolute;inset:0;z-index:80;display:flex;flex-direction:column;transition:opacity .4s,transform .4s}
+  .auth.hide{opacity:0;transform:scale(1.02);pointer-events:none}
+  #onboarding{background:var(--bg);justify-content:space-between;padding:96px 26px 42px;text-align:center}
+  .brand{display:inline-flex;align-items:center;gap:9px;font-weight:750;font-size:19px;letter-spacing:-.01em}
+  .brandmark{width:34px;height:34px;border-radius:11px;background:#0a0a0a;display:grid;place-items:center}
+  .brandmark svg{width:20px;height:20px;stroke:var(--green2);fill:none;stroke-width:2.2}
+  #onboarding h1{font-size:33px;font-weight:800;letter-spacing:-.03em;line-height:1.08;margin:0}
+  #signin{background:#0a0a0a;color:#fff;justify-content:space-between;padding:110px 26px 42px;text-align:center;transform:translateY(100%);transition:transform .4s cubic-bezier(.3,.8,.3,1)}
+  #signin.show{transform:none}
+  #signin.hide{opacity:0;pointer-events:none}
+  .faceid{width:78px;height:78px;margin:0 auto 24px;border-radius:22px;border:2.5px solid rgba(255,255,255,.45);display:grid;place-items:center}
+  .faceid svg{width:40px;height:40px;stroke:#fff;fill:none;stroke-width:2}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="phone" role="application" aria-label="SoroSense mockup">
+  <div class="notch"></div>
+  <div class="status"><span class="num">9:41</span><span class="row" style="gap:7px"><span aria-hidden="true" style="letter-spacing:1px">••••</span><span class="bat" aria-label="Battery"></span></span></div>
+
+  <!-- ONBOARDING -->
+  <div class="auth" id="onboarding">
+    <div class="brand"><span class="brandmark"><svg viewBox="0 0 24 24"><path d="M20 4C9 4 4 11 4 20c9 0 16-5 16-16Z"/></svg></span>SoroSense</div>
+    <div>
+      <h1>Stablecoin yield,<br/>guarded around<br/>the clock.</h1>
+      <p class="muted" style="font-size:16px;margin:18px 20px 0;line-height:1.5">Deposit, and the agent puts your money in the safest yield across Stellar and keeps it out of harm's way, automatically.</p>
+    </div>
+    <div class="stack" style="width:100%">
+      <button class="pill-btn b-black" onclick="showSignin()">Get started</button>
+      <button class="pill-btn b-soft" onclick="showSignin()">I already have an account</button>
+    </div>
+  </div>
+
+  <!-- SIGN IN -->
+  <div class="auth" id="signin">
+    <div class="brand" style="color:#fff;justify-content:center"><span class="brandmark" style="background:#fff"><svg viewBox="0 0 24 24" style="stroke:#16a34a"><path d="M20 4C9 4 4 11 4 20c9 0 16-5 16-16Z"/></svg></span>SoroSense</div>
+    <div>
+      <div class="faceid" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10h18M16 14h.01"/></svg></div>
+      <h1 style="font-size:26px;font-weight:750;margin:0">Connect your wallet</h1>
+      <p style="color:rgba(255,255,255,.6);margin:12px 0 0;font-size:15px">Choose a Stellar wallet to continue</p>
+    </div>
+    <div class="stack" style="width:100%">
+      <button class="pill-btn b-white" onclick="enterApp()"><span class="coin" style="width:26px;height:26px;background:#111;color:#22c55e;font-size:11px">FR</span>Connect Freighter<span class="chip" style="margin-left:auto">Recommended</span></button>
+      <button class="pill-btn b-soft" onclick="enterApp()">Other wallets</button>
+      <p style="color:rgba(255,255,255,.4);font-size:12.5px;margin:6px 0 0">Non-custodial, you keep your keys. Works inside Freighter and other Stellar wallets. Testnet demo.</p>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <section class="view active" id="v-home" aria-label="Home">
+    <div style="margin:6px 2px 20px">
+      <button class="avatar" aria-label="Account" onclick="go('v-account')">A</button>
+    </div>
+
+    <div class="center" style="padding:8px 0 20px">
+      <div class="label" id="homeLabel">Total value</div>
+      <div class="hero num" id="homeHero" style="margin-top:8px">$2,048<span class="c">.62</span></div>
+      <button class="togglepill num" id="bucketToggle" onclick="cycleBucket()" style="margin-top:16px" aria-label="Switch bucket">
+        <span class="cv" aria-hidden="true"></span><span id="bucketName">All buckets</span>
+        <svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>
+      </button>
+    </div>
+
+    <button class="pill-btn b-white" style="margin-bottom:20px" onclick="openAddFunds()">Add funds</button>
+
+    <div class="card pad" style="margin-bottom:14px">
+      <div class="between"><h2 style="margin:0">Buckets</h2><span class="tiny faint">2 currencies</span></div>
+      <div style="margin-top:6px" id="bucketList"></div>
+    </div>
+
+    <div class="card pad">
+      <div class="between" style="margin-bottom:2px"><h2 style="margin:0">Agent activity</h2><button class="sm muted" onclick="go('v-account')" style="font-weight:600">View all</button></div>
+      <div id="homeActivity"></div>
+    </div>
+  </section>
+
+  <!-- EARN -->
+  <section class="view" id="v-earn" aria-label="Earn">
+    <div class="between" style="margin:6px 2px 22px">
+      <button class="avatar" aria-label="Account" onclick="go('v-account')">A</button>
+      <button class="icobtn" aria-label="Help" onclick="toast('Help center (mock)')"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.4 2.3c-.7.3-.9.7-.9 1.5M12 17h.01"/></svg></button>
+    </div>
+
+    <div class="center" style="padding:4px 0 22px">
+      <div class="label">Earn balance</div>
+      <div class="hero num" style="margin-top:8px">$2,048<span class="c">.62</span></div>
+      <div class="tag" style="background:#f1f1ee;color:var(--ink);height:34px;margin-top:16px">
+        <span class="barsicon" aria-hidden="true"><i style="height:6px"></i><i style="height:10px"></i><i style="height:14px"></i></span> 7.10% blended APY
+      </div>
+    </div>
+
+    <div class="row" style="gap:12px;margin-bottom:22px">
+      <button class="pill-btn b-black" onclick="openAddFunds()">Deposit</button>
+      <button class="pill-btn b-white" onclick="openWithdraw()">Withdraw</button>
+    </div>
+
+    <div class="card pad">
+      <div class="between">
+        <div><div style="font-weight:650;font-size:16px">Simulate earnings</div><div class="tiny muted" id="simMeta">Blend USDC, 6.60% APY, Safe</div></div>
+        <div class="stepper" role="group" aria-label="Amount">
+          <button onclick="stepAmt(-500)" aria-label="Decrease">&minus;</button>
+          <span class="v num" id="simAmt">$1,000</span>
+          <button onclick="stepAmt(500)" aria-label="Increase">+</button>
+        </div>
+      </div>
+      <p class="label" style="margin:18px 0 2px">You would earn</p>
+      <div class="hero num" id="simEarn" style="font-size:38px">$66.00</div>
+      <div class="bars" id="simBars" aria-hidden="true"></div>
+      <div class="seg" role="group" aria-label="Period">
+        <button data-p="day" aria-pressed="false">Day</button>
+        <button data-p="week" aria-pressed="false">Week</button>
+        <button data-p="month" aria-pressed="false">Month</button>
+        <button data-p="year" aria-pressed="true">Year</button>
+      </div>
+      <div class="row" style="gap:8px;overflow-x:auto;margin-top:16px;scrollbar-width:none" id="simPools"></div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section class="view" id="v-account" aria-label="Account">
+    <div class="center" style="padding:14px 0 6px">
+      <div style="position:relative;width:92px;margin:0 auto 14px">
+        <div class="avatar" style="width:92px;height:92px;font-size:34px">A</div>
+        <button class="icobtn" style="width:30px;height:30px;position:absolute;right:-2px;bottom:-2px" aria-label="Edit"><svg class="i sm" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      </div>
+      <div class="tag" style="background:#fff;box-shadow:var(--sh-pill);height:34px;margin:0 auto">Conservative member <svg class="i sm" viewBox="0 0 24 24" style="width:14px"><path d="M9 6l6 6-6 6"/></svg></div>
+      <p class="muted sm" style="margin:10px 0 0">Since July 2026</p>
+    </div>
+
+    <div class="card" style="margin-top:22px;overflow:hidden">
+      <div class="pad" style="padding-top:6px;padding-bottom:6px">
+        <button class="listrow" style="width:100%" onclick="toast('Account details (mock)')"><ic><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg></ic><div class="grow"><div style="font-weight:600">Account</div><div class="tiny muted">Your account details</div></div><svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="listrow" style="width:100%" onclick="toast('Security (mock)')"><ic><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></ic><div class="grow"><div style="font-weight:600">Security</div><div class="tiny muted">Connected wallet and approvals</div></div><svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="listrow" style="width:100%" onclick="toast('Notifications (mock)')"><ic><svg class="i" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6M10 20a2 2 0 0 0 4 0"/></svg></ic><div class="grow"><div style="font-weight:600">Notifications</div><div class="tiny muted">Sentinel alerts and updates</div></div><svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+
+    <h2 style="margin:24px 4px 10px">Recent activity</h2>
+    <div class="card pad"><div id="accountActivity"></div></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="pad" style="padding-top:8px;padding-bottom:8px">
+        <div class="listrow"><ic><svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/></svg></ic><div class="grow"><div style="font-weight:600">Auto reinvest rewards</div><div class="tiny muted">Yield rewards flow back into your pool</div></div><button class="switch" role="switch" aria-checked="true" aria-label="Auto reinvest rewards" onclick="toggleSwitch(this)"></button></div>
+        <div class="listrow" style="border-top:1px solid var(--line)"><ic><svg class="i" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 15v-3M12 15V9M16 15v-6"/></svg></ic><div class="grow"><div style="font-weight:600">Analytics</div><div class="tiny muted">Share anonymous usage</div></div><button class="switch" role="switch" aria-checked="false" aria-label="Analytics" onclick="toggleSwitch(this)"></button></div>
+        <button class="listrow" style="width:100%;border-top:1px solid var(--line)" onclick="toast('Legal (mock)')"><ic><svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg></ic><div class="grow"><div style="font-weight:600">Legal</div></div><svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+
+    <button class="pill-btn b-soft" style="margin-top:18px;color:var(--red)" onclick="logout()">Log out</button>
+    <p class="center tiny faint" style="margin:14px 0 0">SoroSense testnet demo. Not financial advice.</p>
+  </section>
+
+  <!-- ADD FUNDS (sub) -->
+  <div class="sub" id="sub-add" aria-label="Add funds">
+    <div class="subhead"><button class="back icobtn" aria-label="Back" onclick="closeSub()"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h1>Add funds</h1></div>
+    <p class="center sm muted" style="margin:-6px 20px 20px">Send from your wallet. We never convert between currencies, so each currency becomes its own bucket.</p>
+    <h2 style="margin-left:4px">Stablecoins</h2>
+    <div class="card" style="margin-bottom:18px"><div class="pad" style="padding-top:4px;padding-bottom:4px" id="depositList"></div></div>
+    <h2 style="margin-left:4px">Real world assets</h2>
+    <div class="card"><div class="pad" style="padding-top:4px;padding-bottom:4px" id="depositRwa"></div></div>
+    <p class="center tiny faint" style="margin:18px 20px 0">Bank deposit and card top up are coming after the hackathon.</p>
+  </div>
+
+  <!-- WITHDRAW (sub) -->
+  <div class="sub" id="sub-wd" aria-label="Withdraw">
+    <div class="subhead"><button class="back icobtn" aria-label="Back" onclick="closeSub()"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h1>Withdraw</h1></div>
+    <div class="card pad" style="margin-top:6px">
+      <p class="label" style="margin:0 0 8px">From bucket</p>
+      <div class="opt" aria-pressed="true"><span class="coin usd">USD</span><div class="grow"><div style="font-weight:650">USD bucket</div><div class="tiny muted">$1,024.30 available</div></div><span class="tick"><svg class="i sm" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>
+      <p class="label" style="margin:14px 0 8px">Amount</p>
+      <div class="field"><span class="muted">$</span><input inputmode="decimal" value="500.00" aria-label="Amount"/></div>
+      <button class="pill-btn b-black" style="margin-top:18px" onclick="closeSub();setTimeout(()=>toast('Withdrawal sent to your wallet'),260)">Withdraw in wallet</button>
+      <p class="center tiny muted" style="margin:12px 0 0">Arrives in your wallet in seconds. No lockup.</p>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav" id="nav" aria-label="Main">
+    <button data-v="v-home" aria-current="page" onclick="go('v-home')"><svg class="i" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>Home</button>
+    <button data-v="v-earn" onclick="go('v-earn')"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="9" width="3" height="8"/><rect x="17" y="6" width="3" height="11"/></svg>Earn</button>
+    <button data-v="v-account" onclick="go('v-account')"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>Account</button>
+  </nav>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"><span class="ck"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span id="toastMsg">Done</span></div>
+
+  <!-- DEPOSIT SHEET -->
+  <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Deposit">
+    <div class="grab"></div>
+    <h1 id="sheetTitle" style="font-size:22px;font-weight:750;margin:0 0 4px">Deposit USDC</h1>
+    <p class="sm muted" id="sheetSub" style="margin:0 0 18px">Goes to your USD bucket. No conversion.</p>
+    <p class="label" style="margin:0 0 8px">Amount</p>
+    <div class="field"><span class="muted" id="sheetSym">$</span><input inputmode="decimal" value="1,000.00" aria-label="Amount"/></div>
+    <button class="pill-btn b-black" style="margin-top:18px" onclick="confirmDeposit()">Confirm in wallet</button>
+    <p class="center tiny muted" style="margin:12px 0 0">The agent allocates to the safest highest yield in this currency.</p>
+  </div>
+</div>
+
+<script>
+  const BUCKETS=[
+    {key:'usd', name:'USD bucket', flag:'usd', code:'USD', bal:'$1,024.30', usd:1024.30, venue:'DeFindex USDC', apy:8.59, risk:'safe', note:'auto compounding'},
+    {key:'eur', name:'EUR bucket', flag:'eur', code:'EUR', bal:'€920.10', usd:1024.32, venue:'Blend EURC', apy:6.20, risk:'safe', note:'USD value tracks EUR/USD'},
+  ];
+  const DEP=[
+    {sym:'USDC', code:'USD', cls:'usd', bucket:'USD bucket', free:true, chains:'Stellar'},
+    {sym:'EURC', code:'EUR', cls:'eur', bucket:'EUR bucket', free:true, chains:'Stellar'},
+    {sym:'CETES', code:'MXN', cls:'mxn', bucket:'MXN bucket', free:false, chains:'Stellar, Solana'},
+  ];
+  const RWA=[{sym:'USDY', cls:'rwa', label:'Ondo T-bill', apy:'4.65%'},{sym:'CETES', cls:'mxn', label:'Etherfuse bond', apy:'5.57%'}];
+  const SIMPOOLS=[{name:'Blend USDC',apy:6.60,risk:'safe'},{name:'DeFindex USDC',apy:8.59,risk:'watch'},{name:'Ondo USDY',apy:4.65,risk:'safe'}];
+  const ACT=[
+    {i:'refresh',t:'Auto reinvested rewards, +$0.31 into USD pool',s:'2h ago'},
+    {i:'up',t:'Moved USD to DeFindex, +1.9% APY',s:'automatic, 3h ago'},
+    {i:'refresh',t:'Auto compounded USD bucket, +$0.24',s:'yesterday'},
+    {i:'plus',t:'Deposited 1,000 USDC to USD bucket',s:'2 days ago'},
+  ];
+  const ICO={check:'<path d="M20 6 9 17l-5-5"/>',up:'<path d="M12 19V5M5 12l7-7 7 7"/>',refresh:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/>',plus:'<path d="M12 5v14M5 12h14"/>'};
+  const tag=r=>r==='safe'?'<span class="tag t-safe"><span class="dot"></span>Safe</span>':r==='watch'?'<span class="tag t-watch"><span class="dot"></span>Watch</span>':'<span class="tag t-block"><span class="dot"></span>Blocked</span>';
+  const acticon=k=>`<span class="coin" style="background:#f1f1ee;color:var(--ink)"><svg class="i sm" viewBox="0 0 24 24" style="width:17px">${ICO[k]}</svg></span>`;
+
+  // buckets on home
+  document.getElementById('bucketList').innerHTML=BUCKETS.map((b,i)=>`
+    <div class="listrow" style="${i?'':'border-top:none'}">
+      <span class="coin ${b.flag}">${b.code}</span>
+      <div class="grow"><div style="font-weight:650">${b.name}</div><div class="tiny muted">${b.venue}, ${b.note}</div></div>
+      <div style="text-align:right"><div class="num" style="font-weight:700">${b.bal}</div><div class="tiny apy">${b.apy.toFixed(2)}% APY</div></div>
+    </div>`).join('');
+
+  function actHTML(list){return list.map((a,i)=>`<div class="listrow" style="${i?'':'border-top:none'}">${acticon(a.i)}<div class="grow"><div class="sm" style="font-weight:600">${a.t}</div><div class="tiny muted">${a.s}</div></div></div>`).join('')}
+  function renderAct(){document.getElementById('homeActivity').innerHTML=actHTML(ACT.slice(0,3));document.getElementById('accountActivity').innerHTML=actHTML(ACT.slice(0,4))}
+  renderAct();
+
+  // home bucket toggle
+  const VIEWS=[{name:'All buckets',label:'Total value',hero:'$2,048<span class="c">.62</span>'},
+    {name:'USD bucket',label:'USD bucket',hero:'$1,024<span class="c">.30</span>'},
+    {name:'EUR bucket',label:'EUR bucket',hero:'€920<span class="c">.10</span>'}];
+  let bi=0;
+  function cycleBucket(){bi=(bi+1)%VIEWS.length;const v=VIEWS[bi];document.getElementById('homeLabel').textContent=v.label;document.getElementById('homeHero').innerHTML=v.hero;document.getElementById('bucketName').textContent=v.name}
+
+  // nav
+  function go(id){
+    closeSub();
+    document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
+    document.querySelectorAll('#nav button').forEach(b=>{b.toggleAttribute('aria-current',b.dataset.v===id);if(b.dataset.v===id)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+    document.querySelector('.view.active').scrollTop=0;
+  }
+
+  // deposit list
+  document.getElementById('depositList').innerHTML=DEP.map((d,i)=>`
+    <button class="listrow" style="width:100%;${i?'':'border-top:none'}" onclick="openDeposit('${d.sym}','${d.cls}','${d.bucket}')">
+      <span class="coin ${d.cls}">${d.code}</span>
+      <div class="grow"><div class="row" style="gap:8px"><span style="font-weight:650">${d.sym}</span>${d.free?'<span class="chip badge-free">Free up to $30k</span>':''}</div><div class="tiny muted" style="margin-top:3px">${d.chains}, to ${d.bucket}</div></div>
+      <svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+    </button>`).join('');
+  document.getElementById('depositRwa').innerHTML=RWA.map((d,i)=>`
+    <button class="listrow" style="width:100%;${i?'':'border-top:none'}" onclick="openDeposit('${d.sym}','${d.cls}','${d.sym} bucket')">
+      <span class="coin ${d.cls}">${d.sym.slice(0,3)}</span>
+      <div class="grow"><div style="font-weight:650">${d.sym}</div><div class="tiny muted">${d.label}</div></div>
+      <div style="text-align:right;margin-right:10px"><div class="apy">${d.apy}</div><div class="tiny muted">APY</div></div>
+      <svg class="i sm faint" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+    </button>`).join('');
+
+  // subs
+  function openAddFunds(){document.getElementById('sub-add').classList.add('show')}
+  function openWithdraw(){document.getElementById('sub-wd').classList.add('show')}
+  function closeSub(){document.querySelectorAll('.sub').forEach(s=>s.classList.remove('show'))}
+
+  // deposit sheet
+  function openDeposit(sym,cls,bucket){
+    document.getElementById('sheetTitle').textContent='Deposit '+sym;
+    document.getElementById('sheetSub').textContent='Goes to your '+bucket+'. No conversion.';
+    document.getElementById('sheetSym').textContent = cls==='eur'?'€':(cls==='mxn'?'$':'$');
+    document.getElementById('scrim').classList.add('show');document.getElementById('sheet').classList.add('show');
+  }
+  function closeSheet(){document.getElementById('scrim').classList.remove('show');document.getElementById('sheet').classList.remove('show')}
+  function confirmDeposit(){closeSheet();closeSub();setTimeout(()=>toast('Deposited. Agent is allocating.'),260)}
+
+  // simulator
+  let amt=1000,period='year',pool=SIMPOOLS[0];
+  const PF={day:1/365,week:1/52,month:1/12,year:1},NB={day:12,week:14,month:16,year:20};
+  function renderSim(){
+    document.getElementById('simAmt').textContent='$'+amt.toLocaleString('en-US');
+    document.getElementById('simMeta').textContent=pool.name+', '+pool.apy.toFixed(2)+'% APY, '+(pool.risk==='safe'?'Safe':'Watch');
+    const total=amt*(pool.apy/100)*PF[period];
+    document.getElementById('simEarn').textContent='$'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const n=NB[period],out=[];for(let i=1;i<=n;i++){out.push(`<div class="bar" style="height:${8+Math.pow(i/n,1.8)*110}px"></div>`)}
+    document.getElementById('simBars').innerHTML=out.join('');
+  }
+  function stepAmt(d){amt=Math.max(100,amt+d);renderSim()}
+  document.querySelectorAll('#v-earn .seg button').forEach(b=>b.onclick=function(){document.querySelectorAll('#v-earn .seg button').forEach(x=>x.setAttribute('aria-pressed','false'));this.setAttribute('aria-pressed','true');period=this.dataset.p;renderSim()});
+  document.getElementById('simPools').innerHTML=SIMPOOLS.map((p,i)=>`<button class="tag" data-i="${i}" aria-pressed="${i===0}" style="height:38px;border:1.5px solid ${i===0?'var(--green)':'var(--line2)'};background:${i===0?'var(--green-soft)':'#fff'};flex:0 0 auto;white-space:nowrap">${p.name} ${p.apy.toFixed(2)}%</button>`).join('');
+  document.querySelectorAll('#simPools .tag').forEach(c=>c.onclick=function(){
+    document.querySelectorAll('#simPools .tag').forEach(x=>{x.setAttribute('aria-pressed','false');x.style.border='1.5px solid var(--line2)';x.style.background='#fff'});
+    this.setAttribute('aria-pressed','true');this.style.border='1.5px solid var(--green)';this.style.background='var(--green-soft)';
+    pool=SIMPOOLS[+this.dataset.i];renderSim();
+  });
+  renderSim();
+
+  // account
+  function toggleSwitch(el){el.setAttribute('aria-checked',el.getAttribute('aria-checked')==='true'?'false':'true')}
+  function logout(){closeSub();document.getElementById('onboarding').classList.remove('hide');document.getElementById('signin').classList.remove('show','hide');go('v-home')}
+
+  // auth
+  function showSignin(){document.getElementById('signin').classList.add('show')}
+  function enterApp(){document.getElementById('onboarding').classList.add('hide');document.getElementById('signin').classList.add('hide')}
+
+  // toast
+  let tt;function toast(m){document.getElementById('toastMsg').textContent=m;const t=document.getElementById('toast');t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200)}
+</script>
+</body>
+</html>
