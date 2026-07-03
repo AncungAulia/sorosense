@@ -1,0 +1,22 @@
+{
+  "name": "@sorosense/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "mastra dev"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.49.0",
+    "@sorosense/vault-client": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
