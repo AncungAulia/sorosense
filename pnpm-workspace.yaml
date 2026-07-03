@@ -1,0 +1,6 @@
+packages:
+  - backend
+  - frontend
+  - landing-page
+  - packages/*
+# smart-contract is a Cargo (Rust) project, invoked via scripts — not a pnpm workspace.

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+smart-contract/target/
+pnpm-lock.yaml
+docs/

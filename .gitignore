@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Rust / Soroban
+smart-contract/target/
+**/*.wasm
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# Logs & OS
+*.log
+.DS_Store
+.turbo/
