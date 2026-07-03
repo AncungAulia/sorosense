@@ -27,3 +27,6 @@ test-results/
 *.log
 .DS_Store
 .turbo/
+
+# Generated contract bindings (regenerate via smart-contract/scripts/bindings.ts)
+packages/vault-client/bindings/
