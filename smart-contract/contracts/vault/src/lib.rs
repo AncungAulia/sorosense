@@ -1,0 +1,302 @@
+#![no_std]
+//! SoroSense vault — non-custodial Soroban custody + guard layer.
+//!
+//! Implements the callable surface in `packages/vault-client/src/interface.ts`:
+//! per-currency deposit/withdraw with share accounting, one-time on-chain consent,
+//! keeper/approved allocation into Blend pools, and protective guards (pause,
+//! per-pool cap, keeper freeze). Smart logic (risk scoring, rebalance decisions)
+//! lives off-chain in the backend; this contract enforces that only consented,
+//! guarded, correctly-authorized movements execute (KTD2).
+
+mod blend;
+mod events;
+mod storage;
+mod types;
+
+// Feature-bearing modules are pulled in as work lands (U3–U5).
+mod allocate;
+mod guard;
+mod shares;
+
+#[cfg(test)]
+mod test;
+
+use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env};
+
+use types::{Config, Currency, Error, ExitProposal, PoolStatus};
+
+#[contract]
+pub struct Vault;
+
+#[contractimpl]
+impl Vault {
+    /// One-time setup: admin (config authority), keeper (Sentinel/agent role), and
+    /// the vault config (per-pool cap, min first deposit, virtual-offset constant).
+    pub fn init(env: Env, admin: Address, keeper: Address, config: Config) {
+        if storage::has_admin(&env) {
+            panic_with_error!(&env, Error::AlreadyInitialized);
+        }
+        admin.require_auth();
+        storage::set_admin(&env, &admin);
+        storage::set_keeper(&env, &keeper);
+        storage::set_config(&env, &config);
+        storage::extend_instance(&env);
+    }
+
+    // ── Depositor-signed writes ───────────────────────────────────────────
+
+    /// Record the one-time safety-mandate consent (KTD3). Idempotent; no tier arg.
+    pub fn set_policy_consent(env: Env, depositor: Address) {
+        depositor.require_auth();
+        storage::set_consent(&env, &depositor);
+        storage::extend_instance(&env);
+    }
+
+    /// Deposit `amount` of the currency's stablecoin into that bucket. Requires
+    /// prior consent (KTD-SC2), so every principal in a pooled bucket is consented.
+    pub fn deposit(env: Env, depositor: Address, currency: Currency, amount: i128) {
+        depositor.require_auth();
+        guard::require_not_paused(&env);
+        if !storage::has_consent(&env, &depositor) {
+            panic_with_error!(&env, Error::NoConsent);
+        }
+        if amount <= 0 {
+            panic_with_error!(&env, Error::NonPositiveAmount);
+        }
+        let config = storage::get_config(&env);
+        let total_shares = storage::get_total_shares(&env, currency);
+        if total_shares == 0 && amount < config.min_first_deposit {
+            panic_with_error!(&env, Error::BelowMinFirstDeposit);
+        }
+        let token_addr = allocate::require_token(&env, currency);
+        token::Client::new(&env, &token_addr).transfer(
+            &depositor,
+            &env.current_contract_address(),
+            &amount,
+        );
+        let minted = shares::mint_shares(&env, currency, amount, config.virtual_offset);
+        let owned = storage::get_shares(&env, &depositor, currency);
+        storage::set_shares(&env, &depositor, currency, owned + minted);
+        storage::set_total_shares(&env, currency, total_shares + minted);
+        storage::set_total_assets(
+            &env,
+            currency,
+            storage::get_total_assets(&env, currency) + amount,
+        );
+        events::Deposit {
+            depositor,
+            currency,
+            amount,
+            shares: minted,
+        }
+        .publish(&env);
+    }
+
+    /// Burn `shares` from the depositor's bucket and return the stablecoin.
+    /// Assumes the redeemed value is liquid in the vault (backend deallocates first).
+    pub fn withdraw(env: Env, depositor: Address, currency: Currency, shares: i128) {
+        depositor.require_auth();
+        guard::require_not_paused(&env);
+        if shares <= 0 {
+            panic_with_error!(&env, Error::NonPositiveAmount);
+        }
+        let owned = storage::get_shares(&env, &depositor, currency);
+        if shares > owned {
+            panic_with_error!(&env, Error::InsufficientShares);
+        }
+        let config = storage::get_config(&env);
+        let assets = shares::redeem_assets(&env, currency, shares, config.virtual_offset);
+        storage::set_shares(&env, &depositor, currency, owned - shares);
+        storage::set_total_shares(
+            &env,
+            currency,
+            storage::get_total_shares(&env, currency) - shares,
+        );
+        storage::set_total_assets(
+            &env,
+            currency,
+            storage::get_total_assets(&env, currency) - assets,
+        );
+        let token_addr = allocate::require_token(&env, currency);
+        token::Client::new(&env, &token_addr).transfer(
+            &env.current_contract_address(),
+            &depositor,
+            &assets,
+        );
+        events::Withdraw {
+            depositor,
+            currency,
+            amount: assets,
+            shares,
+        }
+        .publish(&env);
+    }
+
+    /// Approve a keeper-proposed safe exit after a freeze, moving the bucket's
+    /// funds to the safe pool. Bound to a stakeholder: the caller must hold shares
+    /// in the exiting bucket (KTD-SC5).
+    pub fn approve_exit(env: Env, depositor: Address, exit_id: u64) {
+        depositor.require_auth();
+        let (currency, proposal) = match allocate::find_exit(&env, exit_id) {
+            Some(x) => x,
+            None => panic_with_error!(&env, Error::NoPendingExit),
+        };
+        if storage::get_shares(&env, &depositor, currency) <= 0 {
+            panic_with_error!(&env, Error::NotAStakeholder);
+        }
+        allocate::execute_exit(&env, currency, &proposal);
+        storage::clear_pending_exit(&env, currency);
+        events::ExitApproved {
+            currency,
+            id: exit_id,
+        }
+        .publish(&env);
+    }
+
+    // ── Keeper / agent writes (run under consent; no depositor signature) ──
+
+    /// Supply pooled bucket funds into a pool. Keeper-only, consent-gated (bucket
+    /// has consented deposits), frozen-guarded, cap-bounded.
+    pub fn allocate(env: Env, pool: Address, currency: Currency, amount: i128) {
+        guard::require_keeper(&env);
+        guard::require_not_paused(&env);
+        if amount <= 0 {
+            panic_with_error!(&env, Error::NonPositiveAmount);
+        }
+        // Consent invariant: a bucket only holds consented deposits, so an empty
+        // bucket has nothing consented to allocate (KTD-SC2, defense in depth).
+        if storage::get_total_shares(&env, currency) == 0 {
+            panic_with_error!(&env, Error::EmptyBucket);
+        }
+        if storage::is_frozen(&env, &pool) {
+            panic_with_error!(&env, Error::PoolFrozen);
+        }
+        let config = storage::get_config(&env);
+        if storage::get_pool_holdings(&env, &pool) + amount > config.per_pool_cap {
+            panic_with_error!(&env, Error::CapExceeded);
+        }
+        allocate::supply_to_pool(&env, &pool, currency, amount);
+        events::Allocated {
+            currency,
+            pool,
+            amount,
+        }
+        .publish(&env);
+    }
+
+    /// Withdraw pooled funds from a pool back to the vault. Keeper-only.
+    pub fn deallocate(env: Env, pool: Address, currency: Currency, amount: i128) {
+        guard::require_keeper(&env);
+        if amount <= 0 {
+            panic_with_error!(&env, Error::NonPositiveAmount);
+        }
+        if amount > storage::get_pool_holdings(&env, &pool) {
+            panic_with_error!(&env, Error::InsufficientHoldings);
+        }
+        allocate::withdraw_from_pool(&env, &pool, amount);
+        events::Deallocated {
+            currency,
+            pool,
+            amount,
+        }
+        .publish(&env);
+    }
+
+    /// Protective freeze — blocks flows into `pool` without moving funds. Keeper-only.
+    pub fn freeze(env: Env, pool: Address) {
+        guard::require_keeper(&env);
+        storage::set_frozen(&env, &pool, true);
+        events::Frozen { pool }.publish(&env);
+    }
+
+    /// Lift a freeze once a pool is healthy again. Keeper-only.
+    pub fn unfreeze(env: Env, pool: Address) {
+        guard::require_keeper(&env);
+        storage::set_frozen(&env, &pool, false);
+        events::Unfrozen { pool }.publish(&env);
+    }
+
+    /// Record a keeper-proposed safe exit for a frozen bucket; a depositor approves
+    /// it later via `approve_exit`. Keeper-only.
+    pub fn propose_exit(env: Env, currency: Currency, from_pool: Address, to_pool: Address) {
+        guard::require_keeper(&env);
+        let id = storage::next_exit_id(&env);
+        let proposal = ExitProposal {
+            id,
+            currency,
+            from_pool,
+            to_pool,
+        };
+        storage::set_pending_exit(&env, currency, &proposal);
+        events::ExitProposed { currency, id }.publish(&env);
+    }
+
+    /// Emergency global pause of state-changing entrypoints. Admin-only.
+    pub fn pause(env: Env) {
+        Self::require_admin(&env);
+        storage::set_paused(&env, true);
+    }
+
+    /// Lift the global pause. Admin-only.
+    pub fn unpause(env: Env) {
+        Self::require_admin(&env);
+        storage::set_paused(&env, false);
+    }
+
+    /// Register the SEP-41 stablecoin SAC backing a currency bucket. Admin-only.
+    pub fn set_token(env: Env, currency: Currency, token: Address) {
+        Self::require_admin(&env);
+        storage::set_token(&env, currency, &token);
+    }
+
+    /// Point a currency bucket at a target/configured pool (the U21 risky-pool
+    /// seam — lets the demo re-target a bucket without re-deploying). Admin-only.
+    pub fn set_configured_pool(env: Env, currency: Currency, pool: Address) {
+        Self::require_admin(&env);
+        storage::set_configured_pool(&env, currency, &pool);
+    }
+
+    // ── Reads (match interface.ts) ────────────────────────────────────────
+    /// Shares the user holds in a currency bucket.
+    pub fn balance_of(env: Env, user: Address, currency: Currency) -> i128 {
+        storage::get_shares(&env, &user, currency)
+    }
+
+    /// Whether a pool is accepting flows or frozen by the keeper.
+    pub fn pool_status(env: Env, pool: Address) -> PoolStatus {
+        if storage::is_frozen(&env, &pool) {
+            PoolStatus::Frozen
+        } else {
+            PoolStatus::Active
+        }
+    }
+
+    /// Whether the depositor has recorded the one-time safety-mandate consent.
+    pub fn has_consent(env: Env, depositor: Address) -> bool {
+        storage::has_consent(&env, &depositor)
+    }
+
+    /// The pool currently holding a currency bucket's funds, if allocated.
+    pub fn active_pool(env: Env, currency: Currency) -> Option<Address> {
+        storage::get_active_pool(&env, currency)
+    }
+
+    /// The configured/target pool for a bucket (the demo re-target seam).
+    pub fn configured_pool(env: Env, currency: Currency) -> Option<Address> {
+        storage::get_configured_pool(&env, currency)
+    }
+
+    /// A pending safe-exit proposal for a currency bucket, if any.
+    pub fn pending_exit(env: Env, currency: Currency) -> Option<ExitProposal> {
+        storage::get_pending_exit(&env, currency)
+    }
+}
+
+// Internal helpers (not contract entrypoints).
+impl Vault {
+    /// Gate a call on the configured admin's authorization.
+    fn require_admin(env: &Env) {
+        storage::get_admin(env).require_auth();
+        storage::extend_instance(env);
+    }
+}

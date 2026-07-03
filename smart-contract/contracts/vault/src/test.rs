@@ -1,0 +1,465 @@
+//! Vault test suite (U6) — deterministic, offline, against the `mock_pool`
+//! Blend test-double. Modules: shares, consent, allocate, guard, integration.
+
+#![cfg(test)]
+
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{token, Address, Env};
+
+use crate::types::{Config, Currency, PoolStatus};
+use crate::{Vault, VaultClient};
+
+const CAP: i128 = 1_000_000_000;
+const MIN_FIRST: i128 = 1_000;
+const VIRT: i128 = 1_000;
+
+struct Ctx<'a> {
+    env: Env,
+    vault: VaultClient<'a>,
+    usd_admin: token::StellarAssetClient<'a>,
+    usd_token: token::Client<'a>,
+    pool_a: Address,
+    pool_b: Address,
+}
+
+fn setup<'a>() -> Ctx<'a> {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let keeper = Address::generate(&env);
+    let vault_id = env.register(Vault, ());
+    let vault = VaultClient::new(&env, &vault_id);
+    vault.init(
+        &admin,
+        &keeper,
+        &Config {
+            per_pool_cap: CAP,
+            min_first_deposit: MIN_FIRST,
+            virtual_offset: VIRT,
+        },
+    );
+
+    // USD stablecoin SAC + two Blend test-double pools holding it.
+    let issuer = Address::generate(&env);
+    let usd = env.register_stellar_asset_contract_v2(issuer).address();
+    let usd_admin = token::StellarAssetClient::new(&env, &usd);
+    let usd_token = token::Client::new(&env, &usd);
+    vault.set_token(&Currency::Usd, &usd);
+
+    let pool_a = env.register(mock_pool::MockPool, ());
+    let pool_b = env.register(mock_pool::MockPool, ());
+    mock_pool::MockPoolClient::new(&env, &pool_a).init(&usd);
+    mock_pool::MockPoolClient::new(&env, &pool_b).init(&usd);
+
+    Ctx {
+        env,
+        vault,
+        usd_admin,
+        usd_token,
+        pool_a,
+        pool_b,
+    }
+}
+
+/// Create a funded, consented depositor holding `amount` USD.
+fn funded_depositor(ctx: &Ctx, amount: i128) -> Address {
+    let d = Address::generate(&ctx.env);
+    ctx.usd_admin.mint(&d, &amount);
+    ctx.vault.set_policy_consent(&d);
+    d
+}
+
+// ── shares ────────────────────────────────────────────────────────────────
+
+mod shares {
+    use super::*;
+
+    #[test]
+    fn first_deposit_is_one_to_one() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+        assert_eq!(ctx.usd_token.balance(&d), 0);
+    }
+
+    #[test]
+    fn second_depositor_gets_proportional_shares() {
+        let ctx = setup();
+        let a = funded_depositor(&ctx, 100_000);
+        let b = funded_depositor(&ctx, 50_000);
+        ctx.vault.deposit(&a, &Currency::Usd, &100_000);
+        ctx.vault.deposit(&b, &Currency::Usd, &50_000);
+        // No yield modeled → shares track deposits proportionally.
+        assert_eq!(ctx.vault.balance_of(&a, &Currency::Usd), 100_000);
+        assert_eq!(ctx.vault.balance_of(&b, &Currency::Usd), 50_000);
+    }
+
+    #[test]
+    fn withdraw_burns_and_returns() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.withdraw(&d, &Currency::Usd, &40_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 60_000);
+        assert_eq!(ctx.usd_token.balance(&d), 40_000);
+    }
+
+    #[test]
+    fn withdraw_more_than_owned_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert!(ctx
+            .vault
+            .try_withdraw(&d, &Currency::Usd, &100_001)
+            .is_err());
+    }
+
+    #[test]
+    fn non_positive_deposit_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        assert!(ctx.vault.try_deposit(&d, &Currency::Usd, &0).is_err());
+    }
+
+    /// Covers the inflation-attack Acceptance Example: a direct token donation
+    /// before the victim's deposit must not let the attacker steal share value.
+    #[test]
+    fn inflation_attack_yields_nothing() {
+        let ctx = setup();
+        // Attacker seeds the bucket with the minimum first deposit.
+        let attacker = funded_depositor(&ctx, MIN_FIRST);
+        ctx.vault.deposit(&attacker, &Currency::Usd, &MIN_FIRST);
+
+        // Attacker donates a large amount directly to the vault (bypassing deposit).
+        ctx.usd_admin.mint(&attacker, &1_000_000);
+        ctx.usd_token
+            .transfer(&attacker, &ctx.vault.address, &1_000_000);
+
+        // Victim deposits; internal accounting ignores the donation.
+        let victim = funded_depositor(&ctx, 1_000_000);
+        ctx.vault.deposit(&victim, &Currency::Usd, &1_000_000);
+
+        let victim_shares = ctx.vault.balance_of(&victim, &Currency::Usd);
+        ctx.vault
+            .withdraw(&victim, &Currency::Usd, &victim_shares);
+        // Victim recovers ~their full deposit; attacker gained nothing.
+        assert_eq!(ctx.usd_token.balance(&victim), 1_000_000);
+    }
+
+    #[test]
+    fn currencies_are_isolated() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Eur), 0);
+    }
+}
+
+// ── consent ─────────────────────────────────────────────────────────────
+
+mod consent {
+    use super::*;
+
+    #[test]
+    fn deposit_without_consent_panics() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        ctx.usd_admin.mint(&d, &100_000);
+        // No set_policy_consent.
+        assert!(ctx
+            .vault
+            .try_deposit(&d, &Currency::Usd, &100_000)
+            .is_err());
+    }
+
+    #[test]
+    fn consent_is_idempotent_and_readable() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        assert!(!ctx.vault.has_consent(&d));
+        ctx.vault.set_policy_consent(&d);
+        ctx.vault.set_policy_consent(&d); // re-sign is a no-op
+        assert!(ctx.vault.has_consent(&d));
+    }
+
+    #[test]
+    fn below_min_first_deposit_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        assert!(ctx
+            .vault
+            .try_deposit(&d, &Currency::Usd, &(MIN_FIRST - 1))
+            .is_err());
+    }
+}
+
+// ── allocate ─────────────────────────────────────────────────────────────
+
+mod allocate {
+    use super::*;
+
+    fn deposited(ctx: &Ctx, amount: i128) -> Address {
+        let d = funded_depositor(ctx, amount);
+        ctx.vault.deposit(&d, &Currency::Usd, &amount);
+        d
+    }
+
+    #[test]
+    fn allocate_supplies_and_sets_active_pool() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        assert_eq!(
+            ctx.vault.active_pool(&Currency::Usd),
+            Some(ctx.pool_a.clone())
+        );
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            100_000
+        );
+        assert_eq!(ctx.usd_token.balance(&ctx.pool_a), 100_000);
+    }
+
+    #[test]
+    fn deallocate_returns_funds() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        ctx.vault.deallocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            0
+        );
+        assert_eq!(ctx.usd_token.balance(&ctx.vault.address), 100_000);
+    }
+
+    #[test]
+    fn allocate_into_frozen_pool_panics() {
+        let ctx = setup();
+        deposited(&ctx, 100_000);
+        ctx.vault.freeze(&ctx.pool_a);
+        assert!(ctx
+            .vault
+            .try_allocate(&ctx.pool_a, &Currency::Usd, &100_000)
+            .is_err());
+    }
+
+    #[test]
+    fn allocate_empty_bucket_panics() {
+        let ctx = setup();
+        // Never deposited into USD.
+        assert!(ctx
+            .vault
+            .try_allocate(&ctx.pool_a, &Currency::Usd, &100_000)
+            .is_err());
+    }
+
+    #[test]
+    fn allocate_beyond_cap_panics() {
+        let ctx = setup();
+        deposited(&ctx, CAP + 10);
+        assert!(ctx
+            .vault
+            .try_allocate(&ctx.pool_a, &Currency::Usd, &(CAP + 10))
+            .is_err());
+    }
+
+    #[test]
+    fn allocate_requires_keeper_auth() {
+        // Without mocked auth the keeper-gated call fails.
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let keeper = Address::generate(&env);
+        let vault_id = env.register(Vault, ());
+        let vault = VaultClient::new(&env, &vault_id);
+        env.mock_all_auths();
+        vault.init(
+            &admin,
+            &keeper,
+            &Config {
+                per_pool_cap: CAP,
+                min_first_deposit: MIN_FIRST,
+                virtual_offset: VIRT,
+            },
+        );
+        let issuer = Address::generate(&env);
+        let usd = env.register_stellar_asset_contract_v2(issuer).address();
+        vault.set_token(&Currency::Usd, &usd);
+        let d = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &usd).mint(&d, &100_000);
+        vault.set_policy_consent(&d);
+        vault.deposit(&d, &Currency::Usd, &100_000);
+        let pool = env.register(mock_pool::MockPool, ());
+        mock_pool::MockPoolClient::new(&env, &pool).init(&usd);
+
+        // Drop all mocked auth — the keeper gate must now reject.
+        env.set_auths(&[]);
+        assert!(vault.try_allocate(&pool, &Currency::Usd, &100_000).is_err());
+    }
+
+    #[test]
+    fn multi_depositor_keeps_share_ratio() {
+        let ctx = setup();
+        let a = funded_depositor(&ctx, 100_000);
+        let b = funded_depositor(&ctx, 300_000);
+        ctx.vault.deposit(&a, &Currency::Usd, &100_000);
+        ctx.vault.deposit(&b, &Currency::Usd, &300_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &400_000);
+        // Ratio preserved through the allocation.
+        assert_eq!(ctx.vault.balance_of(&a, &Currency::Usd), 100_000);
+        assert_eq!(ctx.vault.balance_of(&b, &Currency::Usd), 300_000);
+    }
+}
+
+// ── guard ────────────────────────────────────────────────────────────────
+
+mod guard {
+    use super::*;
+
+    #[test]
+    fn freeze_flips_status_and_moves_no_funds() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+
+        let pool_bal_before = ctx.usd_token.balance(&ctx.pool_a);
+        let vault_bal_before = ctx.usd_token.balance(&ctx.vault.address);
+        let holdings_before =
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings();
+
+        ctx.vault.freeze(&ctx.pool_a);
+
+        assert_eq!(ctx.vault.pool_status(&ctx.pool_a), PoolStatus::Frozen);
+        // Freeze is protective only — every balance is byte-identical (AE2, R10).
+        assert_eq!(ctx.usd_token.balance(&ctx.pool_a), pool_bal_before);
+        assert_eq!(ctx.usd_token.balance(&ctx.vault.address), vault_bal_before);
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            holdings_before
+        );
+    }
+
+    #[test]
+    fn unfreeze_restores_flows() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 200_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &200_000);
+        ctx.vault.freeze(&ctx.pool_a);
+        ctx.vault.unfreeze(&ctx.pool_a);
+        assert_eq!(ctx.vault.pool_status(&ctx.pool_a), PoolStatus::Active);
+        // Now allocation succeeds again.
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        assert_eq!(
+            ctx.vault.active_pool(&Currency::Usd),
+            Some(ctx.pool_a.clone())
+        );
+    }
+
+    #[test]
+    fn pause_blocks_and_unpause_restores() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.pause();
+        assert!(ctx
+            .vault
+            .try_deposit(&d, &Currency::Usd, &100_000)
+            .is_err());
+        ctx.vault.unpause();
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+    }
+
+    #[test]
+    fn propose_exit_ids_are_unique() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let first = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let second = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        assert_ne!(first, second);
+    }
+}
+
+// ── integration: the money-shot ───────────────────────────────────────────
+
+mod integration {
+    use super::*;
+
+    /// Covers AE2: consent → deposit → allocate → keeper-freeze (no fund move) →
+    /// propose exit → depositor approves → funds move to the safe pool →
+    /// deallocate → withdraw. End-to-end against the Blend test-double.
+    #[test]
+    fn money_shot_end_to_end() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+
+        // Deposit + auto-allocate to pool A.
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        assert_eq!(
+            ctx.vault.active_pool(&Currency::Usd),
+            Some(ctx.pool_a.clone())
+        );
+
+        // Sentinel freezes pool A — funds must not move.
+        let holdings_before =
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings();
+        ctx.vault.freeze(&ctx.pool_a);
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            holdings_before
+        );
+
+        // Keeper proposes an exit to safe pool B; depositor approves.
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let exit_id = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        ctx.vault.approve_exit(&d, &exit_id);
+
+        // Funds moved A → B; proposal cleared; active pool is now B.
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            0
+        );
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_b).holdings(),
+            100_000
+        );
+        assert!(ctx.vault.pending_exit(&Currency::Usd).is_none());
+        assert_eq!(
+            ctx.vault.active_pool(&Currency::Usd),
+            Some(ctx.pool_b.clone())
+        );
+
+        // Deallocate from B and withdraw everything.
+        ctx.vault.deallocate(&ctx.pool_b, &Currency::Usd, &100_000);
+        let shares = ctx.vault.balance_of(&d, &Currency::Usd);
+        ctx.vault.withdraw(&d, &Currency::Usd, &shares);
+        assert_eq!(ctx.usd_token.balance(&d), 100_000);
+    }
+
+    #[test]
+    fn approve_exit_by_non_stakeholder_panics() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
+        ctx.vault.freeze(&ctx.pool_a);
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool_a, &ctx.pool_b);
+        let exit_id = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+
+        // An address holding no USD shares cannot approve the bucket's exit.
+        let stranger = Address::generate(&ctx.env);
+        assert!(ctx.vault.try_approve_exit(&stranger, &exit_id).is_err());
+    }
+}
