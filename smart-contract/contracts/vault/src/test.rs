@@ -4,7 +4,7 @@
 #![cfg(test)]
 
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, BytesN, Env};
 
 use crate::types::{Config, Currency, PoolStatus};
 use crate::{Vault, VaultClient};
@@ -462,6 +462,25 @@ mod guard {
         env.set_auths(&[]);
         assert!(vault.try_pause().is_err());
         assert!(vault.try_set_pool_allowed(&pool, &true).is_err());
+    }
+
+    #[test]
+    fn upgrade_requires_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let keeper = Address::generate(&env);
+        let config = Config {
+            per_pool_cap: CAP,
+            min_first_deposit: MIN_FIRST,
+            virtual_offset: VIRT,
+        };
+        let vault_id = env.register(Vault, (admin.clone(), keeper.clone(), config));
+        let vault = VaultClient::new(&env, &vault_id);
+        let dummy_hash = BytesN::from_array(&env, &[0u8; 32]);
+        // Without admin auth the upgrade must be rejected before touching wasm.
+        env.set_auths(&[]);
+        assert!(vault.try_upgrade(&dummy_hash).is_err());
     }
 
     #[test]

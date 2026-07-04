@@ -19,9 +19,14 @@ mod types;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, Env};
+use soroban_sdk::{
+    contract, contractimpl, contractmeta, panic_with_error, token, Address, BytesN, Env,
+};
 
 use types::{Config, Currency, Error, ExitProposal, PoolStatus};
+
+// Binary version metadata (bumped on each upgraded build).
+contractmeta!(key = "binver", val = "1.0.0");
 
 #[contract]
 pub struct Vault;
@@ -232,6 +237,16 @@ impl Vault {
     pub fn unpause(env: Env) {
         Self::require_admin(&env);
         storage::set_paused(&env, false);
+    }
+
+    /// Replace the contract's WASM with a new build (admin-governed upgrade).
+    /// Storage is preserved — only code changes — so bug fixes and the deferred
+    /// features (real-Blend ABI, mark-to-market NAV) can ship without migrating
+    /// funds. Admin-only; a compromised admin could swap logic, so production
+    /// should move this behind a timelock/multisig (deferred, see plan).
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        Self::require_admin(&env);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
     /// Register the SEP-41 stablecoin SAC backing a currency bucket. Admin-only.

@@ -62,11 +62,12 @@ npx tsx smart-contract/scripts/bindings.ts
 
 | | |
 | --- | --- |
-| Contract ID | `CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7` |
+| Contract ID | `CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y` |
 | Network | testnet (`Test SDF Network ; September 2015`) |
-| Explorer | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7) |
+| Upgradable | yes — admin-governed `upgrade(new_wasm_hash)` (storage preserved) |
+| Explorer | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y) |
 
-Deployed with `__constructor(admin, keeper, config)` and smoke-verified live (consent write/read). Full record in [`deployments/testnet.json`](deployments/testnet.json). Token + Blend-pool wiring happens at U20 integration. (Testnet resets ~quarterly — redeploy via the script below.)
+Deployed with `__constructor(admin, keeper, config)` and verified live: a consent write/read smoke test **and** an on-chain `upgrade` tx both succeeded. Full record in [`deployments/testnet.json`](deployments/testnet.json). Token + Blend-pool wiring happens at U20 integration. The upgrade key should move behind a timelock/multisig before mainnet (deferred). (Testnet resets ~quarterly — redeploy via the script below.)
 
 ## Deploy to testnet
 
