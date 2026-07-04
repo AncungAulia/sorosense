@@ -58,6 +58,16 @@ npx tsx smart-contract/scripts/bindings.ts
 # → packages/vault-client/bindings/  (adapted to the VaultClient interface at origin U20)
 ```
 
+## Live testnet deployment
+
+| | |
+| --- | --- |
+| Contract ID | `CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7` |
+| Network | testnet (`Test SDF Network ; September 2015`) |
+| Explorer | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7) |
+
+Deployed with `__constructor(admin, keeper, config)` and smoke-verified live (consent write/read). Full record in [`deployments/testnet.json`](deployments/testnet.json). Token + Blend-pool wiring happens at U20 integration. (Testnet resets ~quarterly — redeploy via the script below.)
+
 ## Deploy to testnet
 
 Fill the deploy seam vars in `.env` (see `.env.example`): `ADMIN_SECRET`,

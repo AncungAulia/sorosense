@@ -1,0 +1,16 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "vaultContractId": "CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7",
+  "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
+  "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
+  "config": {
+    "perPoolCap": "1000000000000",
+    "minFirstDeposit": "1000000",
+    "virtualOffset": "1000"
+  },
+  "explorer": "https://stellar.expert/explorer/testnet/contract/CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7",
+  "deployedAt": "2026-07-04",
+  "notes": "Bare vault deployed + verified (live has_consent write/read smoke test passed). Per-currency tokens + Blend pools (set_token/set_pool_allowed/set_configured_pool) are wired at origin U20 integration with real USDC/EURC SACs and Blend testnet pools. Testnet resets ~quarterly — redeploy via scripts/deploy.ts."
+}
