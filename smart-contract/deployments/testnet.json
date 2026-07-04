@@ -1,0 +1,21 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "vaultContractId": "CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
+  "upgradable": true,
+  "binver": "1.0.0",
+  "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
+  "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
+  "config": {
+    "perPoolCap": "1000000000000",
+    "minFirstDeposit": "1000000",
+    "virtualOffset": "1000"
+  },
+  "explorer": "https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
+  "deployedAt": "2026-07-04",
+  "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + Blend pools (set_token/set_pool_allowed/set_configured_pool) are wired at origin U20 with real USDC/EURC SACs + Blend testnet pools. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
+  "previousDeployments": [
+    { "vaultContractId": "CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7", "note": "non-upgradable v0, superseded" }
+  ]
+}
