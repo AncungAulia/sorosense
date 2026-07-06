@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* ============================================================
+   SoroSense design tokens
+   Neutral base (white / grey / ink) following Plasma; a single
+   signature accent — Blue #3 — for CTAs, accents, and in-app
+   graphs. Red is reserved strictly for the danger register
+   (YieldBlox story) and is only ever an accent, never a section
+   background. The hero uses a photo; every other section is
+   white or grey.
+   ============================================================ */
+@theme {
+  /* Neutrals — surfaces + text */
+  --color-ink: #0b0b0c; /* primary text on light */
+  --color-muted: #63636b; /* secondary text on light */
+  --color-paper: #efefed; /* grey background */
+  --color-cloud: #ffffff; /* white background / cards */
+  --color-mist: #e6e6e2; /* soft grey card */
+  --color-line: #dcdcd7; /* hairline borders */
+
+  /* Brand blue — signature accent (CTA + in-app graph).
+     Named "brand" (not "blue") to avoid colliding with Tailwind's
+     built-in blue scale, which suppresses a custom bare `blue`. */
+  --color-brand: #9db8f5; /* fill */
+  --color-brand-strong: #8aa9f2; /* hover (slightly deeper) */
+  --color-brand-ink: #3f5cc0; /* legible brand text on white */
+  --color-brand-soft: #e7edfb; /* soft chip background */
+
+  /* Danger — accent only, never a background. ("danger" not "red"
+     for the same collision reason.) */
+  --color-danger: #dc2626;
+  --color-danger-soft: #fdecec;
+
+  /* Type — Plus Jakarta Sans (open-source, loaded via next/font) */
+  --font-display: var(--font-jakarta), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-body: var(--font-jakarta), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-cloud);
+  color: var(--color-ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: var(--color-brand);
+  color: var(--color-ink);
+}
+
+/* Entrance: slide up + fade in (Apple-style easing) */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal-up {
+  opacity: 0;
+}
+.is-ready .reveal-up {
+  animation: reveal-up 0.85s ease-out both;
+}
+
+/* Masked line reveal — each line rises from behind a clip edge.
+   Animations only run once the parent has `.is-ready` (set after the
+   3D models load), so text and camera enter together. */
+.mask-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.18em;
+  margin-bottom: -0.18em;
+}
+.mask-line > span {
+  display: block;
+  transform: translateY(115%);
+}
+.is-ready .mask-line > span {
+  animation: mask-rise 0.95s ease-out both;
+}
+@keyframes mask-rise {
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Quality floor: respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up {
+    animation: none;
+    opacity: 1;
+  }
+  .mask-line > span {
+    animation: none;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
