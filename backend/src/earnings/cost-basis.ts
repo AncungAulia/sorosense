@@ -21,6 +21,8 @@ export interface VaultEvent {
   amount: Amount; // assets in/out
   shares: Shares; // shares minted/burned
   seq: number; // monotonic ordering key
+  /** Ledger timestamp (ms). Ignored by cost-basis (which orders by `seq`); the earnings timeline uses it. */
+  ts?: number;
 }
 
 /** Reconstructed per-(user,currency) basis: shares currently held and the net native cost behind them. */
