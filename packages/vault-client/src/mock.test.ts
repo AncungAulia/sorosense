@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MockVaultClient, mockSigner } from './mock.js';
+import { SHARE_PRICE_SCALE } from './interface.js';
 
 const depositor = mockSigner('depositor', 'alice');
 const keeper = mockSigner('keeper', 'sentinel');
@@ -84,5 +85,62 @@ describe('MockVaultClient', () => {
     await expect(v.deposit('alice', 'USD', 10n).signAndSubmit(keeper)).rejects.toThrow(
       /wrong signer/,
     );
+  });
+});
+
+describe('MockVaultClient — NAV reads (sharePrice / assetValueOf)', () => {
+  it('a fresh bucket has base share price and zero asset value', async () => {
+    const v = new MockVaultClient();
+    expect(await v.sharePrice('USD')).toBe(SHARE_PRICE_SCALE);
+    expect(await v.assetValueOf('alice', 'USD')).toBe(0n);
+  });
+
+  it('with no yield, price stays at base and asset value equals the deposit (1:1)', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    expect(await v.sharePrice('USD')).toBe(SHARE_PRICE_SCALE);
+    expect(await v.assetValueOf('alice', 'USD')).toBe(1_000n);
+  });
+
+  it('simulateYield raises share price and asset value, bounded by the injected yield', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    v.simulateYield('USD', 200n);
+
+    expect(await v.sharePrice('USD')).toBeGreaterThan(SHARE_PRICE_SCALE);
+    const value = await v.assetValueOf('alice', 'USD');
+    expect(value).toBeGreaterThan(1_000n); // gained yield
+    expect(value).toBeLessThanOrEqual(1_200n); // never more than principal + injected yield
+  });
+
+  it('yield on one bucket never touches another currency (buckets independent)', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    await v.deposit('alice', 'EUR', 500n).signAndSubmit(depositor);
+    v.simulateYield('USD', 300n);
+
+    expect(await v.sharePrice('EUR')).toBe(SHARE_PRICE_SCALE);
+    expect(await v.assetValueOf('alice', 'EUR')).toBe(500n);
+  });
+
+  it('a later depositor buys in at the current price without diluting the earlier holder', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    v.simulateYield('USD', 200n);
+    const aliceBefore = await v.assetValueOf('alice', 'USD');
+
+    const bob = mockSigner('depositor', 'bob');
+    await v.deposit('bob', 'USD', 1_200n).signAndSubmit(bob);
+
+    // Alice's value is unchanged by Bob's deposit; Bob's value ~= what he put in.
+    expect(await v.assetValueOf('alice', 'USD')).toBe(aliceBefore);
+    const bobValue = await v.assetValueOf('bob', 'USD');
+    expect(bobValue).toBeGreaterThan(1_190n);
+    expect(bobValue).toBeLessThanOrEqual(1_200n);
+  });
+
+  it('rejects a negative simulateYield', () => {
+    const v = new MockVaultClient();
+    expect(() => v.simulateYield('USD', -1n)).toThrow(/non-negative/);
   });
 });
