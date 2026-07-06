@@ -15,6 +15,11 @@ const KEY = "soro.wallet";
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
 
+  // NOTE: restoring `address` (and thus `isConnected`) here is OPTIMISTIC — it
+  // reflects a previously-saved address, not a verified live wallet session.
+  // A future auth-gate (Task 9/10) that trusts `isConnected` before entering
+  // signing flows should re-verify via `getAddress()` first and clear state
+  // on mismatch.
   useEffect(() => {
     const saved = window.localStorage.getItem(KEY);
     if (saved) setAddress(saved);

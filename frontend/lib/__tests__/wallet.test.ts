@@ -56,6 +56,14 @@ test("disconnect() clears the wallet session", async () => {
   expect(disconnect).toHaveBeenCalled();
 });
 
+test("disconnect() resets the lazy-init guard so the next connect() re-initializes", async () => {
+  const { connect, disconnect: dc } = await import("../wallet");
+  await connect();
+  await dc();
+  await connect();
+  expect(init).toHaveBeenCalledTimes(2);
+});
+
 test("getKit() throws outside the browser", async () => {
   const originalWindow = globalThis.window;
   // @ts-expect-error simulating server environment
