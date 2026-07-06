@@ -763,14 +763,14 @@ git commit -m "feat(wallet): WalletProvider + useWallet with localStorage persis
 
 ---
 
-## Task 9: Root layout + landing (onboarding + connect)
+## Task 9: Root layout + multi-screen onboarding + connect
 
 **Files:**
 - Modify: `frontend/app/layout.tsx`, `frontend/app/page.tsx`
 
 **Interfaces:**
 - Consumes: `switzer` (fonts), `WalletProvider`, `useWallet`, `Button`, `Chip`.
-- Produces: `/` renders onboarding hero + "Connect your wallet"; connect calls `useWallet().connect()` then routes to `/home`.
+- Produces: `/` renders **welcome → 3-screen value tour → connect**; the connect button calls `useWallet().connect()` (which opens the Wallets Kit modal, Freighter-first inside) then routes to `/home`. Exact visuals/copy mirror mock-2's `#onboarding` + `#tour` (guard-ring progress, glassmorphism visual panels, line-art SVGs) — port them verbatim.
 
 - [ ] **Step 1: Wire the root layout**
 
@@ -815,36 +815,57 @@ export default function Landing() {
     router.push("/home");
   }
 
-  if (!signin) {
+  if (!inTour) {
     return (
       <main className="flex min-h-dvh flex-col justify-between px-7 pb-10 pt-24 text-center">
         <div className="text-lg font-semibold">SoroSense</div>
         <div>
           <h1 className="text-[34px] font-semibold leading-[1.06] tracking-[-.02em]">Stablecoin yield,<br />guarded around<br />the clock.</h1>
-          <p className="mx-4 mt-4 text-base text-muted">Deposit, and the agent puts your money in the safest yield across Stellar and keeps it out of harm's way, automatically.</p>
+          <p className="mx-4 mt-4 text-base text-muted">Deposit, and the agent puts your money in the safest yield across Stellar and keeps it out of harm&apos;s way, automatically.</p>
         </div>
         <div className="grid gap-3">
-          <Button onClick={() => setSignin(true)}>Get started</Button>
-          <Button variant="glass" onClick={() => setSignin(true)}>I already have an account</Button>
+          <Button onClick={() => { setStep(0); setInTour(true); }}>Get started</Button>
+          <Button variant="glass" onClick={onConnect}>Connect wallet</Button>
         </div>
       </main>
     );
   }
+
+  const last = step === TOUR.length - 1;
+  const t = TOUR[step];
   return (
-    <main className="flex min-h-dvh flex-col justify-between px-7 pb-10 pt-24 text-center">
-      <div>
-        <h1 className="text-2xl font-semibold">Connect your wallet</h1>
-        <p className="mt-3 text-sm text-muted">Choose a Stellar wallet to continue</p>
+    <main className="flex min-h-dvh flex-col">
+      <div className="flex items-center justify-between px-6 pt-14">
+        <button aria-label="Back" onClick={() => (step > 0 ? setStep(step - 1) : setInTour(false))} className="grid h-[42px] w-[42px] place-items-center rounded-full border border-white bg-card">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+        {/* guard-ring: SVG ring, dashoffset = 81.68 * (1 - (step + 1) / TOUR.length) — copy .ring-fg from mock-2 */}
       </div>
-      <div className="grid gap-3">
-        <Button variant="glass" onClick={onConnect}>Connect Freighter<Chip className="ml-auto">Recommended</Chip></Button>
-        <Button variant="glass" onClick={onConnect}>Other wallets</Button>
-        <p className="mt-1 text-xs text-faint">Non-custodial, you keep your keys. Testnet demo.</p>
+      <div className="flex flex-1 flex-col items-center justify-center px-9 text-center">
+        {/* glassmorphism visual panel — port .tourvis (::before glow + ::after backdrop-blur, border-radius:inherit) from mock-2; set --glow to t.glow; drop in the per-screen line-art SVG (copy verbatim from mock-2 #tour) */}
+        <div className="tourvis" style={{ ["--glow" as string]: t.glow }}>{/* <svg>…</svg> */}</div>
+        <h1 className="whitespace-pre-line text-3xl font-semibold leading-[1.12] tracking-[-.02em]">{t.title}</h1>
+        <p className="mt-3.5 text-base text-muted">{t.body}</p>
+      </div>
+      <div className="px-7 pb-10">
+        <Button onClick={() => (last ? onConnect() : setStep(step + 1))}>{last ? "Connect wallet" : "Continue"}</Button>
       </div>
     </main>
   );
 }
 ```
+
+The `.tourvis`, `.ring-fg` styles and the three line-art SVGs are fully specified in `docs/mockups/sorosense-mock-2.html` (`#onboarding` + `#tour`). Port them as global classes (or an `Onboarding.module.css`) and copy the SVGs verbatim — no need to reinvent the visuals. Define `TOUR` at module scope:
+
+```tsx
+const TOUR = [
+  { glow: "rgba(22,163,74,.45)", title: "Your money\nearns itself.", body: "Deposit a stablecoin. The agent finds the safest, highest yield and compounds it for you, no charts to watch." },
+  { glow: "rgba(192,69,59,.36)", title: "A guard that\nnever blinks.", body: "Sentinel checks every pool around the clock and moves your money out of danger before it reaches you." },
+  { glow: "rgba(17,19,22,.16)", title: "Your keys.\nYour money.", body: "Funds stay in a non-custodial vault only you can move. Connect a Stellar wallet to begin." },
+];
+```
+
+and the component state is `const [inTour, setInTour] = useState(false); const [step, setStep] = useState(0);` (replace the old `signin` state).
 
 - [ ] **Step 3: Verify no SSR `window` error + connect routes**
 

@@ -27,8 +27,8 @@
 
   .phone{position:relative;width:390px;height:844px;max-height:calc(100dvh - 44px);border-radius:var(--r-phone);overflow:hidden;border:9px solid #0a0b0c;box-shadow:0 40px 90px -28px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.1);background:var(--bg)}
   @media (max-width:440px){body{padding:0}.phone{width:100vw;height:100dvh;max-height:none;border-radius:0;border:none}}
-  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:112px;height:28px;background:#0a0b0c;border-radius:16px;z-index:60}
-  .status{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-size:14px;font-weight:600;z-index:50;pointer-events:none}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:112px;height:28px;background:#0a0b0c;border-radius:16px;z-index:90}
+  .status{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-size:14px;font-weight:600;z-index:85;pointer-events:none}
   .bat{width:24px;height:12px;border-radius:3px;border:1.5px solid rgba(10,10,10,.35);position:relative}
   .bat::after{content:"";position:absolute;inset:2px;width:12px;background:var(--ink);border-radius:1px}
 
@@ -106,6 +106,7 @@
   .curseg button[aria-pressed="true"]{background:var(--pill);color:var(--pill-ink)}
   .breakdown{margin-top:16px}
   .breakdown .brow{display:flex;align-items:center;justify-content:space-between;padding:13px 0;font-weight:600;border-top:1px solid var(--line)}
+  .loadmore{display:flex;align-items:center;justify-content:center;gap:3px;width:100%;padding:13px 0 3px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px;font-weight:500}
 
   /* freeze banner + exit drawer */
   .freezebanner{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;border-radius:var(--r-card);border:1px solid #fff;background:var(--card);box-shadow:var(--sh-card);margin-bottom:16px}
@@ -148,6 +149,8 @@
   /* deposit keypad page */
   #sub-deposit,#sub-wd{display:flex;flex-direction:column}
   .balpill{display:inline-flex;align-items:center;gap:9px;height:40px;padding:0 16px 0 10px;border-radius:var(--r-pill);background:#ECECEC;font-weight:600;font-size:15px}
+  .depwarn{display:flex;align-items:center;gap:8px;margin:2px auto 0;max-width:330px;padding:10px 14px;border-radius:14px;background:var(--warn-soft);color:var(--warn);font-size:12.5px;font-weight:500;line-height:1.35}
+  .depwarn svg{flex:0 0 auto;color:var(--warn)}
   .depwrap{flex:1;display:flex;flex-direction:column;justify-content:center}
   .depamount{font-size:60px;font-weight:600;letter-spacing:-.03em;text-align:center;line-height:1}
   .depamount .caret{display:inline-block;width:2px;height:50px;background:var(--ink);margin-left:3px;vertical-align:-7px;animation:blink 1s step-end infinite}
@@ -181,6 +184,25 @@
   #signin .brandmark svg{stroke:#16a34a}
   .wmark{width:74px;height:74px;margin:0 auto 22px;border-radius:22px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);display:grid;place-items:center}
   .wmark svg{width:36px;height:36px;stroke:#fff;fill:none;stroke-width:1.8}
+  #tour{background:var(--bg);transform:translateY(100%);transition:transform .42s var(--ease)}
+  #tour.show{transform:none}
+  #tour.hide{opacity:0;pointer-events:none}
+  .tourtop{display:flex;align-items:center;justify-content:space-between;height:auto;padding:58px 24px 0}
+  .tourskip{color:var(--muted);font-size:14px;font-weight:500}
+  .ringwrap{width:30px;height:30px}
+  .ringwrap circle{fill:none;stroke-width:3}
+  .ring-bg{stroke:var(--line)}
+  .ring-fg{stroke:var(--ink);stroke-linecap:round;transition:stroke-dashoffset .42s var(--ease);transform:rotate(-90deg);transform-origin:center}
+  .tourview{flex:1;overflow:hidden}
+  .tourtrack{display:flex;height:100%;transition:transform .42s var(--ease)}
+  .tourpanel{flex:0 0 100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 34px}
+  .tourvis{position:relative;width:172px;height:172px;margin-bottom:34px;border-radius:34px;display:grid;place-items:center;overflow:hidden;border:1px solid rgba(255,255,255,.75);box-shadow:0 1px 2px rgba(17,19,22,.04),0 22px 46px -22px rgba(17,19,22,.24)}
+  .tourvis::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(120% 100% at 32% 22%,var(--glow,rgba(22,163,74,.42)),transparent 62%)}
+  .tourvis::after{content:"";position:absolute;inset:0;border-radius:inherit;background:rgba(255,255,255,.46);backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%)}
+  .tourvis svg{position:relative;z-index:1}
+  .tourpanel h1{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.12;margin:0}
+  .tourpanel p{color:var(--muted);font-size:16px;line-height:1.5;margin:14px 6px 0}
+  .tourfoot{padding:0 26px calc(28px + env(safe-area-inset-bottom))}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -197,23 +219,62 @@
       <p class="muted" style="font-size:16px;margin:18px 18px 0;line-height:1.5">Deposit, and the agent puts your money in the safest yield across Stellar and keeps it out of harm's way, automatically.</p>
     </div>
     <div style="width:100%;display:grid;gap:12px">
-      <button class="pill-btn b-ink" onclick="showSignin()">Get started</button>
-      <button class="pill-btn b-soft" onclick="showSignin()">I already have an account</button>
+      <button class="pill-btn b-ink" onclick="startTour(false)">Get started</button>
+      <button class="pill-btn b-soft" onclick="enterApp()">Connect wallet</button>
     </div>
   </div>
 
-  <!-- SIGN IN -->
-  <div class="auth" id="signin">
-    <div class="brand" style="justify-content:center"><span class="brandmark"><svg viewBox="0 0 24 24"><path d="M20 4C9 4 4 11 4 20c9 0 16-5 16-16Z"/></svg></span>SoroSense</div>
-    <div>
-      <div class="wmark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 14.5h.01"/></svg></div>
-      <h1 style="font-size:26px;font-weight:600;margin:0;color:#fff">Connect your wallet</h1>
-      <p style="color:rgba(255,255,255,.6);margin:12px 0 0;font-size:15px">Choose a Stellar wallet to continue</p>
+  <!-- ONBOARDING TOUR -->
+  <div class="auth" id="tour">
+    <div class="tourtop">
+      <button class="icobtn" id="tourBack" aria-label="Back" onclick="tourBack()"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <svg class="ringwrap" viewBox="0 0 30 30"><circle class="ring-bg" cx="15" cy="15" r="13"/><circle class="ring-fg" id="ring" cx="15" cy="15" r="13" stroke-dasharray="81.68" stroke-dashoffset="54.45"/></svg>
     </div>
-    <div style="width:100%;display:grid;gap:12px">
-      <button class="pill-btn b-glass" onclick="enterApp()"><span class="coin" style="width:26px;height:26px;background:#111;color:#22c55e;font-size:10px">FR</span>Connect Freighter<span class="chip rec" style="margin-left:auto">Recommended</span></button>
-      <button class="pill-btn b-soft" onclick="enterApp()">Other wallets</button>
-      <p style="color:rgba(255,255,255,.42);font-size:12.5px;margin:4px 0 0">Non-custodial, you keep your keys. Works inside Freighter and other Stellar wallets. Testnet demo.</p>
+    <div class="tourview">
+      <div class="tourtrack" id="tourTrack">
+        <div class="tourpanel">
+          <div class="tourvis" style="--glow:rgba(22,163,74,.45)">
+            <svg viewBox="0 0 120 120" width="150" height="150" fill="none">
+              <rect x="16" y="76" width="16" height="26" rx="3" stroke="#111316" stroke-width="3"/>
+              <rect x="42" y="60" width="16" height="42" rx="3" stroke="#111316" stroke-width="3"/>
+              <rect x="68" y="42" width="16" height="60" rx="3" stroke="#111316" stroke-width="3"/>
+              <rect x="94" y="24" width="16" height="78" rx="3" fill="#16a34a"/>
+            </svg>
+          </div>
+          <h1>Your money<br/>earns itself.</h1>
+          <p>Deposit a stablecoin. The agent finds the safest, highest yield and compounds it for you, no charts to watch.</p>
+        </div>
+        <div class="tourpanel">
+          <div class="tourvis" style="--glow:rgba(192,69,59,.36)">
+            <svg viewBox="0 0 120 120" width="150" height="150" fill="none" stroke="#111316" stroke-width="3">
+              <circle cx="60" cy="60" r="46" opacity=".22"/>
+              <circle cx="60" cy="60" r="30" opacity=".45"/>
+              <circle cx="60" cy="60" r="14"/>
+              <circle cx="60" cy="60" r="4" fill="#111316" stroke="none"/>
+              <circle cx="92" cy="42" r="4.5" fill="#111316" stroke="none"/>
+              <circle cx="30" cy="48" r="4.5" fill="#111316" stroke="none"/>
+              <circle cx="42" cy="90" r="4.5" fill="#c0453b" stroke="none"/>
+            </svg>
+          </div>
+          <h1>A guard that<br/>never blinks.</h1>
+          <p>Sentinel checks every pool around the clock and moves your money out of danger before it reaches you.</p>
+        </div>
+        <div class="tourpanel">
+          <div class="tourvis" style="--glow:rgba(17,19,22,.16)">
+            <svg viewBox="0 0 120 120" width="150" height="150" fill="none" stroke="#111316" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="30" y="54" width="60" height="44" rx="11"/>
+              <path d="M42 54v-8a18 18 0 0 1 36 0v8"/>
+              <circle cx="60" cy="73" r="6"/>
+              <path d="M60 79v7"/>
+            </svg>
+          </div>
+          <h1>Your keys.<br/>Your money.</h1>
+          <p>Funds stay in a non-custodial vault only you can move. Connect a Stellar wallet to begin.</p>
+        </div>
+      </div>
+    </div>
+    <div class="tourfoot">
+      <button class="pill-btn b-ink" id="tourBtn" onclick="tourNext()">Continue</button>
     </div>
   </div>
 
@@ -269,11 +330,7 @@
         <div class="seg" role="group" aria-label="Period">
           <button aria-pressed="false">Day</button><button aria-pressed="false">Week</button><button aria-pressed="false">Month</button><button aria-pressed="true">Year</button>
         </div>
-        <div class="breakdown">
-          <div class="brow"><span>This month</span><span class="apy num">+$38.34</span></div>
-          <div class="brow"><span>November</span><span class="apy num">+$122.14</span></div>
-          <div class="brow"><span>October</span><span class="apy num">+$113.54</span></div>
-        </div>
+        <div class="breakdown" id="breakdown"></div>
       </div>
     </div>
 
@@ -395,6 +452,7 @@
     <div class="center" style="margin-bottom:6px">
       <div class="balpill num"><span class="coin" id="depCoin" style="width:22px;height:22px;font-size:9px;background:#fff">USD</span><span id="depBalVal">$9,076.56</span></div>
     </div>
+    <div class="depwarn" id="depWarn" style="display:none"><svg class="i sm" viewBox="0 0 24 24" style="width:16px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><span id="depWarnText"></span></div>
     <div class="depwrap">
       <div class="depamount num"><span id="depSym">$</span><span id="depVal">0</span><span class="caret"></span></div>
     </div>
@@ -532,6 +590,7 @@
 
   const WALLET={USDC:'9,076.56',EURC:'4,200.00',CETES:'15,000.00',USDY:'1,240.00'};
   let depAmt='0',depMax=0;
+  const PAUSED_CUR=['EURC'];
   function openDeposit(sym,code,bucket){
     const bal=WALLET[sym]||'0.00';const s=code==='EUR'?'€':'$';
     depMax=parseFloat(bal.replace(/,/g,''))||0;depAmt='0';
@@ -539,6 +598,8 @@
     document.getElementById('depCoin').textContent=code;
     document.getElementById('depBalVal').textContent=s+bal;
     document.getElementById('depSym').textContent=s;
+    const w=document.getElementById('depWarn');
+    if(PAUSED_CUR.includes(sym)){document.getElementById('depWarnText').textContent='Your '+sym+' pool is paused. New deposits go to a safe pool.';w.style.display='';}else{w.style.display='none';}
     renderDep();document.getElementById('sub-deposit').classList.add('show');
   }
   function renderDep(){document.getElementById('depVal').textContent=depAmt}
@@ -572,6 +633,11 @@
   document.querySelectorAll('#earnEmpty .seg button').forEach(b=>b.onclick=function(){document.querySelectorAll('#earnEmpty .seg button').forEach(x=>x.setAttribute('aria-pressed','false'));this.setAttribute('aria-pressed','true');period=this.dataset.p;renderSim()});
   document.querySelectorAll('#earnFunded .seg button').forEach(b=>b.onclick=function(){document.querySelectorAll('#earnFunded .seg button').forEach(x=>x.setAttribute('aria-pressed','false'));this.setAttribute('aria-pressed','true')});
   (function(){const n=20,out=[];for(let i=1;i<=n;i++){out.push(`<div class="bar" style="height:${8+Math.pow(i/n,1.8)*104}px"></div>`)}document.getElementById('earnBars').innerHTML=out.join('')})();
+  const BREAKDOWN=[{m:'This month',v:'+$38.34'},{m:'November',v:'+$122.14'},{m:'October',v:'+$113.54'},{m:'September',v:'+$98.20'},{m:'August',v:'+$104.77'},{m:'July',v:'+$61.05'}];
+  let bmShown=3;
+  function renderBreakdown(){document.getElementById('breakdown').innerHTML=BREAKDOWN.slice(0,bmShown).map(b=>`<div class="brow"><span>${b.m}</span><span class="apy num">${b.v}</span></div>`).join('')+(bmShown<BREAKDOWN.length?`<button class="loadmore" onclick="loadMoreBreakdown()">Load more<svg class="i sm" viewBox="0 0 24 24" style="width:15px"><path d="M6 9l6 6 6-6"/></svg></button>`:'')}
+  function loadMoreBreakdown(){bmShown=Math.min(bmShown+3,BREAKDOWN.length);renderBreakdown()}
+  renderBreakdown();
   const EARNVIEWS=[{name:'All buckets',earned:'$176<span class="c">.56</span>',bal:'$2,048.62',apy:'7.10% APY'},{name:'USD bucket',earned:'$92<span class="c">.10</span>',bal:'$1,024.30',apy:'6.60% APY'},{name:'EUR bucket',earned:'$84<span class="c">.46</span>',bal:'€920.10',apy:'6.20% APY'}];
   let ebi=0;
   function cycleEarnBucket(){ebi=(ebi+1)%EARNVIEWS.length;const v=EARNVIEWS[ebi];document.getElementById('earnEarnedHero').innerHTML=v.earned;document.getElementById('earnBal').textContent=v.bal;document.getElementById('earnBucketName').textContent=v.name;document.getElementById('earnApy').textContent=v.apy}
@@ -587,9 +653,17 @@
   function askLogout(){document.getElementById('logoutScrim').classList.add('show');document.getElementById('logoutSheet').classList.add('show')}
   function closeLogout(){document.getElementById('logoutScrim').classList.remove('show');document.getElementById('logoutSheet').classList.remove('show')}
   function doLogout(){closeLogout();logout()}
-  function logout(){closeSub();document.getElementById('onboarding').classList.remove('hide');document.getElementById('signin').classList.remove('show','hide');go('v-home')}
-  function showSignin(){document.getElementById('signin').classList.add('show')}
-  function enterApp(){document.getElementById('onboarding').classList.add('hide');document.getElementById('signin').classList.add('hide')}
+  function logout(){closeSub();document.getElementById('onboarding').classList.remove('hide');document.getElementById('tour').classList.remove('show','hide');go('v-home')}
+  let ti=0;const TN=3;
+  function startTour(atLast){document.getElementById('onboarding').classList.add('hide');document.getElementById('tour').classList.remove('hide');document.getElementById('tour').classList.add('show');ti=atLast?TN-1:0;renderTour()}
+  function renderTour(){
+    document.getElementById('tourTrack').style.transform='translateX(-'+(ti*100)+'%)';
+    document.getElementById('ring').style.strokeDashoffset=81.68*(1-(ti+1)/TN);
+    document.getElementById('tourBtn').textContent=ti===TN-1?'Connect wallet':'Continue';
+  }
+  function tourNext(){if(ti<TN-1){ti++;renderTour();}else{enterApp();}}
+  function tourBack(){if(ti>0){ti--;renderTour();}else{document.getElementById('tour').classList.remove('show');document.getElementById('onboarding').classList.remove('hide');}}
+  function enterApp(){document.getElementById('onboarding').classList.add('hide');document.getElementById('tour').classList.remove('show')}
   let tt;function toast(m){document.getElementById('toastMsg').textContent=m;const t=document.getElementById('toast');t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200)}
 </script>
 </body>

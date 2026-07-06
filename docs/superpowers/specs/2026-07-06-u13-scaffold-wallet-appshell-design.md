@@ -68,13 +68,14 @@ Convention: primitives never re-styled per screen; screen units compose them.
 
 ```
 app/layout.tsx          root: <html>, font, <WalletProvider>
-app/page.tsx            "/" — onboarding hero → "Connect your wallet"
+app/page.tsx            "/" — welcome + 3-screen value tour → Connect wallet
 app/(app)/layout.tsx    shell: <BottomNav> + progressive blur + safe-area
 app/(app)/home/page.tsx     placeholder (→ U14)
 app/(app)/earn/page.tsx     placeholder (→ U16)
 app/(app)/account/page.tsx  placeholder (→ U16)
 ```
 - Auth-gate = **client provider** (non-custodial, no server session). `/` shows onboarding; after connect → `router.push('/home')`. `(app)/layout` redirects to `/` if not connected. Nav = real routing (`usePathname` for active state), not show/hide.
+- **Onboarding (`/`):** welcome (Get started · Connect wallet) → a **3-screen value tour** (Earn / Safety / Non-custodial) with a "guard-ring" progress + Back navigation → connect. Connect = **one "Connect wallet" button that opens the Stellar Wallets Kit modal** (Freighter-first *inside* the kit; no hardcoded per-wallet buttons — still R12-compliant). "Connect wallet" on the welcome skips the tour. Tour visuals: monochrome line-art on a per-screen glassmorphism panel (green/red/neutral glow). Exact visuals/copy in `docs/mockups/sorosense-mock-2.html`.
 
 ## 7. Folder structure (root convention, per plan)
 
@@ -106,11 +107,12 @@ app/(app)/account/page.tsx  placeholder (→ U16)
 **Earn (U16)**
 - **Two states.** *Not-deposited:* "Earn balance $0" + APY pill + **Start earning** + "No lockup, move to your wallet anytime" + Simulate card (header stepper `− $x +`, **currency selector USDC/EURC/CETES**, chart, Day/Week/Month/Year). *Deposited:* "You're earning $X" hero + balance context + bucket toggle + Deposit/Move-to-wallet + Growth card (chart + period + monthly breakdown).
 - Simulator **currency selector is plan-aligned** (U11 `simulate(currency, amount, period)`). **No pool chips** (agent picks the best pool — user does not choose the pool; only the currency). USDY not in the selector (RWA = fixed instrument, not a currency).
-- **Monthly earnings breakdown (This month / November / October) = NEW backend scope** (earnings-history / NAV snapshots), beyond U11's `simulate()` + `activity()`. **Flag to Axel.**
+- **Monthly earnings breakdown** — now **backed by Axel's "Earn 2-State + Earnings History" feature** (Linear STE-30–35 / EH-U1–U6: vault `share_price`/`value_of` view, snapshotter, cost-basis reconstruction, `earnings-history` API — largely **Done**). The Earn *Growth* card consumes the earnings-history API and shows **3 months + "Load more"** (paginates 3 at a time). Read the earn-history docs (`docs/plans/2026-07-06-001-feat-earn-history-plan.md`, `docs/brainstorms/2026-07-06-earn-history-requirements.md` — on Axel's branch, merge before building U16) to match the payload shape.
 
 **Deposit / Withdraw (U14)**
 - Both are **full-page keypad** screens (not bottom-sheets): source pill + big amount + keypad + 10%/50%/Max + action button ("Deposit fund" / "Move to wallet"). Deposit source = wallet balance of the currency (chosen by tapping a currency in Add funds). Withdraw source = **bucket picker** pill (conditional chevron per the rule above); Max = full bucket balance.
 - **Add funds** list: tag style (small chips for chains/venue), no "Free up to $30k", no "to X bucket". **RWA rows show no APY** (single fixed-yield instruments — rate appears at deposit time), just a tag (Ondo / Bond).
+- **Deposit during a freeze — allow + transparent.** Deposits stay open even while a pool is paused (a freeze pauses one *pool*, not the bucket/vault). If the chosen currency has a paused pool, the deposit keypad page shows an **amber note** ("Your EURC pool is paused. New deposits go to a safe pool."); new funds never route to the frozen pool — the agent picks the next safe pool or parks them safely. Other currencies are unaffected. Product decision — **raise with Axel**.
 - **Buckets** rows (Home): venue as **tags** (e.g. DeFindex / Vault, Blend / Fixed pool), no "auto compounding" prose.
 
 **Activity (U16, + small backend note)**
@@ -136,4 +138,8 @@ No risk labels/tiers · no chatbot · no hub/explore catalog · nav = 3 tabs Hom
 
 ## 12. Governance
 
-`sorosense-mock-2.html` is a **proposal** and edits the UI source of truth. `sorosense-mock-1.html` (owned by Axel, PM) is untouched. Before mock-2 drives U14–U16, **sync with Axel**; the two genuinely-new backend items to raise are: **monthly earnings-history** (Earn Deposited breakdown) and the **Activity "Yours" user-tx merge**. None of this changes U13.
+`sorosense-mock-2.html` is a **proposal** and edits the UI source of truth. `sorosense-mock-1.html` (owned by Axel, PM) is untouched. Before mock-2 drives U14–U16, **sync with Axel**.
+
+**Update (2026-07-06):** Axel already shipped **earnings-history** as the "Earn 2-State + Earnings History" feature (Linear STE-30–35, mostly Done) — our Earn breakdown consumes it, so that flag is resolved.
+
+Open items to raise with Axel: (1) the **Activity "Yours" user-tx merge**; (2) the **deposit-during-freeze** UX (allow + transparent); (3) a **divergence** — STE-26 (U16) still specifies a "pool selector by APY", but our design replaced it with a **currency selector** (the agent picks the pool, so the user only chooses currency — consistent with "no user pool choice"). None of this changes U13.
