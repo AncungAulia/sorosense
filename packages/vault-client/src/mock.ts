@@ -1,9 +1,11 @@
 /**
  * In-memory mock of {@link VaultClient} for parallel development before the real contract lands (U6).
  *
- * It models per-currency shares, a frozen-pool flag, and a pending freeze-exit — enough for the
- * backend, frontend, and e2e tracks to build against. Share math is intentionally simple (1:1 mint,
- * no yield accrual); the real contract owns NAV accounting. Guards mirror the contract: a wrong-role
+ * It models per-currency shares, per-currency NAV totals, a frozen-pool flag, and a pending
+ * freeze-exit — enough for the backend, frontend, and e2e tracks to build against. Share math mirrors
+ * the contract's virtual-offset accounting (`mint = amount·(totalShares+V)/(totalAssets+V)`), so the
+ * first deposit is 1:1 and later deposits price against accrued NAV. Yield is not automatic; tests
+ * inject it with {@link MockVaultClient.simulateYield}. Guards mirror the contract: a wrong-role
  * signer or a blocked flow (e.g. allocating into a frozen pool) throws, standing in for an on-chain panic.
  */
 
@@ -15,14 +17,19 @@ import type {
   PoolId,
   PoolStatus,
   PreparedTx,
+  PriceRay,
   Shares,
   Signer,
   SignerRole,
   TxResult,
   VaultClient,
 } from './interface.js';
+import { SHARE_PRICE_SCALE } from './interface.js';
 
 const bucketKey = (user: Address, currency: Currency): string => `${user}:${currency}`;
+
+/** Equal virtual shares/assets offset — mirrors the contract, keeping the first deposit ~1:1. */
+const VIRTUAL_OFFSET = 1n;
 
 export class MockVaultClient implements VaultClient {
   private shares = new Map<string, Shares>();
@@ -31,7 +38,24 @@ export class MockVaultClient implements VaultClient {
   private active = new Map<Currency, PoolId>();
   private holdings = new Map<Currency, Amount>();
   private pending = new Map<Currency, ExitProposal>();
+  /** Per-currency NAV accumulators backing share price. Separate from `holdings` (pool deployment). */
+  private totalShares = new Map<Currency, Shares>();
+  private totalAssets = new Map<Currency, Amount>();
   private seq = 0;
+
+  /** Shares minted for depositing `amount` into a bucket, per the contract's virtual-offset math. */
+  private mintShares(currency: Currency, amount: Amount): Shares {
+    const ts = this.totalShares.get(currency) ?? 0n;
+    const ta = this.totalAssets.get(currency) ?? 0n;
+    return (amount * (ts + VIRTUAL_OFFSET)) / (ta + VIRTUAL_OFFSET);
+  }
+
+  /** Assets returned for redeeming `shares` from a bucket, per the contract's virtual-offset math. */
+  private redeemAssets(currency: Currency, shares: Shares): Amount {
+    const ts = this.totalShares.get(currency) ?? 0n;
+    const ta = this.totalAssets.get(currency) ?? 0n;
+    return (shares * (ta + VIRTUAL_OFFSET)) / (ts + VIRTUAL_OFFSET);
+  }
 
   /** Build a two-phase transaction whose effect runs only after a correct-role signature. */
   private prepare(requiredSigner: SignerRole, effect: () => void): PreparedTx {
@@ -52,8 +76,11 @@ export class MockVaultClient implements VaultClient {
     return this.prepare('depositor', () => {
       if (amount <= 0n) throw new Error('deposit amount must be positive');
       const key = bucketKey(depositor, currency);
-      // Mock mints shares 1:1 with the deposited amount (no yield modeled).
-      this.shares.set(key, (this.shares.get(key) ?? 0n) + amount);
+      // Mint against accrued NAV (1:1 for the first deposit; fewer shares after yield accrues).
+      const minted = this.mintShares(currency, amount);
+      this.shares.set(key, (this.shares.get(key) ?? 0n) + minted);
+      this.totalShares.set(currency, (this.totalShares.get(currency) ?? 0n) + minted);
+      this.totalAssets.set(currency, (this.totalAssets.get(currency) ?? 0n) + amount);
     });
   }
 
@@ -63,7 +90,11 @@ export class MockVaultClient implements VaultClient {
       const owned = this.shares.get(key) ?? 0n;
       if (shares <= 0n) throw new Error('withdraw shares must be positive');
       if (shares > owned) throw new Error('withdraw exceeds owned shares');
+      // Redeem against NAV so share price stays consistent after the burn.
+      const assets = this.redeemAssets(currency, shares);
       this.shares.set(key, owned - shares);
+      this.totalShares.set(currency, (this.totalShares.get(currency) ?? 0n) - shares);
+      this.totalAssets.set(currency, (this.totalAssets.get(currency) ?? 0n) - assets);
     });
   }
 
@@ -127,6 +158,18 @@ export class MockVaultClient implements VaultClient {
     return this.shares.get(bucketKey(user, currency)) ?? 0n;
   }
 
+  async sharePrice(currency: Currency): Promise<PriceRay> {
+    const ts = this.totalShares.get(currency) ?? 0n;
+    const ta = this.totalAssets.get(currency) ?? 0n;
+    // Base price (SHARE_PRICE_SCALE) for an empty/fresh bucket; rises as NAV accrues.
+    return ((ta + VIRTUAL_OFFSET) * SHARE_PRICE_SCALE) / (ts + VIRTUAL_OFFSET);
+  }
+
+  async assetValueOf(user: Address, currency: Currency): Promise<Amount> {
+    // Computed directly from NAV (not via sharePrice) to avoid double-truncation.
+    return this.redeemAssets(currency, this.shares.get(bucketKey(user, currency)) ?? 0n);
+  }
+
   async poolStatus(pool: PoolId): Promise<PoolStatus> {
     return this.frozen.has(pool) ? 'frozen' : 'active';
   }
@@ -141,6 +184,16 @@ export class MockVaultClient implements VaultClient {
 
   async pendingExit(currency: Currency): Promise<ExitProposal | null> {
     return this.pending.get(currency) ?? null;
+  }
+
+  // ── Test-only hook (not part of VaultClient) ──────────────────────────────
+  /**
+   * Raise a bucket's NAV by `amount` without minting shares — the only way to lift its share price in
+   * tests, standing in for pool yield the real contract accrues. Not a vault operation; test-only.
+   */
+  simulateYield(currency: Currency, amount: Amount): void {
+    if (amount < 0n) throw new Error('simulateYield amount must be non-negative');
+    this.totalAssets.set(currency, (this.totalAssets.get(currency) ?? 0n) + amount);
   }
 }
 
