@@ -22,6 +22,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // on mismatch.
   useEffect(() => {
     const saved = window.localStorage.getItem(KEY);
+    // One-time hydration from localStorage on mount. Reading storage during
+    // render (lazy useState init) is not SSR-safe and would cause a hydration
+    // mismatch, so the setState-in-effect here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setAddress(saved);
   }, []);
 
