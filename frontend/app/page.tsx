@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "../hooks/useWallet";
-import { Button } from "../components/ui";
+import { Button, Toast } from "../components/ui";
+import { WalletError, USER_CLOSED_MODAL } from "../lib/wallet-error";
 import styles from "./Onboarding.module.css";
 
 const RING_CIRCUMFERENCE = 81.68;
@@ -74,15 +75,30 @@ export default function Landing() {
   const { connect } = useWallet();
   const [inTour, setInTour] = useState(false);
   const [step, setStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  // Auto-dismiss the connect-error toast so it doesn't linger.
+  useEffect(() => {
+    if (!error) return;
+    const id = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(id);
+  }, [error]);
 
   async function onConnect() {
-    await connect();
-    router.push("/home");
+    setError(null);
+    try {
+      await connect();
+      router.push("/home");
+    } catch (e) {
+      // Dismissing the wallet picker (kit code -1) isn't a failure — stay quiet.
+      if (e instanceof WalletError && e.code === USER_CLOSED_MODAL) return;
+      setError(e instanceof Error ? e.message : "Couldn't connect your wallet. Please try again.");
+    }
   }
 
   if (!inTour) {
     return (
-      <main className="flex min-h-dvh flex-col justify-between px-7 pb-10 pt-24 text-center">
+      <main className="relative flex min-h-dvh flex-col justify-between px-7 pb-10 pt-24 text-center">
         <div className="inline-flex items-center justify-center gap-2 text-[19px] font-semibold tracking-[-.01em]">
           <span className="grid h-[34px] w-[34px] place-items-center rounded-[11px] [background:linear-gradient(180deg,#34383a,#131617)] [box-shadow:0_10px_24px_-10px_rgba(17,19,22,.6),inset_0_1px_0_rgba(255,255,255,.18)]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.2}>
@@ -117,6 +133,7 @@ export default function Landing() {
             Connect wallet
           </Button>
         </div>
+        <Toast open={!!error} message={error ?? ""} />
       </main>
     );
   }
@@ -125,7 +142,7 @@ export default function Landing() {
   const t = TOUR[step];
 
   return (
-    <main className="flex min-h-dvh flex-col">
+    <main className="relative flex min-h-dvh flex-col">
       <div className="flex items-center justify-between px-6 pt-[58px]">
         <button
           aria-label="Back"
@@ -158,6 +175,7 @@ export default function Landing() {
       <div className="px-[26px] pb-[calc(28px+env(safe-area-inset-bottom))]">
         <Button onClick={() => (last ? onConnect() : setStep(step + 1))}>{last ? "Connect wallet" : "Continue"}</Button>
       </div>
+      <Toast open={!!error} message={error ?? ""} />
     </main>
   );
 }

@@ -19,8 +19,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // suppressHydrationWarning: Stellar Wallets Kit injects theme CSS vars
+  // (--swk-*) onto <html> at runtime, which React flags as a hydration
+  // mismatch. Standard Next.js escape hatch for third-party html mutation.
   return (
-    <html lang="en" className={`${switzer.variable} h-full antialiased`}>
+    <html lang="en" className={`${switzer.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         <WalletProvider>{children}</WalletProvider>
       </body>

@@ -1,6 +1,9 @@
 import { StellarWalletsKit, Networks } from "@creit.tech/stellar-wallets-kit";
 import { FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit/modules/freighter";
 import { defaultModules } from "@creit.tech/stellar-wallets-kit/modules/utils";
+import { toWalletError } from "./wallet-error";
+
+export { WalletError, USER_CLOSED_MODAL } from "./wallet-error";
 
 // NOTE: @creit.tech/stellar-wallets-kit@2.5.0 ships `StellarWalletsKit` as a
 // *static* class (no constructor, no instances) — `init()`, `getAddress()`,
@@ -37,8 +40,12 @@ export function getKit(): typeof StellarWalletsKit {
 }
 
 export async function connect(): Promise<string> {
-  const { address } = await getKit().authModal();
-  return address;
+  try {
+    const { address } = await getKit().authModal();
+    return address;
+  } catch (e) {
+    throw toWalletError(e);
+  }
 }
 
 export async function getAddress(): Promise<string> {
@@ -47,10 +54,14 @@ export async function getAddress(): Promise<string> {
 }
 
 export async function signTransaction(xdr: string): Promise<string> {
-  const { signedTxXdr } = await getKit().signTransaction(xdr, {
-    networkPassphrase: Networks.TESTNET,
-  });
-  return signedTxXdr;
+  try {
+    const { signedTxXdr } = await getKit().signTransaction(xdr, {
+      networkPassphrase: Networks.TESTNET,
+    });
+    return signedTxXdr;
+  } catch (e) {
+    throw toWalletError(e);
+  }
 }
 
 export async function disconnect(): Promise<void> {
