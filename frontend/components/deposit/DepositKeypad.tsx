@@ -16,6 +16,8 @@ export function DepositKeypad({ sym }: { sym: string }) {
   const { client, version } = useVault();
   const { address, signTransaction } = useWallet();
   const coin = stablecoinBySym(sym);
+  // `currency` is only meaningful for a known coin — never used as a real bucket target
+  // when `coin` is undefined (see the `!coin` early return in the render below).
   const currency: Currency = coin?.currency ?? "USD";
   const symbol = currency === "EUR" ? "€" : "$";
 
@@ -38,6 +40,20 @@ export function DepositKeypad({ sym }: { sym: string }) {
     // wallet connect — without it a deep-link render can read poolStatus before the seed
     // lands and wrongly show no amber note (mirrors the fix in useBuckets).
   }, [client, currency, version]);
+
+  // Unknown sym (e.g. a typo'd deep link `/deposit/xyz`): refuse rather than silently
+  // defaulting into the USD bucket. All hooks above have already run unconditionally.
+  if (!coin) {
+    return (
+      <div className="flex min-h-[calc(100dvh-52px)] flex-col">
+        <SubHeader title="Deposit" />
+        <p className="mt-6 text-center text-[13px] text-muted">Unknown asset.</p>
+        <div className="mt-auto">
+          <Button onClick={() => router.push("/add-funds")}>Choose an asset</Button>
+        </div>
+      </div>
+    );
+  }
 
   const quick = (pct: number) => {
     if (!coin) return;

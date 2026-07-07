@@ -22,6 +22,13 @@ test("no risk-tier control is present", () => {
   expect(screen.queryByText(/conservative|balanced|risk|tier/i)).not.toBeInTheDocument();
 });
 
+test("unknown sym shows a not-found state instead of defaulting to USD", () => {
+  setup("xyz");
+  expect(screen.queryByRole("button", { name: "Deposit fund" })).not.toBeInTheDocument();
+  expect(screen.getByText(/unknown asset/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Choose an asset" })).toBeInTheDocument();
+});
+
 test("first deposit signs consent then deposit (two signatures)", async () => {
   const user = userEvent.setup();
   const { sign, client } = setup("usdc");
