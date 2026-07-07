@@ -13,7 +13,7 @@ export default function ActivityPage() {
   const [filter, setFilter] = useState<"all" | "you" | "auto">("all");
   const shown = filter === "all" ? items : items.filter((a) => a.cat === filter);
   return (
-    <div>
+    <div className="pb-8">
       <SubHeader title="Activity" />
       <div className="mb-3.5 flex gap-1.5">
         {FILTERS.map((f) => (
