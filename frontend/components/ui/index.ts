@@ -5,3 +5,4 @@ export { BottomSheet } from "./BottomSheet";
 export { Toast } from "./Toast";
 export { BottomNav } from "./BottomNav";
 export { Keypad } from "./Keypad";
+export { SubHeader } from "./SubHeader";
