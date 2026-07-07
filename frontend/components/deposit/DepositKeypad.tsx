@@ -119,8 +119,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
           Your {coin?.sym ?? sym.toUpperCase()} pool is paused. New deposits go to a safe pool.
         </div>
       )}
-      <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} invalid={exceeded} />
-      {exceeded && <p className="mb-2 text-center text-[13px] font-medium text-neg">Not enough balance</p>}
+      <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} invalid={exceeded} hint="Not enough balance" />
       <Button onClick={onConfirm} disabled={busy || exceeded || entered <= 0n}>Deposit fund</Button>
       <ConsentSheet open={consentOpen} onAgree={onAgree} onClose={() => setConsentOpen(false)} />
       <Toast open={!!toast} message={toast ?? ""} />

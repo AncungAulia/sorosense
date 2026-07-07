@@ -115,8 +115,8 @@ export function WithdrawKeypad() {
           quick(pct);
         }}
         invalid={exceeded}
+        hint="Not enough balance"
       />
-      {exceeded && <p className="mb-2 text-center text-[13px] font-medium text-neg">Not enough balance</p>}
       <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
       <Toast open={!!toast} message={toast ?? ""} />
     </div>

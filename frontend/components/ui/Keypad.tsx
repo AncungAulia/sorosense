@@ -3,8 +3,8 @@
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"] as const;
 
 export function Keypad({
-  value, onChange, symbol, onQuick, invalid = false,
-}: { value: string; onChange: (next: string) => void; symbol: string; onQuick: (pct: number) => void; invalid?: boolean }) {
+  value, onChange, symbol, onQuick, invalid = false, hint,
+}: { value: string; onChange: (next: string) => void; symbol: string; onQuick: (pct: number) => void; invalid?: boolean; hint?: string }) {
   const press = (k: string) => {
     if (k === ".") { if (!value.includes(".")) onChange(value + "."); return; }
     onChange(value === "0" ? k : value + k);
@@ -18,6 +18,9 @@ export function Keypad({
           <span>{symbol}</span><span data-testid="keypad-value">{value}</span>
           <span className={`ml-[3px] inline-block h-[50px] w-[2px] animate-pulse align-[-7px] ${invalid ? "bg-neg" : "bg-ink"}`} />
         </div>
+        {hint !== undefined && (
+          <div className="mt-3 h-5 text-center text-[13.5px] font-medium text-neg">{invalid ? hint : ""}</div>
+        )}
       </div>
       <div className="mb-2 flex gap-2.5">
         {([["10%", 0.1], ["50%", 0.5], ["Max", 1]] as const).map(([label, pct]) => (
