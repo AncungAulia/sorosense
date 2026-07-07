@@ -119,9 +119,6 @@ export function DepositKeypad({ sym }: { sym: string }) {
       )}
       <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} />
       <Button onClick={onConfirm}>Deposit fund</Button>
-      <p className="mt-3 text-center text-[12.5px] text-muted">
-        Goes to your {currency} bucket. No conversion. The agent allocates to the safest highest yield in this currency.
-      </p>
       <ConsentSheet open={consentOpen} onAgree={onAgree} onClose={() => setConsentOpen(false)} />
       <Toast open={!!toast} message={toast ?? ""} />
     </div>

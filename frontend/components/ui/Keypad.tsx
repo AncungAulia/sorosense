@@ -12,7 +12,7 @@ export function Keypad({
   const back = () => onChange(value.length > 1 ? value.slice(0, -1) : "0");
 
   return (
-    <div>
+    <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col justify-center">
         <div className="text-center text-[60px] font-semibold leading-none tracking-[-.03em] [font-variant-numeric:tabular-nums]">
           <span>{symbol}</span><span data-testid="keypad-value">{value}</span>
