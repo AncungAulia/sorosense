@@ -18,7 +18,7 @@ export default function ActivityPage() {
       <div className="mb-3.5 flex gap-1.5">
         {FILTERS.map((f) => (
           <button key={f.key} aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}
-            className={`h-9 flex-1 rounded-full text-[13.5px] font-medium ${filter === f.key ? "bg-pill text-pill-ink" : "text-[#8a8a8a]"}`}>{f.label}</button>
+            className={`h-9 flex-1 rounded-full text-[13.5px] font-medium ${filter === f.key ? "bg-[#ECECEC] text-pill-ink" : "text-[#8a8a8a]"}`}>{f.label}</button>
         ))}
       </div>
       <Card className="px-5 py-1">
