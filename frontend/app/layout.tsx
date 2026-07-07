@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { switzer } from '../lib/fonts';
 import { WalletProvider } from '../providers/WalletProvider';
+import { VaultProvider } from '../providers/VaultProvider';
 
 export const metadata: Metadata = {
   title: 'SoroSense',
@@ -25,7 +26,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${switzer.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
-        <WalletProvider>{children}</WalletProvider>
+        <WalletProvider>
+          <VaultProvider>{children}</VaultProvider>
+        </WalletProvider>
       </body>
     </html>
   );

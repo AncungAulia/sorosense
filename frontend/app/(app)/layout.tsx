@@ -1,21 +1,16 @@
 "use client";
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import { useWallet } from "../../hooks/useWallet";
-import { BottomNav } from "../../components/ui";
+import type { ReactNode } from "react";
+import { AuthGate } from "../../components/AuthGate";
+import { BottomNav, TopBlur } from "../../components/ui";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const { isConnected } = useWallet();
-
-  useEffect(() => {
-    if (!isConnected) router.push("/");
-  }, [isConnected, router]);
-
   return (
-    <div className="relative min-h-dvh">
-      <div className="px-5 pb-[120px] pt-2">{children}</div>
-      <BottomNav />
-    </div>
+    <AuthGate>
+      <div className="relative min-h-dvh">
+        <TopBlur />
+        <div className="px-5 pb-[120px] pt-14">{children}</div>
+        <BottomNav />
+      </div>
+    </AuthGate>
   );
 }

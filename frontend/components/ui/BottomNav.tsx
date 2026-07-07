@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 const TABS = [
   { href: "/home", label: "Home", icon: <path d="M4 11l8-7 8 7M6 10v9h12v-9" /> },
-  { href: "/earn", label: "Earn", icon: <path d="M4 20V4M4 20h16" /> },
+  { href: "/earn", label: "Earn", icon: <><rect x="4" y="13" width="4" height="7" rx="1.5" fill="currentColor" stroke="none" /><rect x="10" y="9" width="4" height="11" rx="1.5" fill="currentColor" stroke="none" /><rect x="16" y="5" width="4" height="15" rx="1.5" fill="currentColor" stroke="none" /></> },
   { href: "/account", label: "Account", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 20a8 8 0 0 1 16 0" /></> },
 ] as const;
 
@@ -18,13 +18,13 @@ export function BottomNav() {
   return (
     <>
       {/* progressive blur overlay above the nav */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[38] h-[104px] overflow-hidden rounded-b-[37px]">
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 bottom-0 z-[38] h-[104px] overflow-hidden">
         <div className="absolute inset-0 [backdrop-filter:blur(2px)] [mask-image:linear-gradient(to_top,#000_0%,#000_52%,transparent_100%)]" />
         <div className="absolute inset-0 [backdrop-filter:blur(5px)] [mask-image:linear-gradient(to_top,#000_0%,#000_30%,transparent_58%)]" />
         <div className="absolute inset-0 [backdrop-filter:blur(9px)] [mask-image:linear-gradient(to_top,#000_0%,#000_15%,transparent_36%)]" />
         <div className="absolute inset-0 [background:linear-gradient(180deg,transparent,rgba(242,242,242,.5))]" />
       </div>
-      <nav aria-label="Main" className="absolute inset-x-0 bottom-0 z-40 flex h-[88px] items-start justify-around px-6 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))]">
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex h-[88px] items-start justify-around px-6 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))]">
         {TABS.map((t) => {
           const active = path === t.href;
           return (

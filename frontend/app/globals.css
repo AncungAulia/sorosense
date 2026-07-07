@@ -24,4 +24,22 @@
 }
 
 html, body { height: 100%; }
-body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+/* ── Page enter transition ───────────────────────────────────────────────────
+   Sub-screens (the (flow) route group) mount inside a template that carries the
+   .page-enter class, so navigating into them slides the new page in from the
+   right (native-app feel). Reusable: any route with its own template can apply
+   .page-enter. Reduced-motion disables it. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* No fill-mode: the transform must NOT persist after the animation, or the
+   wrapper would become the containing block for `fixed` children (e.g. the
+   consent BottomSheet), reintroducing the closed-sheet-visible bug. */
+.page-enter { animation: page-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+}

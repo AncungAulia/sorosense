@@ -30,3 +30,6 @@ test-results/
 
 # Generated contract bindings (regenerate via smart-contract/scripts/bindings.ts)
 packages/vault-client/bindings/
+
+# Local editor/tooling cache
+.impeccable/
