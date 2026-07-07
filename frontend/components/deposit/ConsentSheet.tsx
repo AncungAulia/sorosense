@@ -11,17 +11,13 @@ export function ConsentSheet({
   onClose: () => void;
 }) {
   return (
-    <BottomSheet open={open} onClose={onClose} label="Authorize the safety mandate">
-      <h1 className="mb-1.5 text-xl font-semibold">Authorize once, earn hands-free</h1>
+    <BottomSheet open={open} onClose={onClose} label="Approve automatic earning">
+      <h1 className="mb-1.5 text-xl font-semibold">Approve once, earn automatically</h1>
       <p className="mb-[18px] text-sm text-muted">
-        Sign a one-time safety mandate. It lets the agent allocate, auto-compound, and rebalance your
-        funds within the safest vetted pools in this currency — no per-move approval. Your funds never
-        leave the non-custodial vault, and only you can withdraw.
+        Sign one time to let the agent put your money in the safest pools and reinvest what it earns,
+        without asking you every time. Your money stays yours, and only you can move it out.
       </p>
       <Button onClick={onAgree}>Agree &amp; sign</Button>
-      <Button variant="glass" className="mt-2.5" onClick={onClose}>
-        Not now
-      </Button>
     </BottomSheet>
   );
 }
