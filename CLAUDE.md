@@ -1,14 +1,9 @@
-# SoroSense — agent guide
+# SoroSense — monorepo
 
-Non-custodial, mobile-first deposit-to-earn app on Stellar. An agent auto-allocates each currency bucket to the safest-highest yield; a Sentinel freezes toxic pools. Safety is invisible to the user.
+Non-custodial, mobile-first deposit-to-earn app on Stellar with an invisible Sentinel safety engine. An agent auto-allocates each currency bucket to the safest-highest yield; a Sentinel freezes toxic pools. Safety is invisible to the user. pnpm monorepo: `backend/`, `frontend/`, `landing-page/`, `packages/*`, `smart-contract/` (Cargo).
 
-## Monorepo layout (pnpm workspace)
-
-- `backend/` — Mastra agent, Sentinel risk engine, read-only APIs (`@sorosense/backend`).
-- `frontend/` — Next.js mobile app (UI source of truth: `docs/mockups/sorosense-mock.html`).
-- `landing-page/` — marketing site.
-- `packages/vault-client/` — **the shared vault seam** (`@sorosense/vault-client`), see below.
-- `smart-contract/` — Soroban vault (separate Cargo project; live on testnet, upgradable).
+- Run `pnpm install` at the **repo root**, never `npm install` inside a package. One shared lockfile.
+- Each track has its own guide — read the `AGENTS.md` / `CLAUDE.md` in the package you're working in (e.g. `frontend/`, `smart-contract/`).
 - `docs/brainstorms/` — Product Contracts (WHAT). `docs/plans/` — implementation plans (HOW). Work is tracked in Linear (team `sorosense`); 1 unit = 1 branch = 1 PR, PRs use the `pr-e2e-evidence` template.
 
 ## Commands
