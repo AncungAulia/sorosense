@@ -1,5 +1,6 @@
 import { MockVaultClient, mockSigner, type Currency } from "@sorosense/vault-client";
 import { UNIT } from "./units";
+import { recordDeposit, resetContributions } from "./contributions";
 
 /** Stable pool ids per currency for the seeded funded state. */
 export const SEED_POOLS: Record<Currency, string> = {
@@ -19,8 +20,13 @@ export async function seedVault(client: MockVaultClient, address: string): Promi
   if ((await client.balanceOf(address, "USD")) > 0n) return;
   const dep = mockSigner("depositor", address);
   const keep = mockSigner("keeper");
-  await client.deposit(address, "USD", 1024n * UNIT + 3_000_000n).signAndSubmit(dep); // 1024.30
-  await client.deposit(address, "EUR", 920n * UNIT + 1_000_000n).signAndSubmit(dep);  // 920.10
+  const usdContribution = 1024n * UNIT + 3_000_000n; // 1024.30
+  const eurContribution = 920n * UNIT + 1_000_000n; //  920.10
+  resetContributions(); // fresh funded state starts from a clean cost-basis
+  await client.deposit(address, "USD", usdContribution).signAndSubmit(dep);
+  await client.deposit(address, "EUR", eurContribution).signAndSubmit(dep);
+  recordDeposit("USD", usdContribution);
+  recordDeposit("EUR", eurContribution);
   await client.allocate(SEED_POOLS.USD, "USD", 1024n * UNIT).signAndSubmit(keep);
   await client.allocate(SEED_POOLS.EUR, "EUR", 920n * UNIT).signAndSubmit(keep);
   client.simulateYield("USD", 92n * UNIT);  // ~ +$92 earned

@@ -9,6 +9,7 @@ import { useWallet } from "../../hooks/useWallet";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
 import { stablecoinBySym, getWalletBalance, type StablecoinSym } from "../../lib/vault/data";
+import { recordDeposit } from "../../lib/vault/contributions";
 import { toWalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 export function DepositKeypad({ sym }: { sym: string }) {
@@ -66,7 +67,9 @@ export function DepositKeypad({ sym }: { sym: string }) {
   const runDeposit = async () => {
     if (!address) return;
     const signer = depositorSigner(address, signTransaction);
-    await client.deposit(address, currency, toAmount(amount)).signAndSubmit(signer);
+    const deposited = toAmount(amount);
+    await client.deposit(address, currency, deposited).signAndSubmit(signer);
+    recordDeposit(currency, deposited); // cost-basis for "Total earned" on Earn
     setToast("Deposited. Agent is allocating.");
     router.push("/home");
   };

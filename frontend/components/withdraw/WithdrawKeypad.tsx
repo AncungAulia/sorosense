@@ -8,6 +8,7 @@ import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
+import { recordWithdraw } from "../../lib/vault/contributions";
 import { toWalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 export function WithdrawKeypad() {
@@ -61,6 +62,7 @@ export function WithdrawKeypad() {
         : (enteredAmount * SHARE_PRICE_SCALE) / (await client.sharePrice(currency));
       if (shares <= 0n) return;
       await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
+      recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
       setToast("Sent to your wallet");
       router.push("/home");
     } catch (e) {

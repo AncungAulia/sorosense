@@ -2,27 +2,59 @@
 import { Button } from "../../../components/ui";
 import { useBuckets } from "../../../hooks/useBuckets";
 import { useNav } from "../../../hooks/useNav";
+import { UNIT } from "../../../lib/vault/units";
+import { getContributions } from "../../../lib/vault/contributions";
+import { getFxRateToUsd } from "../../../lib/vault/data";
+
+const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EarnPage() {
   const nav = useNav();
-  const { buckets, totalUsd } = useBuckets();
+  const { loading, buckets, totalUsd } = useBuckets();
 
-  // Value-weighted blended APY across funded buckets — the "flow" metric this
-  // screen headlines (Home headlines the total value "stock"). The full earnings
-  // view ("You're earning $X" = value − contributions, + growth chart) lands in U16.
-  const weight = buckets.reduce((s, b) => s + b.valueUsd, 0);
-  const blendedApy = weight ? buckets.reduce((s, b) => s + b.valueUsd * b.apy, 0) / weight : 0;
-  const balance = `$${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // "Total earned" = current value − net contributions, blended to USD. Immune to
+  // deposits/withdrawals; only moves with yield (Coinbase/Nexo/Kraken all headline a
+  // lifetime earned figure here, not APY — APY already lives on Home). The full
+  // earnings view (per-bucket, growth chart) lands in U16 from the backend cost-basis;
+  // the frontend ledger mirrors it.
+  const earnedUsd = Math.max(
+    0,
+    buckets.reduce((sum, b) => {
+      const earnedNative = b.value - getContributions(b.currency);
+      return sum + (Number(earnedNative) / Number(UNIT)) * getFxRateToUsd(b.currency);
+    }, 0),
+  );
+
+  if (loading) {
+    return <div className="py-[30px] text-center text-sm text-muted">Loading…</div>;
+  }
+
+  // Nothing deposited and nothing earned → onboarding, not a dead "$0.00 earned".
+  if (buckets.length === 0 && earnedUsd === 0) {
+    return (
+      <div>
+        <div className="py-[30px] text-center">
+          <div className="text-[15px] font-medium text-muted">Start earning</div>
+          <div className="mx-auto mt-2 max-w-[260px] text-[26px] font-semibold leading-tight tracking-[-.01em]">
+            Deposit to start earning
+          </div>
+          <div className="mt-3 text-[13.5px] text-muted">The agent finds the safest yield · no lockup</div>
+        </div>
+        <Button onClick={() => nav.forward("/add-funds")}>Deposit</Button>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="py-[30px] text-center">
-        <div className="text-[15px] font-medium text-muted">You&apos;re earning</div>
-        <div className="mt-2 leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]">
-          <span className="text-[54px] font-semibold text-pos">{blendedApy.toFixed(2)}%</span>
-          <span className="ml-1.5 text-[22px] font-semibold text-muted">APY</span>
+        <div className="text-[15px] font-medium text-muted">Total earned</div>
+        <div className="mt-2 text-[54px] font-semibold leading-none tracking-[-.02em] text-pos [font-variant-numeric:tabular-nums]">
+          {usd(earnedUsd)}
         </div>
-        <div className="mt-3 text-[13.5px] text-muted [font-variant-numeric:tabular-nums]">on {balance} balance · no lockup</div>
+        <div className="mt-3 text-[13.5px] text-muted [font-variant-numeric:tabular-nums]">
+          on {usd(totalUsd)} balance · no lockup
+        </div>
       </div>
       <div className="flex gap-3">
         <Button onClick={() => nav.forward("/add-funds")}>Deposit</Button>
