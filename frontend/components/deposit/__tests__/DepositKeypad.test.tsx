@@ -29,6 +29,14 @@ test("unknown sym shows a not-found state instead of defaulting to USD", () => {
   expect(screen.getByRole("button", { name: "Choose an asset" })).toBeInTheDocument();
 });
 
+test("blocks deposit when the amount exceeds the wallet balance", async () => {
+  const user = userEvent.setup();
+  setup("usdc"); // USDC wallet fixture is 9,076
+  for (const d of "99999") await user.click(screen.getByRole("button", { name: d }));
+  expect(screen.getByText(/not enough balance/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Deposit fund" })).toBeDisabled();
+});
+
 test("first deposit signs consent then deposit (two signatures)", async () => {
   const user = userEvent.setup();
   const { sign, client } = setup("usdc");

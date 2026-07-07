@@ -55,10 +55,12 @@ export function DepositKeypad({ sym }: { sym: string }) {
     );
   }
 
+  const available = getWalletBalance(coin.sym as StablecoinSym);
+  const entered = toAmount(amount);
+  const exceeded = entered > available;
+
   const quick = (pct: number) => {
-    if (!coin) return;
-    const max = getWalletBalance(coin.sym as StablecoinSym);
-    setAmount(fromAmount(BigInt(Math.floor(Number(max) * pct))));
+    setAmount(fromAmount(BigInt(Math.floor(Number(available) * pct))));
   };
 
   const runDeposit = async () => {
@@ -70,7 +72,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
   };
 
   const onConfirm = async () => {
-    if (inFlight.current || !address || busy || toAmount(amount) <= 0n) return;
+    if (inFlight.current || !address || busy || entered <= 0n || exceeded) return;
     inFlight.current = true;
     setBusy(true);
     try {
@@ -117,8 +119,9 @@ export function DepositKeypad({ sym }: { sym: string }) {
           Your {coin?.sym ?? sym.toUpperCase()} pool is paused. New deposits go to a safe pool.
         </div>
       )}
-      <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} />
-      <Button onClick={onConfirm}>Deposit fund</Button>
+      <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} invalid={exceeded} />
+      {exceeded && <p className="mb-2 text-center text-[13px] font-medium text-neg">Not enough balance</p>}
+      <Button onClick={onConfirm} disabled={busy || exceeded || entered <= 0n}>Deposit fund</Button>
       <ConsentSheet open={consentOpen} onAgree={onAgree} onClose={() => setConsentOpen(false)} />
       <Toast open={!!toast} message={toast ?? ""} />
     </div>

@@ -3,8 +3,8 @@
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"] as const;
 
 export function Keypad({
-  value, onChange, symbol, onQuick,
-}: { value: string; onChange: (next: string) => void; symbol: string; onQuick: (pct: number) => void }) {
+  value, onChange, symbol, onQuick, invalid = false,
+}: { value: string; onChange: (next: string) => void; symbol: string; onQuick: (pct: number) => void; invalid?: boolean }) {
   const press = (k: string) => {
     if (k === ".") { if (!value.includes(".")) onChange(value + "."); return; }
     onChange(value === "0" ? k : value + k);
@@ -14,9 +14,9 @@ export function Keypad({
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col justify-center">
-        <div className="text-center text-[60px] font-semibold leading-none tracking-[-.03em] [font-variant-numeric:tabular-nums]">
+        <div className={`text-center text-[60px] font-semibold leading-none tracking-[-.03em] [font-variant-numeric:tabular-nums] ${invalid ? "text-neg" : ""}`}>
           <span>{symbol}</span><span data-testid="keypad-value">{value}</span>
-          <span className="ml-[3px] inline-block h-[50px] w-[2px] animate-pulse bg-ink align-[-7px]" />
+          <span className={`ml-[3px] inline-block h-[50px] w-[2px] animate-pulse align-[-7px] ${invalid ? "bg-neg" : "bg-ink"}`} />
         </div>
       </div>
       <div className="mb-2 flex gap-2.5">

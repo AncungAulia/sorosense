@@ -27,6 +27,9 @@ export function WithdrawKeypad() {
   const active = buckets[i] ?? buckets[0];
   const symbol = active?.currency === "EUR" ? "€" : "$";
   const multi = buckets.length >= 2;
+  const entered = toAmount(amount);
+  const available = active?.value ?? 0n;
+  const exceeded = !!active && entered > available;
 
   const chooseNextBucket = () => {
     if (!multi) return;
@@ -41,7 +44,7 @@ export function WithdrawKeypad() {
   };
 
   const onConfirm = async () => {
-    if (inFlight.current || !address || !active || busy) return;
+    if (inFlight.current || !address || !active || busy || exceeded) return;
     inFlight.current = true;
     setBusy(true);
     try {
@@ -111,8 +114,10 @@ export function WithdrawKeypad() {
           setMaxSelected(pct === 1);
           quick(pct);
         }}
+        invalid={exceeded}
       />
-      <Button onClick={onConfirm}>Move to wallet</Button>
+      {exceeded && <p className="mb-2 text-center text-[13px] font-medium text-neg">Not enough balance</p>}
+      <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
       <Toast open={!!toast} message={toast ?? ""} />
     </div>
   );
