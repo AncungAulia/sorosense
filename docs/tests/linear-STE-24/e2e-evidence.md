@@ -64,5 +64,5 @@ Automated coverage (green): `pnpm -C frontend test` — 30 files / 55 tests. `pn
 ## Notes / deferred (non-blocking)
 - Approve-safe-exit sheet + freeze-status detail + the Activity "Review" action → **U15 (STE-25)**; the freeze banner and Review are display-only placeholders in U14.
 - Full Earn page (growth chart, per-month breakdown) + full Account UI → **U16**. The Earn "Total earned" hero + bucket toggle were pulled forward.
-- RWA "Real world assets" section in Add funds → gated on Axel's reply (posted on STE-24); default is stablecoins-only per R19.
+- RWA "Real world assets" section in Add funds → **dropped** per PM decision (2026-07-08); Add funds stays stablecoins-only per R19 (RWA are agent allocation targets, not user-deposit assets).
 - Real contract/backend wiring, live APY/TVL/activity, real FX → **U20 (STE-21)** / U17.
