@@ -13,5 +13,5 @@ test("lists only fundable stablecoins and routes to deposit", async () => {
   expect(screen.getByText("CETES")).toBeInTheDocument();
   expect(screen.queryByText(/USDY|Real world assets/i)).not.toBeInTheDocument();
   await user.click(screen.getByText("USDC"));
-  expect(push).toHaveBeenCalledWith("/deposit/usdc");
+  expect(push).toHaveBeenCalledWith("/deposit/usdc", { transitionTypes: ["nav-forward"] });
 });

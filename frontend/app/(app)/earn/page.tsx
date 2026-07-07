@@ -1,10 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { Button } from "../../../components/ui";
 import { useBuckets } from "../../../hooks/useBuckets";
+import { useNav } from "../../../hooks/useNav";
 
 export default function EarnPage() {
-  const router = useRouter();
+  const nav = useNav();
   const { totalUsd } = useBuckets();
   return (
     <div>
@@ -15,8 +15,8 @@ export default function EarnPage() {
         </div>
       </div>
       <div className="flex gap-3">
-        <Button onClick={() => router.push("/add-funds")}>Deposit</Button>
-        <Button variant="glass" onClick={() => router.push("/withdraw")}>Move to wallet</Button>
+        <Button onClick={() => nav.forward("/add-funds")}>Deposit</Button>
+        <Button variant="glass" onClick={() => nav.forward("/withdraw")}>Move to wallet</Button>
       </div>
     </div>
   );
