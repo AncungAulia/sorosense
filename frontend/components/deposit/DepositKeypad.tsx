@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Currency } from "@sorosense/vault-client";
 import { Button, Keypad, Toast, SubHeader } from "../ui";
@@ -21,10 +21,10 @@ export function DepositKeypad({ sym }: { sym: string }) {
 
   const [amount, setAmount] = useState("0");
   const [frozen, setFrozen] = useState(false);
-  const [consented, setConsented] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,19 +38,6 @@ export function DepositKeypad({ sym }: { sym: string }) {
     // wallet connect — without it a deep-link render can read poolStatus before the seed
     // lands and wrongly show no amber note (mirrors the fix in useBuckets).
   }, [client, currency, version]);
-
-  useEffect(() => {
-    if (!address) return;
-    let cancelled = false;
-    // Snapshot consent once on mount (deliberately NOT keyed on `version`): the dev-only
-    // background seed (VaultProvider) also grants consent as part of its fixture, and that
-    // async chain can land between mount and the user's click on a fresh vault. Consent, unlike
-    // pool-freeze status, only ever changes in this flow via the user's own "Agree & sign" — so
-    // reading it once up front (before the seed's mutation can race in) and updating it locally
-    // after a real signature is the correct, race-free source of truth.
-    void client.hasConsent(address).then((hc) => { if (!cancelled) setConsented(hc); });
-    return () => { cancelled = true; };
-  }, [client, address]);
 
   const quick = (pct: number) => {
     if (!coin) return;
@@ -67,32 +54,35 @@ export function DepositKeypad({ sym }: { sym: string }) {
   };
 
   const onConfirm = async () => {
-    if (!address || busy || toAmount(amount) <= 0n) return;
+    if (inFlight.current || !address || busy || toAmount(amount) <= 0n) return;
+    inFlight.current = true;
     setBusy(true);
     try {
-      if (!consented) { setConsentOpen(true); return; }
+      if (!(await client.hasConsent(address))) { setConsentOpen(true); return; }
       await runDeposit();
     } catch (e) {
       const w = toWalletError(e);
       if (w.code !== USER_CLOSED_MODAL) setToast(w.message); // user closed modal → silent
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
 
   const onAgree = async () => {
-    if (!address) return;
+    if (inFlight.current || !address) return;
+    inFlight.current = true;
     setConsentOpen(false); setBusy(true);
     try {
       const signer = depositorSigner(address, signTransaction);
       await client.setPolicyConsent(address).signAndSubmit(signer);
-      setConsented(true);
       await runDeposit();
     } catch (e) {
       const w = toWalletError(e);
       if (w.code !== USER_CLOSED_MODAL) setToast(w.message);
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
 
