@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useEffect, useState, type ReactNode } from "react";
 import { MockVaultClient } from "@sorosense/vault-client";
 import { useWallet } from "../hooks/useWallet";
 import { seedVault } from "../lib/vault/seed";
@@ -15,7 +15,9 @@ function getSingleton(): MockVaultClient {
 }
 
 export function VaultProvider({ children, client }: { children: ReactNode; client?: MockVaultClient }) {
-  const ref = useRef<MockVaultClient>(client ?? getSingleton());
+  // getSingleton() is idempotent (same instance every call) and `client` is caller-fixed, so this
+  // resolves to a stable reference across renders without needing a ref.
+  const resolvedClient = client ?? getSingleton();
   const { address } = useWallet();
   const [version, setVersion] = useState(0);
 
@@ -23,11 +25,11 @@ export function VaultProvider({ children, client }: { children: ReactNode; clien
     if (!address) return;
     let cancelled = false;
     // Dev-only seed; a no-op once the bucket is funded. Replaced by real reads at U20.
-    void seedVault(ref.current, address).then(() => {
+    void seedVault(resolvedClient, address).then(() => {
       if (!cancelled) setVersion((n) => n + 1);
     });
     return () => { cancelled = true; };
-  }, [address]);
+  }, [address, resolvedClient]);
 
-  return <VaultContext.Provider value={{ client: ref.current, version }}>{children}</VaultContext.Provider>;
+  return <VaultContext.Provider value={{ client: resolvedClient, version }}>{children}</VaultContext.Provider>;
 }

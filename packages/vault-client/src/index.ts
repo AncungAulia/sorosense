@@ -20,7 +20,7 @@ export type {
   SignerRole,
   TxResult,
   VaultClient,
-} from './interface.js';
-export { SHARE_PRICE_SCALE } from './interface.js';
+} from './interface';
+export { SHARE_PRICE_SCALE } from './interface';
 
-export { MockVaultClient, mockSigner } from './mock.js';
+export { MockVaultClient, mockSigner } from './mock';

@@ -30,12 +30,12 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
   });
 
   useEffect(() => {
-    if (!address) {
-      setState({ loading: false, error: null, buckets: [] });
-      return;
-    }
     let cancelled = false;
     (async () => {
+      if (!address) {
+        if (!cancelled) setState({ loading: false, error: null, buckets: [] });
+        return;
+      }
       try {
         const out: BucketView[] = [];
         for (const currency of CURRENCIES) {

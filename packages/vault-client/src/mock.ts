@@ -23,8 +23,8 @@ import type {
   SignerRole,
   TxResult,
   VaultClient,
-} from './interface.js';
-import { SHARE_PRICE_SCALE } from './interface.js';
+} from './interface';
+import { SHARE_PRICE_SCALE } from './interface';
 
 const bucketKey = (user: Address, currency: Currency): string => `${user}:${currency}`;
 

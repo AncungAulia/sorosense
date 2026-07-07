@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MockVaultClient, mockSigner } from './mock.js';
-import { SHARE_PRICE_SCALE } from './interface.js';
+import { MockVaultClient, mockSigner } from './mock';
+import { SHARE_PRICE_SCALE } from './interface';
 
 const depositor = mockSigner('depositor', 'alice');
 const keeper = mockSigner('keeper', 'sentinel');
