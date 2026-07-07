@@ -4,6 +4,7 @@ export { Chip } from "./Chip";
 export { BottomSheet } from "./BottomSheet";
 export { Toast } from "./Toast";
 export { BottomNav } from "./BottomNav";
+export { TopBlur } from "./TopBlur";
 export { Keypad } from "./Keypad";
 export { SubHeader } from "./SubHeader";
 export { CoinBadge } from "./CoinBadge";
