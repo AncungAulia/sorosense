@@ -17,6 +17,7 @@ export function WithdrawKeypad() {
   const { address, signTransaction } = useWallet();
   const [i, setI] = useState(0);
   const [amount, setAmount] = useState("0");
+  const [maxSelected, setMaxSelected] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
@@ -31,6 +32,7 @@ export function WithdrawKeypad() {
     if (!multi) return;
     setI((n) => (n + 1) % buckets.length);
     setAmount("0"); // reset the keypad — the previous bucket's amount doesn't carry over
+    setMaxSelected(false);
   };
 
   const quick = (pct: number) => {
@@ -46,7 +48,7 @@ export function WithdrawKeypad() {
       const currency: Currency = active.currency;
       const enteredAmount = toAmount(amount);
       if (enteredAmount <= 0n) return;
-      const isMax = enteredAmount >= active.value;
+      const isMax = maxSelected;
       // The seam's `withdraw` burns SHARES, but the UI is asset-denominated. Convert via the
       // current NAV: shares = amount * SCALE / sharePrice. For "Max" use the full share balance
       // directly (balanceOf) rather than converting the displayed asset value back to shares, to
@@ -100,7 +102,18 @@ export function WithdrawKeypad() {
       <div className="mb-0.5 text-center text-[12.5px] text-muted">
         {active ? `${formatCurrency(active.value, active.currency)} available` : "—"}
       </div>
-      <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} />
+      <Keypad
+        value={amount}
+        onChange={(next) => {
+          setMaxSelected(false);
+          setAmount(next);
+        }}
+        symbol={symbol}
+        onQuick={(pct) => {
+          setMaxSelected(pct === 1);
+          quick(pct);
+        }}
+      />
       <Button onClick={onConfirm}>Move to wallet</Button>
       <Toast open={!!toast} message={toast ?? ""} />
     </div>
