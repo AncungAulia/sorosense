@@ -45,7 +45,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
   // defaulting into the USD bucket. All hooks above have already run unconditionally.
   if (!coin) {
     return (
-      <div className="flex min-h-[calc(100dvh-52px)] flex-col">
+      <div className="flex min-h-[calc(100dvh-92px)] flex-col">
         <SubHeader title="Deposit" />
         <p className="mt-6 text-center text-[13px] text-muted">Unknown asset.</p>
         <div className="mt-auto">
@@ -103,7 +103,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
   };
 
   return (
-    <div className="flex min-h-[calc(100dvh-52px)] flex-col">
+    <div className="flex min-h-[calc(100dvh-92px)] flex-col">
       <SubHeader title={`Deposit ${coin?.sym ?? sym.toUpperCase()}`} />
       <div className="mb-1.5 text-center">
         <span className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold">

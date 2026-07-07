@@ -70,7 +70,7 @@ export function WithdrawKeypad() {
   };
 
   return (
-    <div className="flex min-h-[calc(100dvh-52px)] flex-col">
+    <div className="flex min-h-[calc(100dvh-92px)] flex-col">
       <SubHeader title="Move to wallet" />
       <div className="mb-1 text-center">
         <button
