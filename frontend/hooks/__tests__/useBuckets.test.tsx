@@ -28,3 +28,13 @@ test("useBuckets lists funded buckets with frozen flag and a blended total", asy
   expect(screen.getByText("EUR:frozen")).toBeInTheDocument();
   expect(screen.getByText("USD:active")).toBeInTheDocument();
 });
+
+test("useBuckets refetches once the provider's background seed completes (no pre-seed)", async () => {
+  useWallet.mockReturnValue({ address: "GUSER" });
+  const client = new MockVaultClient();
+  // Deliberately do NOT call seedVault here — VaultProvider seeds it asynchronously
+  // on mount. This reproduces the seed-completion race: useBuckets must refetch
+  // once the background seed finishes, not just read balances once on mount.
+  render(<VaultProvider client={client}><Probe /></VaultProvider>);
+  await waitFor(() => expect(screen.getByText("count:2")).toBeInTheDocument());
+});

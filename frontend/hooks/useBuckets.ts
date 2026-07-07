@@ -22,7 +22,7 @@ export interface BucketView {
 
 export function useBuckets(): { loading: boolean; error: string | null; buckets: BucketView[]; totalUsd: number } {
   const { address } = useWallet();
-  const { client } = useVault();
+  const { client, version } = useVault();
   const [state, setState] = useState<{ loading: boolean; error: string | null; buckets: BucketView[] }>({
     loading: true,
     error: null,
@@ -56,7 +56,7 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
     return () => {
       cancelled = true;
     };
-  }, [address, client]);
+  }, [address, client, version]);
 
   const totalUsd = state.buckets.reduce((sum, b) => sum + b.valueUsd, 0);
   return { ...state, totalUsd };
