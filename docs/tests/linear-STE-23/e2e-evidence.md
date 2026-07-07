@@ -78,17 +78,26 @@ Unit tests cover the U13 test scenarios from the spec:
 
 ## Visual evidence
 
-> ⚠️ The automated browser (Claude-in-Chrome) runs on a different host than this dev
-> machine, so it cannot reach `localhost:3007`. Capture the mobile screenshots below
-> from a local browser (DevTools device mode @ 390px) and drop them into
-> `docs/tests/linear-STE-23/screenshots/`:
->
-> 1. `01-welcome.png` — `/` welcome (headline + Get started / Connect wallet)
-> 2. `02-tour-earn.png` — tour screen 1 (green glow, guard-ring 1/3)
-> 3. `03-tour-safety.png` — tour screen 2 (red glow, 2/3)
-> 4. `04-tour-noncustodial.png` — tour screen 3 (neutral glow, 3/3, Connect wallet)
-> 5. `05-connect-modal.png` — Stellar Wallets Kit modal (Freighter first)
-> 6. `06-home-shell.png` — `/home` with bottom nav (seed `localStorage.soro.wallet` to pass the gate)
+Captured from a local browser at 390px (mobile). Onboarding flow, wallet-connect, and the authenticated shell:
+
+| Welcome | Tour · Earn | Tour · Safety | Tour · Non-custodial |
+|---|---|---|---|
+| ![welcome](screenshots/01-welcome.png) | ![earn](screenshots/02-tour-earn.png) | ![safety](screenshots/03-tour-safety.png) | ![non-custodial](screenshots/04-tour-noncustodial.png) |
+
+| Connect modal (Freighter-first) | Home shell | Earn tab | Account tab |
+|---|---|---|---|
+| ![connect](screenshots/05-connect-modal.png) | ![home](screenshots/06-home-shell.png) | ![earn-tab](screenshots/07-earn.png) | ![account-tab](screenshots/08-account.png) |
+
+`05-connect-modal.png` shows **Freighter detected and floated to the top with no "Install" badge**, confirming the Freighter-first configuration end-to-end. (Note: DevTools *device-mode* emulation sends a mobile user-agent, under which the desktop Freighter extension does not inject and the kit correctly shows "Install"; capturing at a normal desktop viewport detects it. This is Freighter/kit behaviour, not app logic.)
+
+## Post-capture hardening (connect error handling)
+
+Manual dogfooding surfaced two dev-only issues, both fixed on this branch:
+
+- **`[object Object]` on modal close** — Stellar Wallets Kit rejects with plain `{ code, message }` objects (`kit.js` → `reject({ code: -1, message: "The user closed the modal." })`), not `Error`s; the unhandled rejection rendered as `[object Object]`. Fixed by normalising kit rejections to a `WalletError` at the wallet boundary (`lib/wallet-error.ts`, `lib/wallet.ts`) and handling them in `onConnect` (silent on user-cancel `code -1`, auto-dismissing toast on real errors, no navigation on failure). Covered by `app/__tests__/landing.test.tsx` (happy / error-toast / silent-cancel).
+- **Hydration mismatch on `<html>`** — the kit injects `--swk-*` theme CSS vars onto `<html>` at runtime; resolved with `suppressHydrationWarning` (`app/layout.tsx`).
+
+Re-verified after the fix: **test 22/22 · typecheck · lint · build — all exit 0.**
 
 ## Known limitations / deferred (not U13 scope)
 
