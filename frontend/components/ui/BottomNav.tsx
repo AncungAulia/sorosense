@@ -18,13 +18,13 @@ export function BottomNav() {
   return (
     <>
       {/* progressive blur overlay above the nav */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[38] h-[104px] overflow-hidden rounded-b-[37px]">
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 bottom-0 z-[38] h-[104px] overflow-hidden">
         <div className="absolute inset-0 [backdrop-filter:blur(2px)] [mask-image:linear-gradient(to_top,#000_0%,#000_52%,transparent_100%)]" />
         <div className="absolute inset-0 [backdrop-filter:blur(5px)] [mask-image:linear-gradient(to_top,#000_0%,#000_30%,transparent_58%)]" />
         <div className="absolute inset-0 [backdrop-filter:blur(9px)] [mask-image:linear-gradient(to_top,#000_0%,#000_15%,transparent_36%)]" />
         <div className="absolute inset-0 [background:linear-gradient(180deg,transparent,rgba(242,242,242,.5))]" />
       </div>
-      <nav aria-label="Main" className="absolute inset-x-0 bottom-0 z-40 flex h-[88px] items-start justify-around px-6 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))]">
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex h-[88px] items-start justify-around px-6 pt-2.5 pb-[calc(20px+env(safe-area-inset-bottom))]">
         {TABS.map((t) => {
           const active = path === t.href;
           return (
