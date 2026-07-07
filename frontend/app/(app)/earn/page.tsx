@@ -49,7 +49,7 @@ export default function EarnPage() {
     <div>
       <div className="py-[30px] text-center">
         <div className="text-[15px] font-medium text-muted">Total earned</div>
-        <div className="mt-2 text-[54px] font-semibold leading-none tracking-[-.02em] text-pos [font-variant-numeric:tabular-nums]">
+        <div className="mt-2 text-[54px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]">
           {usd(earnedUsd)}
         </div>
         <div className="mt-3 text-[13.5px] text-muted [font-variant-numeric:tabular-nums]">
