@@ -14,11 +14,13 @@ export type {
   PoolId,
   PoolStatus,
   PreparedTx,
+  PriceRay,
   Shares,
   Signer,
   SignerRole,
   TxResult,
   VaultClient,
 } from './interface.js';
+export { SHARE_PRICE_SCALE } from './interface.js';
 
 export { MockVaultClient, mockSigner } from './mock.js';
