@@ -18,5 +18,5 @@ test("earn stub routes to deposit and withdraw", async () => {
   render(<VaultProvider client={client}><EarnPage /></VaultProvider>);
   await waitFor(() => expect(screen.getByRole("button", { name: "Move to wallet" })).toBeInTheDocument());
   await user.click(screen.getByRole("button", { name: "Move to wallet" }));
-  expect(push).toHaveBeenCalledWith("/withdraw", { transitionTypes: ["nav-forward"] });
+  expect(push).toHaveBeenCalledWith("/withdraw");
 });

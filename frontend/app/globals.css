@@ -24,32 +24,22 @@
 }
 
 html, body { height: 100%; }
-body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 
-/* ── Directional page transitions (Next experimental.viewTransition) ──────────
-   Navigations tagged transitionTypes:['nav-forward'] slide the new page in from
-   the right (native push); untagged navigations (tab switches, browser back)
-   keep the browser's default crossfade. Reusable app-wide. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 320ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+/* ── Page enter transition ───────────────────────────────────────────────────
+   Sub-screens (the (flow) route group) mount inside a template that carries the
+   .page-enter class, so navigating into them slides the new page in from the
+   right (native-app feel). Reusable: any route with its own template can apply
+   .page-enter. Reduced-motion disables it. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-@keyframes vt-from-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes vt-to-left    { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-24%); opacity: 0; } }
-@keyframes vt-from-left  { from { transform: translateX(-24%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes vt-to-right   { from { transform: translateX(0); } to { transform: translateX(100%); } }
-
-:root:active-view-transition-type(nav-forward)::view-transition-old(root) { animation-name: vt-to-left; }
-:root:active-view-transition-type(nav-forward)::view-transition-new(root) { animation-name: vt-from-right; }
-:root:active-view-transition-type(nav-back)::view-transition-old(root) { z-index: 2; animation-name: vt-to-right; }
-:root:active-view-transition-type(nav-back)::view-transition-new(root) { z-index: 1; animation-name: vt-from-left; }
+/* No fill-mode: the transform must NOT persist after the animation, or the
+   wrapper would become the containing block for `fixed` children (e.g. the
+   consent BottomSheet), reintroducing the closed-sheet-visible bug. */
+.page-enter { animation: page-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
 
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root),
-  ::view-transition-group(*) {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-  }
+  .page-enter { animation: none; }
 }
