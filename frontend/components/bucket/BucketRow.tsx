@@ -1,11 +1,11 @@
-import { Chip } from "../ui";
+import { Chip, CoinBadge } from "../ui";
 import { formatCurrency } from "../../lib/vault/units";
 import type { BucketView } from "../../hooks/useBuckets";
 
 export function BucketRow({ bucket, first }: { bucket: BucketView; first: boolean }) {
   return (
     <div className={`flex items-center gap-[13px] py-3.5 ${first ? "" : "border-t border-line"}`}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pill text-xs font-semibold text-pill-ink">{bucket.currency}</span>
+      <CoinBadge currency={bucket.currency} size={40} />
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{bucket.name}</div>
         <div className="mt-[5px] flex flex-wrap gap-1.5">

@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Card } from "../ui";
+import { Card, CoinBadge } from "../ui";
 import { SubHeader } from "../ui/SubHeader";
 import { STABLECOINS } from "../../lib/vault/data";
 
@@ -14,7 +14,7 @@ export function AddFunds() {
         {STABLECOINS.map((s, i) => (
           <button key={s.sym} onClick={() => router.push(`/deposit/${s.sym.toLowerCase()}`)}
             className={`flex w-full items-center gap-[13px] py-3.5 text-left ${i === 0 ? "" : "border-t border-line"}`}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pill text-xs font-semibold text-pill-ink">{s.currency}</span>
+            <CoinBadge token={s.sym} size={40} />
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{s.sym}</div>
               <div className="mt-[5px] flex flex-wrap gap-1.5">

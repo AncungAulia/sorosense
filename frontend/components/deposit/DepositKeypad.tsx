@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Currency } from "@sorosense/vault-client";
-import { Button, Keypad, Toast, SubHeader } from "../ui";
+import { Button, Keypad, Toast, SubHeader, CoinBadge } from "../ui";
 import { ConsentSheet } from "./ConsentSheet";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
@@ -107,7 +107,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
       <SubHeader title={`Deposit ${coin?.sym ?? sym.toUpperCase()}`} />
       <div className="mb-1.5 text-center">
         <span className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold">
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-white text-[9px] font-semibold">{currency}</span>
+          <CoinBadge token={coin.sym} size={22} />
           {formatCurrency(getWalletBalance((coin?.sym ?? "USDC") as StablecoinSym), currency)}
         </span>
       </div>

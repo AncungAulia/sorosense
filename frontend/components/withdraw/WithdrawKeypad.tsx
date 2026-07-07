@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SHARE_PRICE_SCALE, type Currency } from "@sorosense/vault-client";
-import { Button, Keypad, Toast, SubHeader } from "../ui";
+import { Button, Keypad, Toast, SubHeader, CoinBadge } from "../ui";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
@@ -78,9 +78,7 @@ export function WithdrawKeypad() {
           onClick={chooseNextBucket}
           className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold"
         >
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-white text-[9px] font-semibold">
-            {active?.currency ?? "USD"}
-          </span>
+          <CoinBadge currency={active?.currency ?? "USD"} size={22} />
           {active?.name ?? "USD bucket"}
           {multi && (
             <svg
