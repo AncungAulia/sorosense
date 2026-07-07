@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 const TABS = [
   { href: "/home", label: "Home", icon: <path d="M4 11l8-7 8 7M6 10v9h12v-9" /> },
-  { href: "/earn", label: "Earn", icon: <><path d="M4 20V4M4 20h16" /><rect x="7" y="12" width="3" height="5" /><rect x="12" y="9" width="3" height="8" /><rect x="17" y="6" width="3" height="11" /></> },
+  { href: "/earn", label: "Earn", icon: <><rect x="4" y="13" width="4" height="7" rx="1.5" fill="currentColor" stroke="none" /><rect x="10" y="9" width="4" height="11" rx="1.5" fill="currentColor" stroke="none" /><rect x="16" y="5" width="4" height="15" rx="1.5" fill="currentColor" stroke="none" /></> },
   { href: "/account", label: "Account", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 20a8 8 0 0 1 16 0" /></> },
 ] as const;
 
