@@ -12,8 +12,7 @@ export function ActivityRow({ item, first, onReview, reviewed }: { item: Activit
       </div>
       {item.review ? (
         reviewed ? (
-          <span className="flex h-[30px] shrink-0 items-center gap-1 rounded-full bg-[#ECECEC] px-3 text-[12.5px] font-semibold text-faint">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+          <span className="flex h-[30px] shrink-0 items-center rounded-full bg-[#ECECEC] px-3.5 text-[12.5px] font-semibold text-faint">
             Reviewed
           </span>
         ) : onReview ? (
