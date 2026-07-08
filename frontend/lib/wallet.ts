@@ -62,9 +62,11 @@ export async function signTransaction(xdr: string): Promise<string> {
     // flow (deposit/withdraw/consent/approve-exit) demoable end-to-end against a real wallet.
     // Real transaction XDRs fall through to signTransaction below, so the swap is automatic at U20.
     if (xdr.startsWith("mock-xdr-")) {
-      const { signedMessage } = await getKit().signMessage(xdr, {
-        networkPassphrase: Networks.TESTNET,
-      });
+      // No networkPassphrase here on purpose: the mock's signature is discarded, so the network is
+      // irrelevant — and pinning Test Net makes Freighter refuse when the wallet is on another
+      // network ("expects Test Net" while set to Main Net). Signing on the wallet's active network
+      // keeps the demo working regardless of the presenter's Freighter setting.
+      const { signedMessage } = await getKit().signMessage(xdr);
       return signedMessage;
     }
     const { signedTxXdr } = await getKit().signTransaction(xdr, {
