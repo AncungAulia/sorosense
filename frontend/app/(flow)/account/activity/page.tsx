@@ -1,16 +1,16 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card, SubHeader } from "../../../../components/ui";
 import { ActivityList } from "../../../../components/activity/ActivityList";
+import { ExitApproval } from "../../../../components/proposal/ExitApproval";
 import { useActivity } from "../../../../hooks/useActivity";
 
 const FILTERS = [{ key: "all", label: "All" }, { key: "you", label: "Yours" }, { key: "auto", label: "Automated" }] as const;
 
 export default function ActivityPage() {
-  const router = useRouter();
   const items = useActivity();
   const [filter, setFilter] = useState<"all" | "you" | "auto">("all");
+  const [exitOpen, setExitOpen] = useState(false);
   const shown = filter === "all" ? items : items.filter((a) => a.cat === filter);
   return (
     <div className="pb-8">
@@ -22,8 +22,10 @@ export default function ActivityPage() {
         ))}
       </div>
       <Card className="px-5 py-1">
-        <ActivityList items={shown} onReview={() => router.push("/account/activity")} />
+        <ActivityList items={shown} onReview={() => setExitOpen(true)} />
       </Card>
+
+      <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
     </div>
   );
 }
