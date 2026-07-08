@@ -55,6 +55,18 @@ export async function getAddress(): Promise<string> {
 
 export async function signTransaction(xdr: string): Promise<string> {
   try {
+    // MockVaultClient emits placeholder XDRs ("mock-xdr-N") that are NOT real Stellar
+    // transactions, so a wallet rejects them (Freighter throws an internal error). Until the
+    // real contract bindings land (U20), sign these as an arbitrary message instead — the wallet
+    // still pops and signs, and the mock ignores the returned signature. This keeps every signed
+    // flow (deposit/withdraw/consent/approve-exit) demoable end-to-end against a real wallet.
+    // Real transaction XDRs fall through to signTransaction below, so the swap is automatic at U20.
+    if (xdr.startsWith("mock-xdr-")) {
+      const { signedMessage } = await getKit().signMessage(xdr, {
+        networkPassphrase: Networks.TESTNET,
+      });
+      return signedMessage;
+    }
     const { signedTxXdr } = await getKit().signTransaction(xdr, {
       networkPassphrase: Networks.TESTNET,
     });
