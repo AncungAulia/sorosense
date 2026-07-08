@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, BottomSheet, Toast } from "../ui";
 import { usePendingExit } from "../../hooks/usePendingExit";
 import { useVault } from "../../hooks/useVault";
@@ -23,6 +23,14 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+
+  // ExitApproval stays mounted at page level (unlike WithdrawKeypad, which unmounts on
+  // navigation), so the toast needs its own auto-dismiss or it lingers over the page forever.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const onApprove = async () => {
     if (inFlight.current || !address || !pend?.proposal || busy) return;
@@ -56,7 +64,7 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
       {pend?.proposal ? (
         <>
           <p className="mb-[18px] text-sm text-muted">
-            We paused your {pend.currency === "EUR" ? "EURC" : pend.currency} pool to keep it safe. Your
+            We paused your {pend.sym} pool to keep it safe. Your
             funds are protected — approve moving them to a safe pool in the same currency.
           </p>
           <div className="rounded-[18px] border border-line bg-white p-3.5">

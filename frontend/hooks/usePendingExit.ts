@@ -11,6 +11,7 @@ export interface PendingExitView {
   currency: Currency;
   proposal: ExitProposal | null;
   fromLabel: string;
+  sym: string;
   amount: bigint;
   toMeta: { name: string; apy: number } | null;
 }
@@ -40,7 +41,7 @@ export function usePendingExit(): PendingExitView | null {
         const amount = await client.assetValueOf(address, currency);
         const sym = STABLECOINS.find((s) => s.currency === currency)?.sym ?? currency;
         const toMeta = proposal ? getPoolMeta(proposal.toPool) : null;
-        if (!cancelled) setView({ currency, proposal, fromLabel: `Paused ${sym} pool`, amount, toMeta });
+        if (!cancelled) setView({ currency, proposal, fromLabel: `Paused ${sym} pool`, sym, amount, toMeta });
         return;
       }
       if (!cancelled) setView(null);

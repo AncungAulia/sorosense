@@ -33,7 +33,7 @@ export default function HomePage() {
 
       <h2 className="mx-1 mb-2 text-sm font-medium text-muted">Agent activity</h2>
       <Card className="px-5 pb-2 pt-1">
-        <ActivityList items={activity.slice(0, 3)} onReview={() => nav.forward("/account/activity")} />
+        <ActivityList items={activity.slice(0, 3)} onReview={() => setExitOpen(true)} />
         <button onClick={() => nav.forward("/account/activity")}
           className="mt-1.5 flex w-full items-center justify-center gap-[3px] border-t border-line pt-[13px] pb-[3px] text-[13.5px] font-medium text-muted">
           View all activity
