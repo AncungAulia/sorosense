@@ -29,6 +29,16 @@ export function getBucketMeta(currency: Currency): BucketMeta {
   return BUCKET_META[currency];
 }
 
+/** Display data for a safe-exit *target* pool, keyed by pool id. No risk field (invisible safety). */
+const POOL_META: Record<string, { name: string; apy: number }> = {
+  "pool-defindex-eur": { name: "DeFindex EURC", apy: 5.9 },
+};
+
+/** Name + APY to render an exit proposal's target pool; null for pools with no display entry. */
+export function getPoolMeta(poolId: string): { name: string; apy: number } | null {
+  return POOL_META[poolId] ?? null;
+}
+
 /** Agent + user activity feed — detail strings mirror ActivityEntry.detail (no risk label). */
 export function getActivity(): ActivityItem[] {
   return [
