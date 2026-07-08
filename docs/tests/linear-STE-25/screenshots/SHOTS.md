@@ -23,15 +23,14 @@ after an Approve, **hard-refresh** (Ctrl+Shift+R) — a fresh page load re-seeds
    review and approve the move"** freeze banner (amber warning icon), above the Buckets card.
    This is the freeze-status surface.
 2. `02-exit-sheet.png` — **Tap the banner** → the **Approve safe exit** sheet:
-   - Body: "We paused your EURC pool to keep it safe. Your funds are protected — approve
-     moving them to a safe pool in the same currency." (**no "Sentinel"/"risk" wording**).
+   - Body: "We paused your EURC pool. Approve moving your funds to another EURC pool."
+     (**plain — no em dash, no buzzwords, no "Sentinel"/"risk"**).
    - Move card: **From "Paused EURC pool" ≈ €1,004.09** → **To "DeFindex EURC · 5.90% APY"**.
-   - Buttons: **"Approve and sign in wallet"** (ink) + **"Keep it paused"** (glass).
-   - Footnote: "Your funds stay safe either way. Nothing moves until you approve."
+   - Buttons: **"Approve and sign in wallet"** (ink) + **"Keep it paused"** (glass; no footnote below it).
 3. `03-decline-toast.png` — Tap **"Keep it paused"** → sheet closes, toast
-   **"Kept paused — your funds stay safe."**; the freeze banner is **still there** (nothing moved).
+   **"Kept paused. Nothing moved."**; the freeze banner is **still there** (nothing moved).
 4. `04-approve-toast.png` — Re-open the sheet → tap **"Approve and sign in wallet"** → Freighter
-   sign popup (optional to include) → toast **"Exit approved. Moving to a safe pool."**
+   sign popup (optional to include) → toast **"Exit approved. Moving your funds now."**
 5. `05-home-after-approve.png` — Right after Approve: back on **Home**, the **freeze banner is
    gone** and the EUR bucket is no longer paused (the live re-read via `bump()`). This is the
    "funds moved to a safe pool, banner cleared" evidence. *(Then hard-refresh to reset for any re-shoots.)*

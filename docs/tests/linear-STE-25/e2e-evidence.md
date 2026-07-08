@@ -23,9 +23,9 @@ Screens (in `docs/tests/linear-STE-25/screenshots/`):
   ![home-freeze-banner](screenshots/01-home-freeze-banner.png)
 - **Approve safe exit sheet** — From "Paused EURC pool" ≈ €1,004.09 → To "DeFindex EURC · 5.90% APY"; "Approve and sign in wallet" + "Keep it paused":
   ![exit-sheet](screenshots/02-exit-sheet.png)
-- **Decline** — "Keep it paused" → toast "Kept paused — your funds stay safe."; banner still present (nothing moved):
+- **Decline** — "Keep it paused" → toast "Kept paused. Nothing moved."; banner still present (nothing moved):
   ![decline-toast](screenshots/03-decline-toast.png)
-- **Approve** — "Approve and sign in wallet" → wallet sign → toast "Exit approved. Moving to a safe pool.":
+- **Approve** — "Approve and sign in wallet" → wallet sign → toast "Exit approved. Moving your funds now.":
   ![approve-toast](screenshots/04-approve-toast.png)
 - **Home after approve** — freeze banner cleared + EUR bucket no longer paused (live re-read via `bump()`):
   ![home-after-approve](screenshots/05-home-after-approve.png)

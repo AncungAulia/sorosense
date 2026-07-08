@@ -41,7 +41,7 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
         .approveExit(address, pend.proposal.id)
         .signAndSubmit(depositorSigner(address, signTransaction));
       bump(); // re-read: banner clears, bucket un-freezes
-      setToast("Exit approved. Moving to a safe pool.");
+      setToast("Exit approved. Moving your funds now.");
       onClose();
     } catch (e) {
       const w = toWalletError(e);
@@ -53,7 +53,7 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   const onDecline = () => {
-    setToast("Kept paused — your funds stay safe."); // no seam call: funds never move without approval
+    setToast("Kept paused. Nothing moved."); // no seam call: funds never move without approval
     onClose();
   };
 
@@ -64,8 +64,7 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
       {pend?.proposal ? (
         <>
           <p className="mb-[18px] text-sm text-muted">
-            We paused your {pend.sym} pool to keep it safe. Your
-            funds are protected — approve moving them to a safe pool in the same currency.
+            We paused your {pend.sym} pool. Approve moving your funds to another {pend.sym} pool.
           </p>
           <div className="rounded-[18px] border border-line bg-white p-3.5">
             <div className="flex items-center gap-3">
@@ -94,10 +93,9 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
           </div>
           <Button className="mt-[18px]" onClick={onApprove} disabled={busy}>Approve and sign in wallet</Button>
           <Button variant="glass" className="mt-2.5" onClick={onDecline} disabled={busy}>Keep it paused</Button>
-          <p className="mt-3 text-center text-xs text-muted">Your funds stay safe either way. Nothing moves until you approve.</p>
         </>
       ) : (
-        <p className="mb-2 text-sm text-muted">Preparing a safe exit… Your funds are protected in the meantime.</p>
+        <p className="mb-2 text-sm text-muted">Preparing your safe exit.</p>
       )}
     </BottomSheet>
     {/* Toast lives outside the sheet so it stays visible after approve closes the sheet. */}
