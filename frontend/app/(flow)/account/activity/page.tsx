@@ -4,14 +4,18 @@ import { Card, SubHeader } from "../../../../components/ui";
 import { ActivityList } from "../../../../components/activity/ActivityList";
 import { ExitApproval } from "../../../../components/proposal/ExitApproval";
 import { useActivity } from "../../../../hooks/useActivity";
+import { usePendingExit } from "../../../../hooks/usePendingExit";
 
 const FILTERS = [{ key: "all", label: "All" }, { key: "you", label: "Yours" }, { key: "auto", label: "Automated" }] as const;
 
 export default function ActivityPage() {
   const items = useActivity();
+  const pend = usePendingExit();
   const [filter, setFilter] = useState<"all" | "you" | "auto">("all");
   const [exitOpen, setExitOpen] = useState(false);
   const shown = filter === "all" ? items : items.filter((a) => a.cat === filter);
+  // Once the exit is approved (no pending exit), the "Review" affordance becomes a dead "Reviewed".
+  const reviewed = !pend;
   return (
     <div className="pb-8">
       <SubHeader title="Activity" />
@@ -22,7 +26,7 @@ export default function ActivityPage() {
         ))}
       </div>
       <Card className="px-5 py-1">
-        <ActivityList items={shown} onReview={() => setExitOpen(true)} />
+        <ActivityList items={shown} onReview={() => setExitOpen(true)} reviewed={reviewed} />
       </Card>
 
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />

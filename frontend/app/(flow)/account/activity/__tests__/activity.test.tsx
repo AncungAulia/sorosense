@@ -28,8 +28,9 @@ test("activity page filters to Yours", async () => {
 
 test("AE1 — only the proposed-exit row has a Review action (auto-compound/rebalance never prompt)", async () => {
   await renderActivity();
-  // Exactly one Review button: the safe-exit proposal. Rebalance/compound rows carry none.
-  expect(screen.getAllByRole("button", { name: "Review" })).toHaveLength(1);
+  // The Review action appears once usePendingExit confirms the (seeded) pending exit — findAll waits.
+  // Exactly one: the safe-exit proposal. Rebalance/compound rows carry none.
+  expect(await screen.findAllByRole("button", { name: "Review" })).toHaveLength(1);
 });
 
 test("tapping Review opens the exit approval sheet", async () => {
@@ -42,6 +43,7 @@ test("tapping Review opens the exit approval sheet", async () => {
   const dialog = screen.getByRole("dialog", { hidden: true });
   expect(dialog).toHaveAttribute("aria-label", "Approve safe exit");
   expect(dialog).toHaveAttribute("aria-hidden", "true");
-  await user.click(screen.getByRole("button", { name: "Review" }));
+  // Review appears once usePendingExit confirms the pending exit — findBy waits for it.
+  await user.click(await screen.findByRole("button", { name: "Review" }));
   await waitFor(() => expect(dialog).toHaveAttribute("aria-hidden", "false"));
 });
