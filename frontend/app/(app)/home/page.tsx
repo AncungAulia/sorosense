@@ -2,7 +2,7 @@
 import { Button, Card } from "../../../components/ui";
 import { useNav } from "../../../hooks/useNav";
 import { TotalHero } from "../../../components/home/TotalHero";
-import { FreezeBanner } from "../../../components/home/FreezeBanner";
+import { FreezeBanner } from "../../../components/status/FreezeBanner";
 import { BucketRow } from "../../../components/bucket/BucketRow";
 import { ActivityList } from "../../../components/activity/ActivityList";
 import { useBuckets } from "../../../hooks/useBuckets";
