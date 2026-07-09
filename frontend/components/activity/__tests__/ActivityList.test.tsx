@@ -12,3 +12,9 @@ test("renders activity details and a Review affordance for review items", () => 
   expect(screen.getByText("Switched to DeFindex · 8.59% APY")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
 });
+
+test("shows a dead 'Reviewed' label (no active Review) once the exit is resolved", () => {
+  render(<ActivityList items={items} onReview={() => {}} reviewed />);
+  expect(screen.getByText("Reviewed")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Review" })).not.toBeInTheDocument();
+});

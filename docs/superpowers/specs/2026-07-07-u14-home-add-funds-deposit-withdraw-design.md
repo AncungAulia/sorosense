@@ -115,6 +115,6 @@ Vitest + Testing Library (U13 pattern), plus e2e evidence for the PR.
 - Real contract/backend wiring, live APY/TVL/activity, real FX → **U20 (STE-21)** / U17.
 - `RWA` "Real world assets" section in Add funds → **gated on Axel** (§10).
 
-## §10 — Open item (Axel ACC pending)
+## §10 — RWA section (RESOLVED: dropped)
 
-RWA section in Add funds: mock-2 shows a "Real world assets" list (USDY, CETES-bond), but R19 + STE-7 invariant say Add funds shows only fundable currencies with no explore catalog. Posted to STE-24 (2026-07-07). Default = **stablecoins only**; add RWA only if Axel confirms. The design is unaffected either way — RWA would be an extra section in `AddFunds.tsx`.
+RWA section in Add funds: mock-2 shows a "Real world assets" list (USDY, CETES-bond), but R19 + STE-7 invariant say Add funds shows only fundable currencies with no explore catalog. RWA are agent allocation targets (venues), not user-deposit assets. **PM (Axel) decision 2026-07-08: drop it** — Add funds stays stablecoins-only (USDC/EURC/CETES). No RWA section is built; this matches R19 and what shipped.

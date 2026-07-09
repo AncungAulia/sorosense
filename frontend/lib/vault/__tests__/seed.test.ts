@@ -1,5 +1,6 @@
 import { MockVaultClient } from "@sorosense/vault-client";
 import { seedVault, SEED_POOLS } from "../seed";
+import { SEED_SAFE_EXIT } from "../seed";
 
 test("seed funds two buckets, freezes EUR, and is idempotent", async () => {
   const c = new MockVaultClient();
@@ -14,4 +15,14 @@ test("seed funds two buckets, freezes EUR, and is idempotent", async () => {
   const usd = await c.balanceOf("GUSER", "USD");
   await seedVault(c, "GUSER"); // second run is a no-op
   expect(await c.balanceOf("GUSER", "USD")).toBe(usd);
+});
+
+test("seed proposes a safe exit for the frozen EUR pool (drives banner + sheet)", async () => {
+  const c = new MockVaultClient();
+  await seedVault(c, "GUSER");
+  const exit = await c.pendingExit("EUR");
+  expect(exit).not.toBeNull();
+  expect(exit?.fromPool).toBe(SEED_POOLS.EUR);
+  expect(exit?.toPool).toBe(SEED_SAFE_EXIT.EUR);
+  expect(await c.pendingExit("USD")).toBeNull(); // active pool → no exit
 });

@@ -9,6 +9,13 @@ export const SEED_POOLS: Record<Currency, string> = {
   MXN: "pool-etherfuse-mxn",
 };
 
+/** Safe target pool per currency for a Sentinel-freeze exit (dev seed). Only EUR is exercised. */
+export const SEED_SAFE_EXIT: Record<Currency, string> = {
+  USD: "pool-defindex-usd",
+  EUR: "pool-defindex-eur",
+  MXN: "pool-etherfuse-mxn",
+};
+
 /**
  * Dev-only: put the mock vault into a realistic funded state under `address` so Home is not empty,
  * withdraw has ≥2 buckets, and the EUR pool is paused (amber note + banner). Idempotent. Replaced
@@ -32,4 +39,6 @@ export async function seedVault(client: MockVaultClient, address: string): Promi
   client.simulateYield("USD", 92n * UNIT);  // ~ +$92 earned
   client.simulateYield("EUR", 84n * UNIT);
   await client.freeze(SEED_POOLS.EUR).signAndSubmit(keep);
+  // Propose the safe exit the depositor will approve in U15 (keeper-signed, dev-only).
+  await client.proposeExit("EUR", SEED_POOLS.EUR, SEED_SAFE_EXIT.EUR).signAndSubmit(keep);
 }

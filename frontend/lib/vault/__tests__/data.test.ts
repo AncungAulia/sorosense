@@ -1,4 +1,5 @@
 import { STABLECOINS, stablecoinBySym, getBucketMeta, getActivity, getFxRateToUsd, getWalletBalance } from "../data";
+import { getPoolMeta } from "../data";
 
 test("only fundable stablecoins are listed (R19), one per currency", () => {
   expect(STABLECOINS.map((s) => s.sym)).toEqual(["USDC", "EURC", "CETES"]);
@@ -27,4 +28,11 @@ test("FX and wallet fixtures are usable", () => {
   expect(getFxRateToUsd("EUR")).toBeGreaterThan(1);
   expect(getWalletBalance("USDC")).toBeGreaterThan(0n);
   expect(stablecoinBySym("usdc")?.currency).toBe("USD");
+});
+
+test("getPoolMeta returns display name + apy for a target pool, null otherwise, no risk field", () => {
+  const eur = getPoolMeta("pool-defindex-eur");
+  expect(eur).toEqual({ name: "DeFindex EURC", apy: 5.9 });
+  expect(getPoolMeta("pool-unknown")).toBeNull();
+  expect(JSON.stringify(eur)).not.toMatch(/risk|tier|score/i);
 });

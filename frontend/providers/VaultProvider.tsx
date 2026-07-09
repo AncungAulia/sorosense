@@ -1,10 +1,10 @@
 "use client";
-import { createContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
 import { MockVaultClient } from "@sorosense/vault-client";
 import { useWallet } from "../hooks/useWallet";
 import { seedVault } from "../lib/vault/seed";
 
-type Ctx = { client: MockVaultClient; version: number };
+type Ctx = { client: MockVaultClient; version: number; bump: () => void };
 export const VaultContext = createContext<Ctx | null>(null);
 
 // Module singleton so a deposit made on one screen is visible on another (mock is in-memory).
@@ -31,5 +31,7 @@ export function VaultProvider({ children, client }: { children: ReactNode; clien
     return () => { cancelled = true; };
   }, [address, resolvedClient]);
 
-  return <VaultContext.Provider value={{ client: resolvedClient, version }}>{children}</VaultContext.Provider>;
+  const bump = useCallback(() => setVersion((n) => n + 1), []);
+
+  return <VaultContext.Provider value={{ client: resolvedClient, version, bump }}>{children}</VaultContext.Provider>;
 }
