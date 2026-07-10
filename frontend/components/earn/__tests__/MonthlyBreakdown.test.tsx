@@ -1,0 +1,42 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MonthlyBreakdown, formatMonthLabel } from "../MonthlyBreakdown";
+
+const NOW = Date.UTC(2026, 6, 10); // 2026-07
+
+const monthly = [
+  "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07",
+].map((label, i) => ({ label, earnedUsd: 10 + i }));
+
+test("formatMonthLabel distinguishes this month, this year, and last year", () => {
+  expect(formatMonthLabel("2026-07", NOW)).toBe("This month");
+  expect(formatMonthLabel("2026-06", NOW)).toBe("June");
+  expect(formatMonthLabel("2025-11", NOW)).toBe("November 2025");
+});
+
+test("shows 3 rows newest-first, then loads 3 more per click until exhausted", async () => {
+  const user = userEvent.setup();
+  render(<MonthlyBreakdown monthly={monthly} now={NOW} />);
+
+  expect(screen.getAllByTestId("month-row")).toHaveLength(3);
+  expect(screen.getAllByTestId("month-row")[0]!.textContent).toContain("This month");
+  expect(screen.getAllByTestId("month-row")[1]!.textContent).toContain("June");
+
+  await user.click(screen.getByRole("button", { name: /Load more/ }));
+  expect(screen.getAllByTestId("month-row")).toHaveLength(6);
+
+  await user.click(screen.getByRole("button", { name: /Load more/ }));
+  expect(screen.getAllByTestId("month-row")).toHaveLength(9);
+  expect(screen.queryByRole("button", { name: /Load more/ })).not.toBeInTheDocument();
+});
+
+test("earned is rendered as a signed USD amount", () => {
+  render(<MonthlyBreakdown monthly={monthly} now={NOW} />);
+  expect(screen.getAllByTestId("month-row")[0]!.textContent).toContain("+$18.00");
+});
+
+test("no Load more when everything already fits", () => {
+  render(<MonthlyBreakdown monthly={monthly.slice(-2)} now={NOW} />);
+  expect(screen.getAllByTestId("month-row")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: /Load more/ })).not.toBeInTheDocument();
+});
