@@ -19,6 +19,14 @@ const STEP = 500;
 const MIN = 500;
 const MAX = 1_000_000;
 
+/**
+ * How many bars each horizon draws. The chart gets denser as the horizon grows, because a longer
+ * horizon has more to say: a single day of compounding is very nearly a straight line, and slicing
+ * it twenty ways only manufactures detail that isn't there. Each count is a natural division —
+ * six-hour blocks, one bar per day, ~2.5-day blocks, and mock-2's twenty for the year.
+ */
+const BAR_COUNT: Record<PeriodName, number> = { day: 4, week: 7, month: 12, year: 20 };
+
 /** `.hstep button` — the same dimensional treatment as `.icobtn`: white edge, card fill, soft shadow. */
 const STEP_BUTTON =
   "grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border border-white bg-card text-[17px] leading-none text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]";
@@ -42,10 +50,10 @@ export function Simulator({
 
   const periodDays = PERIOD_DAYS[period];
   const { projectedEarnings } = simulate({ currency, amount, periodDays });
-  // 20 samples of the projection's own growth curve. <Bars> normalizes against the series maximum,
-  // but the curve is not self-similar under time rescaling — a one-year horizon is visibly convex
-  // where a one-day horizon is near-linear — so the bars really do redraw when the period changes.
-  const curve = simulateCurve({ currency, amount, periodDays });
+  // Samples of the projection's own growth curve, one per bar. <Bars> normalizes against the series
+  // maximum, but the curve is not self-similar under time rescaling — a one-year horizon is visibly
+  // convex where a one-day horizon is near-linear — so the bars redraw, not just re-count.
+  const curve = simulateCurve({ currency, amount, periodDays }, BAR_COUNT[period]);
   const step = (delta: number) => setAmount((a) => Math.min(MAX, Math.max(MIN, a + delta)));
 
   return (

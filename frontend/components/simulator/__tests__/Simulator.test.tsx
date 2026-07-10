@@ -46,24 +46,36 @@ test("switching period changes the projection", async () => {
   expect(screen.getByTestId("projection").textContent).toBe("$6.80"); // 1000 @ 8.59%, 30d
 });
 
+test("the chart gets denser as the horizon grows — fewest bars on Day, most on Year", async () => {
+  const user = userEvent.setup();
+  const barCount = () => screen.getAllByTestId("bar").length;
+  render(<Harness />);
+  expect(barCount()).toBe(20); // year, the default
+
+  await user.click(screen.getByRole("button", { name: "Day" }));
+  expect(barCount()).toBe(4);
+  expect(screen.getByTestId("projection").textContent).toBe("$0.23");
+
+  await user.click(screen.getByRole("button", { name: "Week" }));
+  expect(barCount()).toBe(7); // one bar per day
+
+  await user.click(screen.getByRole("button", { name: "Month" }));
+  expect(barCount()).toBe(12);
+});
+
 test("bars redraw when the curve's shape changes — the chart is not an ornament", async () => {
   const user = userEvent.setup();
   const heights = () => screen.getAllByTestId("bar").map((b) => b.style.height);
   render(<Harness />);
   const usdYear = heights();
-  expect(usdYear).toHaveLength(20);
 
-  // `(1 + apy/100)^(t/365)` is NOT self-similar under time rescaling: a one-year horizon is visibly
-  // convex, a one-day horizon is near-linear. <Bars> normalizes against the series maximum, so the
-  // curvature survives normalization and the bars really do redraw.
-  await user.click(screen.getByRole("button", { name: "Day" }));
-  const usdDay = heights();
-  expect(usdDay).not.toEqual(usdYear);
-  expect(screen.getByTestId("projection").textContent).toBe("$0.23");
-
-  // A different APY bends the curve differently too.
+  // Compare at a FIXED period, so the bar count is equal and only the curve's shape can differ.
+  // `(1 + apy/100)^(t/365)` bends differently at a different APY, and <Bars> normalizes against the
+  // series maximum, so that curvature survives normalization and the bars really do redraw.
   await user.click(screen.getByRole("button", { name: "EUR" }));
-  expect(heights()).not.toEqual(usdDay);
+  const eurYear = heights();
+  expect(eurYear).toHaveLength(usdYear.length);
+  expect(eurYear).not.toEqual(usdYear);
 });
 
 test("R11 — no pool selector, no risk label anywhere", () => {
