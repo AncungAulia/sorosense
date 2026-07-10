@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { keeper } from "./support/bridge";
-import { connectWallet, depositEurc, goBackTo } from "./support/journey";
+import { connectWallet, depositEurc, goBackTo, shot } from "./support/journey";
 
 test("the demo journey: connect → simulate → deposit → agent works → approve a safe exit", async ({ page }) => {
   // 1. Connect. Freighter is stubbed at the lib/wallet.ts seam (NEXT_PUBLIC_E2E).
@@ -20,6 +20,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
 
   await page.getByRole("button", { name: "Month" }).click();
   await expect(page.getByTestId("projection")).not.toHaveText(yearly ?? "");
+  await shot(page, "01-earn-empty-simulator");
 
   // 4. Deposit EURC through the consent sheet — the one-time auto-optimize mandate.
   await page.getByRole("button", { name: "Start earning" }).click();
@@ -30,6 +31,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   // (STE-44). Asserting the row instead tests what actually reaches them.
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
+  await shot(page, "03-home-funded");
 
   // 5. The agent allocates and compounds. Neither asks the user for anything.
   //    Home renders only `activity.slice(0, 3)`, so the auto-allocate row lives one screen deeper.
@@ -43,13 +45,14 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   await expect(page).toHaveURL(/\/account\/activity$/);
   await expect(page.getByText("Allocated to Blend USDC")).toBeVisible();
   await expect(page.getByText(/^Reinvested rewards/)).toBeVisible();
-  await page.goBack();
-  await expect(page).toHaveURL(/\/home$/);
+  await shot(page, "04-activity-rows");
+  await goBackTo(page, /\/home$/);
 
   // 6. The Sentinel pauses the pool. A freeze moves nothing — it only protects.
   await keeper(page, "freeze", "EUR");
   const banner = page.getByRole("button", { name: "Review paused pool" });
   await expect(banner).toBeVisible();
+  await shot(page, "05-freeze-banner");
 
   // 7. Before a proposal exists the sheet can only say it is preparing one.
   await banner.click();
@@ -59,6 +62,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   // 8. The proposal arrives. Only now is the user asked: funds never move without a signature.
   await keeper(page, "proposeExit", "EUR");
   await expect(exit.getByText("DeFindex EURC")).toBeVisible();
+  await shot(page, "06-exit-approval");
   await exit.getByRole("button", { name: "Approve and sign in wallet" }).click();
 
   // 9. Approved: the banner clears, and the exit's "Review" affordance dies into a "Reviewed" pill.
@@ -70,6 +74,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   await page.getByRole("button", { name: "View all activity" }).click();
   await expect(page.getByText("Reviewed")).toBeVisible();
   await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
+  await shot(page, "07-exit-approved");
 });
 
 /**

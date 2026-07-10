@@ -1,4 +1,13 @@
+import path from "node:path";
 import { expect, type Page } from "@playwright/test";
+
+const EVIDENCE_DIR = path.join("..", "docs", "tests", "linear-STE-27", "screenshots");
+
+/** Capture PR evidence. Opt-in via `E2E_EVIDENCE=1`, so an ordinary run leaves the tree clean. */
+export async function shot(page: Page, name: string): Promise<void> {
+  if (process.env.E2E_EVIDENCE !== "1") return;
+  await page.screenshot({ path: path.join(EVIDENCE_DIR, `${name}.png`) });
+}
 
 /**
  * Every gated route is reached by clicking, never by `page.goto()`. A hard load of `/home`,
@@ -47,6 +56,7 @@ export async function depositEurc(page: Page, amount: string): Promise<void> {
 
   const consent = page.getByRole("dialog", { name: "Approve automatic earning" });
   await expect(consent).toBeVisible();
+  await shot(page, "02-consent-sheet");
   await consent.getByRole("button", { name: "Agree & sign" }).click();
 
   await expect(page).toHaveURL(/\/home$/);
