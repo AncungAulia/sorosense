@@ -38,6 +38,24 @@ test("a window wider than the data clamps instead of inventing points", () => {
   );
 });
 
+test("a finite window clamps to the data instead of reaching before the series begins", () => {
+  // A 3-hour chart under the 7-day `week` window: `now - 7d` precedes the first point, so `start`
+  // must clamp to `first.ts`. Without the clamp, `span` covers days of nonexistent data and every
+  // delta collapses into the final bin.
+  const start = NOW - 3 * 3_600_000;
+  const short = [
+    { ts: start, earnedUsd: 0 },
+    { ts: start + 3_600_000, earnedUsd: 10 },
+    { ts: start + 2 * 3_600_000, earnedUsd: 25 },
+    { ts: NOW, earnedUsd: 40 },
+  ];
+  const bars = windowBars(short, "week", NOW);
+  expect(bars).toHaveLength(7);
+  expect(bars.reduce((s, v) => s + v, 0)).toBeCloseTo(40, 6);
+  // The clamp spreads the deltas across the bins rather than dumping them all in the last one.
+  expect(bars.filter((v) => v > 0).length).toBeGreaterThan(1);
+});
+
 test("switching period redraws the chart", async () => {
   const user = userEvent.setup();
   render(<GrowthCard chart={chart} monthly={monthly} now={NOW} />);
