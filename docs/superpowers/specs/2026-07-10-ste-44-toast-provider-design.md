@@ -64,9 +64,10 @@ adalah satu-satunya tempat yang bertahan.
 - Context memapar satu fungsi: `show(message: string)`. Tidak ada `hide()` publik — toast punya satu
   perilaku: muncul, lalu hilang sendiri setelah 2500 ms. Itu menutup seluruh kontrak yang dibutuhkan
   kedua pemanggil.
-- State `{ message, seq }`. `seq` (counter monotonik) memastikan `show()` dua kali dengan pesan yang
-  **sama** tetap me-restart timer; `useEffect` yang bergantung pada `message` saja tidak akan menyala
-  ulang.
+- State disimpan sebagai objek `{ message } | null`, bukan `string | null`. `setToast` selalu menulis
+  objek baru, jadi `show()` dua kali dengan pesan yang **sama** tetap mengubah identitas state dan
+  me-restart timer dismiss. Sebuah `useState<string>` tidak akan: React bail-out dari re-render bila
+  state berikutnya `Object.is`-equal dengan yang sekarang, sehingga `useEffect` tak menyala ulang.
 - Durasi 2500 ms mengikuti preseden `ExitApproval.tsx:31`. Timer dibersihkan di cleanup `useEffect`.
 - Render `{children}`, lalu:
 
@@ -155,10 +156,15 @@ untuk STE-43, menghapusnya membuat spec flaky.
 
 - `show()` → pesan tampil.
 - setelah 2500 ms → hilang.
-- `show()` ulang dengan pesan sama → timer restart (regression guard untuk `seq`).
+- `show()` ulang dengan pesan sama → timer restart (regression guard untuk identitas state).
 - `useToast()` di luar provider → melempar.
 
 `components/ui/__tests__/Toast.test.tsx` tidak berubah.
+
+Tiga file test yang me-render keypad — `components/deposit/__tests__/DepositKeypad.test.tsx`,
+`components/withdraw/__tests__/WithdrawKeypad.test.tsx`, dan
+`app/(flow)/deposit/[sym]/__tests__/deposit-integration.test.tsx` — harus membungkus render-nya dengan
+`<ToastProvider>`, karena `useToast()` melempar di luar provider.
 
 ## Invarian
 
