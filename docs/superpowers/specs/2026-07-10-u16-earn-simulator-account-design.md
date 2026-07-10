@@ -245,7 +245,7 @@ Tampil 3 baris, "Load more" menambah 3, fixture 9 bulan, tombol hilang saat daft
   │    All agent and account actions        │
   └────────────────────────────────────────┘
   ┌────────────────────────────────────────┐
-  │ ↻  Auto reinvest rewards           On  │  ← baris status, read-only
+  │ ↻  Auto reinvest rewards        (──●)  │  ← switch read-only, tak bisa digeser
   │    Yield rewards flow back into your pool │
   └────────────────────────────────────────┘
 
@@ -256,13 +256,24 @@ Tampil 3 baris, "Load more" menambah 3, fixture 9 bulan, tombol hilang saat daft
 menyimpan waktu connect pertama. Yang di-render hanya `Connected via Freighter`, dengan nama wallet
 dibaca dari `useWallet()` sehingga xBull/Lobstr tampil benar.
 
-**Divergensi dari mock — auto-reinvest adalah baris status, bukan switch.** Seam hanya punya
-`setPolicyConsent()` (idempoten, tanpa tier — KTD3); tak ada cara mematikan. Baris me-render
-`On`/`Off` dari `useConsent()`. Switch sungguhan adalah fitur lintas-layer yang sudah punya tiket dan
-berjalan paralel: [STE-38](https://linear.app/steries-stellar-hackathon-apac/issue/STE-38) (parent,
-PM), [STE-39](https://linear.app/steries-stellar-hackathon-apac/issue/STE-39) (smart-contract),
+**Auto-reinvest adalah switch read-only — ia menampilkan consent, tidak memberikannya.**
+
+*Keputusan ini direvisi saat implementasi.* Rencana semula: baris status bertuliskan `On`/`Off`,
+tanpa switch sama sekali, karena switch yang tak bisa digeser membaca sebagai rusak. Axel memilih
+switch yang di-`disabled` supaya bentuknya sudah sesuai mock sejak sekarang. Argumen tandingannya
+dicatat di sini agar tidak hilang: satu-satunya makna sebuah switch adalah "aku bisa digeser".
+
+Yang membuatnya tetap jujur adalah `readOnly`: `disabled` + `aria-disabled` yang sungguhan, jadi
+pembaca layar mengumumkan "switch, on, dimmed" alih-alih mengundang tekanan yang takkan berbuat apa
+pun. Seam-nya asimetris — `setPolicyConsent()` ada (idempoten, tanpa tier — KTD3), `revoke` tidak —
+dan *memberikan* consent adalah sebuah write, yang STE-26 larang dari tab ini (*"tak ada path
+eksekusi dari kedua tab"*). Consent diberikan sekali, di alur deposit.
+
+Menjadikannya switch hidup adalah perubahan lintas-layer yang sudah punya tiket dan berjalan paralel:
+[STE-38](https://linear.app/steries-stellar-hackathon-apac/issue/STE-38) (parent, PM),
+[STE-39](https://linear.app/steries-stellar-hackathon-apac/issue/STE-39) (smart-contract, `revoke`),
 [STE-40](https://linear.app/steries-stellar-hackathon-apac/issue/STE-40) (backend keeper). Bukan
-blocker U16; setelah seam mendarat, tiket frontend kecil menukar baris status jadi switch.
+blocker U16; setelah seam mendarat, `<Switch>` mendapat `onChange` dan melepas `readOnly`.
 
 `Activity` → `/account/activity` (halaman U15 yang sudah ada, filter All/Yours/Automated).
 `Log out` → `LogoutSheet` → `disconnect()` dari `useWallet()` → kembali ke landing `/`.

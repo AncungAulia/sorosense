@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button, Card, Toast } from "../../../components/ui";
+import { Button, Card, Switch, Toast } from "../../../components/ui";
 import { Identicon } from "../../../components/account/Identicon";
 import { LogoutSheet } from "../../../components/account/LogoutSheet";
 import { useConsent } from "../../../hooks/useConsent";
@@ -81,21 +81,27 @@ export default function AccountPage() {
       </Card>
 
       {/*
-        A status row, not a switch. The seam has only `setPolicyConsent()` (idempotent) and
-        `hasConsent()` (boolean) — there is no way to turn the mandate off. A real switch spans the
+        The switch is READ-ONLY: it displays consent, it does not grant or revoke it. The seam has
+        only `setPolicyConsent()` (idempotent) and `hasConsent()` (boolean) — there is no revoke, and
+        granting is a write, which STE-26 forbids from this tab ("no execution path from either
+        tab"). Consent is granted once, in the deposit flow. Making this switch live spans the
         contract and the keeper: STE-38 / STE-39 / STE-40, running in parallel with this unit.
       */}
       <Card className="mt-4 px-5 py-1">
         <div className="flex items-center gap-[13px] py-3.5">
+          {/* Two arcs, each with its own arrowhead — rewards cycle back in, they don't merely spin. */}
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
-            <path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2" />
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M21 21v-5h-5" />
           </svg>
           <span className="grow">
             <span className="block font-semibold">Auto reinvest rewards</span>
             <span className="block text-[12.5px] text-muted">Yield rewards flow back into your pool</span>
           </span>
-          <span data-testid="consent-state" className="text-[15px] font-semibold text-muted">
-            {enabled ? "On" : "Off"}
+          <span data-testid="consent-state" data-state={enabled ? "on" : "off"}>
+            <Switch checked={enabled} label="Auto reinvest rewards" readOnly />
           </span>
         </div>
       </Card>

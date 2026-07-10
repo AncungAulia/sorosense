@@ -55,17 +55,31 @@ test("Activity routes to the central activity page", async () => {
   expect(push).toHaveBeenCalledWith("/account/activity");
 });
 
-test("auto-reinvest is a read-only status row, not a switch", async () => {
+test("auto-reinvest reads checked once the mandate is signed", async () => {
   const client = new MockVaultClient();
   await client.setPolicyConsent(ADDRESS).signAndSubmit(mockSigner("depositor", ADDRESS));
   renderAccount(client);
-  await waitFor(() => expect(screen.getByTestId("consent-state").textContent).toBe("On"));
-  expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
 });
 
-test("auto-reinvest reads Off for a user who has not consented", async () => {
+test("auto-reinvest reads unchecked for a user who has not consented", async () => {
   renderAccount();
-  await waitFor(() => expect(screen.getByTestId("consent-state").textContent).toBe("Off"));
+  await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false"));
+});
+
+test("the switch displays consent — it cannot grant or revoke it (no execution path from Account)", async () => {
+  const user = userEvent.setup();
+  renderAccount();
+  const control = await screen.findByRole("switch");
+
+  // The seam has no revoke, and granting is a write — which STE-26 forbids from this tab. So the
+  // control is inert by construction, not merely unwired: clicking it must not flip the state, and
+  // assistive tech must announce it as disabled rather than inviting the press.
+  expect(control).toBeDisabled();
+  expect(control).toHaveAttribute("aria-disabled", "true");
+
+  await user.click(control);
+  expect(control).toHaveAttribute("aria-checked", "false");
 });
 
 test("Log out confirms before disconnecting", async () => {
