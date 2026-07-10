@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
 import { Button } from "../../../components/ui";
 import { BucketToggle } from "../../../components/bucket/BucketToggle";
+import { GrowthCard } from "../../../components/earn/GrowthCard";
 import { Simulator } from "../../../components/simulator/Simulator";
 import { useEarnings } from "../../../hooks/useEarnings";
 import { useNav } from "../../../hooks/useNav";
@@ -62,6 +63,10 @@ export default function EarnPage() {
   const index = Math.min(i, views.length - 1);
   const v = views[index] ?? views[0]!;
 
+  // The fixture's last chart point is stamped with the same `now` the hook used — reusing it keeps
+  // the card's month labels in lockstep with the series instead of calling Date.now() twice.
+  const now = view.chart[view.chart.length - 1]?.ts ?? 0;
+
   return (
     <div>
       <div className="py-[30px] text-center">
@@ -74,10 +79,11 @@ export default function EarnPage() {
         </div>
         <BucketToggle views={views} index={index} onCycle={() => setI((n) => (n + 1) % views.length)} />
       </div>
-      <div className="flex gap-3">
+      <div className="mb-5 flex gap-3">
         <Button onClick={() => nav.forward("/add-funds")}>Deposit</Button>
         <Button variant="glass" onClick={() => nav.forward("/withdraw")}>Move to wallet</Button>
       </div>
+      <GrowthCard chart={view.chart} monthly={view.monthly} now={now} />
     </div>
   );
 }
