@@ -28,8 +28,11 @@ test("shows the identicon, a truncated address, and the connected wallet", async
   expect(screen.getByText("Connected via Freighter")).toBeInTheDocument();
 });
 
-test("does not claim a connection date it has no source for", () => {
+test("does not claim a connection date it has no source for", async () => {
   renderAccount();
+  // useConsent() resolves on a later microtask; wait for it to land before asserting, so the
+  // state update commits inside act() rather than after the test body returns.
+  await screen.findByTestId("consent-state");
   expect(document.body.textContent).not.toMatch(/since/i);
 });
 
