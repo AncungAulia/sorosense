@@ -26,9 +26,10 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   await page.getByRole("button", { name: "Start earning" }).click();
   await expect(page).toHaveURL(/\/add-funds$/);
   await depositEurc(page, "500");
-  // The bucket row is the deposit's only visible confirmation: DepositKeypad's "Deposited. Agent is
-  // allocating." toast unmounts with the screen that pushes to /home, so the user never sees it
-  // (STE-44). Asserting the row instead tests what actually reaches them.
+  // The toast is asserted before the bucket row because it is the only assertion with a deadline:
+  // ToastProvider dismisses it after TOAST_MS. It outlives the push to /home now (STE-44) because
+  // the provider lives at the root layout, above both route groups.
+  await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
   await shot(page, "03-home-funded");

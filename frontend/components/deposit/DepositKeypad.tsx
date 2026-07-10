@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Currency } from "@sorosense/vault-client";
-import { Button, Keypad, Toast, SubHeader, CoinBadge } from "../ui";
+import { Button, Keypad, SubHeader, CoinBadge } from "../ui";
 import { ConsentSheet } from "./ConsentSheet";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
+import { useToast } from "../../hooks/useToast";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
 import { stablecoinBySym, getWalletBalance, type StablecoinSym } from "../../lib/vault/data";
@@ -16,6 +17,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
   const router = useRouter();
   const { client, version } = useVault();
   const { address, signTransaction } = useWallet();
+  const { show } = useToast();
   const coin = stablecoinBySym(sym);
   // `currency` is only meaningful for a known coin — never used as a real bucket target
   // when `coin` is undefined (see the `!coin` early return in the render below).
@@ -25,7 +27,6 @@ export function DepositKeypad({ sym }: { sym: string }) {
   const [amount, setAmount] = useState("0");
   const [frozen, setFrozen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
 
@@ -70,7 +71,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
     const deposited = toAmount(amount);
     await client.deposit(address, currency, deposited).signAndSubmit(signer);
     recordDeposit(currency, deposited); // cost-basis for "Total earned" on Earn
-    setToast("Deposited. Agent is allocating.");
+    show("Deposited. Agent is allocating.");
     router.push("/home");
   };
 
@@ -83,7 +84,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
       await runDeposit();
     } catch (e) {
       const w = toWalletError(e);
-      if (w.code !== USER_CLOSED_MODAL) setToast(w.message); // user closed modal → silent
+      if (w.code !== USER_CLOSED_MODAL) show(w.message); // user closed modal → silent
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -100,7 +101,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
       await runDeposit();
     } catch (e) {
       const w = toWalletError(e);
-      if (w.code !== USER_CLOSED_MODAL) setToast(w.message);
+      if (w.code !== USER_CLOSED_MODAL) show(w.message);
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -125,7 +126,6 @@ export function DepositKeypad({ sym }: { sym: string }) {
       <Keypad value={amount} onChange={setAmount} symbol={symbol} onQuick={quick} invalid={exceeded} hint="Not enough balance" />
       <Button onClick={onConfirm} disabled={busy || exceeded || entered <= 0n}>Deposit fund</Button>
       <ConsentSheet open={consentOpen} onAgree={onAgree} onClose={() => setConsentOpen(false)} />
-      <Toast open={!!toast} message={toast ?? ""} />
     </div>
   );
 }
