@@ -4,7 +4,7 @@
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "vaultContractId": "CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "upgradable": true,
-  "binver": "1.0.0",
+  "binver": "1.1.0",
   "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
   "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
   "config": {
@@ -15,6 +15,16 @@
   "explorer": "https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "deployedAt": "2026-07-04",
   "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + Blend pools (set_token/set_pool_allowed/set_configured_pool) are wired at origin U20 with real USDC/EURC SACs + Blend testnet pools. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
+  "upgrades": [
+    {
+      "binver": "1.1.0",
+      "upgradedAt": "2026-07-10",
+      "wasmHash": "11b7829503c49d84ad921dcff9235ad43cf33661b6f3f24e70e717daf7bab6bf",
+      "uploadTx": "a7ea54bb2c2bd86cdcec8d06eff87cf07ed1147b1e389602359c9686b2c1a3fa",
+      "upgradeTx": "a6a5aacfcb4c7841c14bb0b9b2799997cd8a4801f9d9ce6e70c32252525136db",
+      "note": "STE-31 (earn-history U2): adds the read-only NAV views `share_price(currency)` and `value_of(user,currency)`. Same contract id, storage preserved. Verified live post-upgrade: all three buckets price at 1000000000 (SHARE_PRICE_SCALE, the empty-bucket base) and `value_of` reads 0. Yield never accrues on-chain yet — `total_assets` moves only on deposit/withdraw — so `share_price` stays at the base scale until mark-to-market NAV ships."
+    }
+  ],
   "previousDeployments": [
     { "vaultContractId": "CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7", "note": "non-upgradable v0, superseded" }
   ]

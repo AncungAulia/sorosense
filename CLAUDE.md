@@ -27,6 +27,7 @@ Non-custodial, mobile-first deposit-to-earn app on Stellar with an invisible Sen
 
 - **Seam reads return `Promise<T>` directly** (e.g. `balanceOf`, `sharePrice`, `assetValueOf`) — NOT `Result`. `Result` lives in `backend/src/lib/result.ts`; `packages/vault-client` must not depend on `backend`.
 - Amounts/shares/prices are `bigint`. Share price is fixed-point `PriceRay` scaled by `SHARE_PRICE_SCALE`; base (no yield) == the scale. The mock mirrors the contract's virtual-offset NAV math and exposes a **test-only** `simulateYield(currency, amount)` to raise NAV without minting shares.
+- The contract backs those two reads with the public views `share_price(currency)` / `value_of(user, currency)` (`smart-contract/contracts/vault/src/lib.rs`); its `SHARE_PRICE_SCALE` in `shares.rs` must stay equal to the seam's. **Yield does not accrue on-chain yet** — `total_assets` moves only on deposit/withdraw — so the live `share_price` reads exactly the scale until mark-to-market NAV ships. Only the mock/test hooks can lift it.
 - **Auto-compound is a per-depositor economic preference, separate from consent** (STE-38/STE-40). `setAutoCompound(depositor, enabled)` (depositor-signed write) + `autoCompoundEnabled(depositor)` (read, **default true** — unset = ON). Toggling it never touches `setPolicyConsent`/`hasConsent` (the safety mandate, KTD3). Revoke = stop reinvest only; allocate/rebalance/freeze-exit are unaffected.
 
 ## Backend conventions

@@ -26,7 +26,7 @@ use soroban_sdk::{
 use types::{Config, Currency, Error, ExitProposal, PoolStatus};
 
 // Binary version metadata (bumped on each upgraded build).
-contractmeta!(key = "binver", val = "1.0.0");
+contractmeta!(key = "binver", val = "1.1.0");
 
 #[contract]
 pub struct Vault;
@@ -282,6 +282,24 @@ impl Vault {
     /// Shares the user holds in a currency bucket.
     pub fn balance_of(env: Env, user: Address, currency: Currency) -> i128 {
         storage::get_shares(&env, &user, currency)
+    }
+
+    /// NAV per share for a currency bucket, scaled by `SHARE_PRICE_SCALE` (R12). A
+    /// bucket with no accrued yield prices at exactly the scale. The backend earnings
+    /// surfaces read this to turn shares into an asset value, since `balance_of`
+    /// reports shares alone.
+    pub fn share_price(env: Env, currency: Currency) -> i128 {
+        let config = storage::get_config(&env);
+        shares::share_price(&env, currency, config.virtual_offset)
+    }
+
+    /// Current asset value of a user's bucket — what `withdraw` would return for the
+    /// full share balance today. Derived straight from NAV rather than composed from
+    /// `share_price`, so the caller never eats a second rounding truncation.
+    pub fn value_of(env: Env, user: Address, currency: Currency) -> i128 {
+        let config = storage::get_config(&env);
+        let owned = storage::get_shares(&env, &user, currency);
+        shares::redeem_assets(&env, currency, owned, config.virtual_offset)
     }
 
     /// Whether a pool is accepting flows or frozen by the keeper.
