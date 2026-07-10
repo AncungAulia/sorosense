@@ -726,15 +726,22 @@ test("switching period changes the projection", async () => {
   expect(screen.getByTestId("projection").textContent).toBe("$6.80"); // 1000 @ 8.59%, 30d
 });
 
-test("the bars move with the inputs — the chart is not an ornament", async () => {
+test("bars redraw when the curve's shape changes — the chart is not an ornament", async () => {
   const user = userEvent.setup();
+  const heights = () => screen.getAllByTestId("bar").map((b) => b.style.height);
   render(<Harness />);
-  const before = screen.getAllByTestId("bar").map((b) => b.style.height);
+  const usd = heights();
+  expect(usd).toHaveLength(20);
+
+  // <Bars> normalizes against the series maximum, so a shorter horizon at the SAME apy yields the
+  // same normalized shape. Only the projection moves. Asserting otherwise would test a fiction.
   await user.click(screen.getByRole("button", { name: "Day" }));
-  expect(screen.getAllByTestId("bar")).toHaveLength(20);
-  // Same normalized curve shape, but a different projection — assert the label moved.
+  expect(heights()).toEqual(usd);
   expect(screen.getByTestId("projection").textContent).toBe("$0.23");
-  expect(before).toHaveLength(20);
+
+  // A different APY bends the compound curve differently, so the bars must redraw.
+  await user.click(screen.getByRole("button", { name: "EUR" }));
+  expect(heights()).not.toEqual(usd);
 });
 
 test("R11 — no pool selector, no risk label anywhere", () => {
