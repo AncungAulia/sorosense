@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 test("connect() returns the selected wallet's address and product name", async () => {
-  const { connect } = await import("../wallet");
+  const { connect } = await import("../wallet-real");
   // The kit mock must now also expose `selectedModule`.
   await expect(connect()).resolves.toEqual({ address: "GABC123", name: "Freighter" });
   expect(init).toHaveBeenCalledWith(
@@ -49,23 +49,23 @@ test("connect() returns the selected wallet's address and product name", async (
 });
 
 test("getAddress() returns the active address", async () => {
-  const { getAddress: getAddr } = await import("../wallet");
+  const { getAddress: getAddr } = await import("../wallet-real");
   await expect(getAddr()).resolves.toBe("GABC123");
 });
 
 test("signTransaction() returns the signed XDR", async () => {
-  const { signTransaction: sign } = await import("../wallet");
+  const { signTransaction: sign } = await import("../wallet-real");
   await expect(sign("raw-xdr")).resolves.toBe("signed-xdr");
 });
 
 test("disconnect() clears the wallet session", async () => {
-  const { disconnect: dc } = await import("../wallet");
+  const { disconnect: dc } = await import("../wallet-real");
   await expect(dc()).resolves.toBeUndefined();
   expect(disconnect).toHaveBeenCalled();
 });
 
 test("disconnect() resets the lazy-init guard so the next connect() re-initializes", async () => {
-  const { connect, disconnect: dc } = await import("../wallet");
+  const { connect, disconnect: dc } = await import("../wallet-real");
   await connect();
   await dc();
   await connect();
@@ -77,7 +77,7 @@ test("getKit() throws outside the browser", async () => {
   // @ts-expect-error simulating server environment
   delete globalThis.window;
   try {
-    const { getKit } = await import("../wallet");
+    const { getKit } = await import("../wallet-real");
     expect(() => getKit()).toThrow(/client-only/i);
   } finally {
     globalThis.window = originalWindow;
