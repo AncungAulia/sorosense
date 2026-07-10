@@ -2,10 +2,11 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SHARE_PRICE_SCALE, type Currency } from "@sorosense/vault-client";
-import { Button, Keypad, Toast, SubHeader, CoinBadge } from "../ui";
+import { Button, Keypad, SubHeader, CoinBadge } from "../ui";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
+import { useToast } from "../../hooks/useToast";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
 import { recordWithdraw } from "../../lib/vault/contributions";
@@ -16,10 +17,10 @@ export function WithdrawKeypad() {
   const { buckets } = useBuckets();
   const { client } = useVault();
   const { address, signTransaction } = useWallet();
+  const { show } = useToast();
   const [i, setI] = useState(0);
   const [amount, setAmount] = useState("0");
   const [maxSelected, setMaxSelected] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
 
@@ -63,11 +64,11 @@ export function WithdrawKeypad() {
       if (shares <= 0n) return;
       await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
       recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
-      setToast("Sent to your wallet");
+      show("Sent to your wallet");
       router.push("/home");
     } catch (e) {
       const w = toWalletError(e);
-      if (w.code !== USER_CLOSED_MODAL) setToast(w.message); // user closed modal → silent
+      if (w.code !== USER_CLOSED_MODAL) show(w.message); // user closed modal → silent
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -120,7 +121,6 @@ export function WithdrawKeypad() {
         hint="Not enough balance"
       />
       <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
-      <Toast open={!!toast} message={toast ?? ""} />
     </div>
   );
 }

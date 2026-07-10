@@ -168,3 +168,32 @@ test("a rebalance never asks the user to approve anything", async ({ page }) => 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
 });
+
+/**
+ * The withdraw twin of the deposit toast (STE-44). `WithdrawKeypad` had the same shape —
+ * `setToast(...)` immediately before `router.push("/home")` — so its confirmation unmounted with its
+ * screen too. The ticket only named deposit; the bug was in both.
+ */
+test("a completed withdrawal confirms itself on /home", async ({ page }) => {
+  await connectWallet(page);
+  await page.getByRole("button", { name: "Add funds" }).click();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await depositEurc(page, "500");
+
+  await page.getByRole("link", { name: "Earn" }).click();
+  await expect(page).toHaveURL(/\/earn$/);
+  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await expect(page).toHaveURL(/\/withdraw$/);
+
+  // A partial amount, never "Max": the vault is a module singleton shared with the specs above, so
+  // the bucket's absolute balance is not ours to assume — only that it holds more than €100.
+  for (const digit of "100") {
+    await page.getByRole("button", { name: digit, exact: true }).click();
+  }
+  await expect(page.getByTestId("keypad-value")).toHaveText("100");
+  await page.getByRole("button", { name: "Move to wallet" }).click();
+
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByText("Sent to your wallet")).toBeVisible();
+  await shot(page, "09-withdraw-toast");
+});

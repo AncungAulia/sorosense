@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockVaultClient, mockSigner } from "@sorosense/vault-client";
 import { VaultProvider } from "../../../providers/VaultProvider";
+import { ToastProvider } from "../../../providers/ToastProvider";
 import { seedVault } from "../../../lib/vault/seed";
 import { UNIT } from "../../../lib/vault/units";
 import { WithdrawKeypad } from "../WithdrawKeypad";
@@ -17,7 +18,7 @@ test("shows a bucket chevron with ≥2 buckets and signs a Max withdrawal", asyn
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true, signTransaction: sign });
   const client = new MockVaultClient();
   await seedVault(client, "GUSER"); // 2 buckets (USD, EUR)
-  render(<VaultProvider client={client}><WithdrawKeypad /></VaultProvider>);
+  render(<VaultProvider client={client}><ToastProvider><WithdrawKeypad /></ToastProvider></VaultProvider>);
   await waitFor(() => expect(screen.getByLabelText("Choose bucket")).toBeInTheDocument());
   expect(screen.getByTestId("bucket-chevron")).toBeInTheDocument(); // ≥2 buckets
   await user.click(screen.getByRole("button", { name: "Max" }));
@@ -43,7 +44,7 @@ test("Max withdraws the full share balance even with sub-cent NAV precision (no 
   // inference.
   client.simulateYield("USD", 1_234_567n);
 
-  render(<VaultProvider client={client}><WithdrawKeypad /></VaultProvider>);
+  render(<VaultProvider client={client}><ToastProvider><WithdrawKeypad /></ToastProvider></VaultProvider>);
   await waitFor(() => expect(screen.getByLabelText("Choose bucket")).toBeInTheDocument());
   await user.click(screen.getByRole("button", { name: "Max" }));
   await user.click(screen.getByRole("button", { name: "Move to wallet" }));
