@@ -29,6 +29,24 @@ test("every bar is non-negative — cumulative earned never goes backwards", () 
   }
 });
 
+test("earnings spread across the bins — no dead first bar, no doubled last one", () => {
+  // The fixture is hourly over the trailing week, so `day` puts one interval in each of 24 bins.
+  // Binning an interval by the timestamp it ENDS at instead of the one it starts at leaves bin 0
+  // empty (the first interval ends inside bin 1) and doubles the last bin (the point stamped exactly
+  // at `now` clamps down onto it). Both survive a bar-count check and a sum check, and both are
+  // glaring on screen: a dot on the left, a spike on the right.
+  const bars = windowBars(chart, "day", NOW);
+  expect(bars.filter((v) => v === 0)).toHaveLength(0);
+
+  const last = bars.at(-1)!;
+  const secondLast = bars.at(-2)!;
+  expect(last).toBeLessThan(secondLast * 1.5);
+
+  // Hourly earnings over one day barely accelerate, so every bar should sit near the mean.
+  const mean = bars.reduce((s, v) => s + v, 0) / bars.length;
+  for (const v of bars) expect(v).toBeGreaterThan(mean * 0.5);
+});
+
 test("a window wider than the data clamps instead of inventing points", () => {
   const short = chart.slice(-3);
   expect(windowBars(short, "year", NOW)).toHaveLength(20);

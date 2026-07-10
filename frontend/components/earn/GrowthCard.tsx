@@ -38,19 +38,28 @@ export function windowBars(chart: ChartPoint[], period: PeriodName, now: number)
   if (span <= 0) return out;
 
   // Baseline: the last point at or before the window start. Its cumulative value is what the first
-  // in-window delta is measured against.
+  // in-window delta is measured against, and its timestamp opens the first interval.
   let prev = first.earnedUsd;
+  let prevTs = first.ts;
   for (const p of chart) {
-    if (p.ts <= start) prev = p.earnedUsd;
-    else break;
+    if (p.ts <= start) {
+      prev = p.earnedUsd;
+      prevTs = p.ts;
+    } else break;
   }
 
   for (const p of chart) {
     if (p.ts <= start) continue;
     const delta = p.earnedUsd - prev;
-    prev = p.earnedUsd;
-    const bin = Math.min(bars - 1, Math.floor(((p.ts - start) / span) * bars));
+    // An interval belongs to the bin it STARTS in, not the one it ends in. Binning by the end
+    // timestamp leaves bin 0 permanently empty — the first interval ends inside bin 1 — and doubles
+    // the last bin, because the point stamped exactly at `now` computes `bin === bars` and clamps
+    // down onto an interval already there. With 24 hourly points across 24 bins, that is the whole
+    // chart: a dot on the left and a spike on the right.
+    const bin = Math.min(bars - 1, Math.max(0, Math.floor(((Math.max(prevTs, start) - start) / span) * bars)));
     out[bin] = (out[bin] ?? 0) + Math.max(0, delta);
+    prev = p.earnedUsd;
+    prevTs = p.ts;
   }
   return out;
 }
