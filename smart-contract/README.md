@@ -25,6 +25,16 @@ the frozen cross-track contract the backend and frontend build against.
 - **Consent enforced on-chain (KTD-SC2).** `deposit` panics unless the depositor
   has recorded the one-time `set_policy_consent`, so every principal in a pooled
   bucket is consented and the keeper cannot allocate an unconsented bucket.
+- **Auto-compound is a preference, not a consent (KTD3 intact).** `set_policy_consent`
+  stays whole, idempotent, and unrevocable — a pooled bucket gives the keeper no way
+  to separate one depositor's shares, so a revocable mandate would force it to
+  abandon the whole bucket. Instead `set_auto_compound(depositor, enabled)` toggles a
+  separate economic preference (`auto_compound_enabled`, **unset reads on**), read by
+  the off-chain keeper, which skips reinvestment for depositors who are off while
+  allocate/rebalance/freeze-exit run unchanged. The contract records the preference and
+  emits `AutoCompoundSet`; it does not enforce it — there is no on-chain compound
+  entrypoint, since yield re-supply is a pool-level `allocate` the vault cannot
+  attribute per depositor.
 - **Inflation-attack safe (KTD-SC3).** NAV comes from internal per-share counters
   (never a live balance query), with a virtual shares/assets offset — a direct
   token donation cannot move the share price.

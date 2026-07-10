@@ -1,5 +1,6 @@
 //! Vault test suite (U6) — deterministic, offline, against the `mock_pool`
-//! Blend test-double. Modules: shares, consent, allocate, guard, integration.
+//! Blend test-double. Modules: shares, consent, auto_compound, allocate, guard,
+//! integration.
 
 #![cfg(test)]
 
@@ -193,6 +194,97 @@ mod consent {
             .vault
             .try_deposit(&d, &Currency::Usd, &(MIN_FIRST - 1))
             .is_err());
+    }
+}
+
+// ── auto-compound preference ─────────────────────────────────────────────
+
+mod auto_compound {
+    use super::*;
+    use soroban_sdk::testutils::Events as _;
+    use soroban_sdk::{map, vec, IntoVal, Symbol};
+
+    /// Absent key reads on: depositors who predate the preference keep compounding.
+    #[test]
+    fn default_is_enabled() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        assert!(ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn toggles_off_and_back_on() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        assert!(!ctx.vault.auto_compound_enabled(&d));
+        ctx.vault.set_auto_compound(&d, &true);
+        assert!(ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn set_is_idempotent() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        ctx.vault.set_auto_compound(&d, &false);
+        assert!(!ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn set_requires_depositor_auth() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        // Drop all mocked auth — nobody may set another depositor's preference.
+        ctx.env.set_auths(&[]);
+        assert!(ctx.vault.try_set_auto_compound(&d, &false).is_err());
+    }
+
+    /// Turning reinvest off must not turn the vault off: principal keeps flowing.
+    #[test]
+    fn deposit_still_works_while_off() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+    }
+
+    /// The preference is economic, the mandate is safety — toggling one never
+    /// touches the other (KTD3 and KTD-SC2 stay intact).
+    #[test]
+    fn toggling_never_moves_consent() {
+        let ctx = setup();
+        let consented = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&consented, &false);
+        assert!(ctx.vault.has_consent(&consented));
+
+        // And it cannot be used as a back door into consent.
+        let stranger = Address::generate(&ctx.env);
+        ctx.vault.set_auto_compound(&stranger, &true);
+        assert!(!ctx.vault.has_consent(&stranger));
+    }
+
+    /// The event is the point of the ticket: `set_policy_consent` publishes none, so
+    /// no activity row can be derived from it. This one has to be readable.
+    #[test]
+    fn set_publishes_event() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+
+        // The depositor is a topic (indexable), `enabled` rides in the data map.
+        assert_eq!(
+            ctx.env.events().all().filter_by_contract(&ctx.vault.address),
+            vec![
+                &ctx.env,
+                (
+                    ctx.vault.address.clone(),
+                    (Symbol::new(&ctx.env, "auto_compound_set"), d.clone()).into_val(&ctx.env),
+                    map![&ctx.env, (Symbol::new(&ctx.env, "enabled"), false)].into_val(&ctx.env),
+                )
+            ]
+        );
     }
 }
 
