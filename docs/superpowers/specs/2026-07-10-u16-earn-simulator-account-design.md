@@ -107,6 +107,11 @@ interface EarningsView {
 Hybrid disembunyikan di dalam hook. Halaman tak tahu mana yang hidup dan mana fixture; ketika HTTP
 API mendarat, yang diganti hanya isi hook.
 
+Agar klaim itu benar-benar berlaku, `useEarnings.ts` **me-re-export** `ChartPoint` dan `MonthlyEarned`.
+Komponen mengimpor tipe dari hook, bukan dari `lib/earnings/fixtures` — kalau tidak, menghapus fixture
+saat HTTP API mendarat akan ikut merusak `GrowthCard` dan `MonthlyBreakdown`. Konsumen bergantung pada
+seam, bukan pada fixture yang kebetulan menopangnya hari ini.
+
 **Dihitung hidup** dari `useBuckets()` + `getContributions()` + `getFxRateToUsd()`:
 
 - `hasDeposit` — ada bucket bernilai > 0.
