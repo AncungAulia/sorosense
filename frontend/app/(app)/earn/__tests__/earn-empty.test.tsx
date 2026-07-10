@@ -34,3 +34,8 @@ test("the hero APY tracks the simulator's currency", async () => {
   expect(screen.getByTestId("hero-apy").textContent).toBe("5.57% APY");
   expect(screen.getByTestId("projection").textContent).toBe("MX$55.70");
 });
+
+test("R11 — no risk label, tier, or score is rendered in the empty state", async () => {
+  await renderEmpty();
+  expect(document.body.textContent).not.toMatch(/\b(safe|watch|risk|score|tier)\b/i);
+});

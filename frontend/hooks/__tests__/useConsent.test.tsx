@@ -26,9 +26,15 @@ test("a fresh user has not consented", async () => {
 });
 
 test("fail-closed — a rejected read renders Off, never an optimistic On", async () => {
+  // The hook logs the error it fails closed on (STE-26 review) — spy so the expected log doesn't
+  // surface as noise in the test run, and assert it fired instead of just swallowing it.
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   const client = new MockVaultClient();
-  vi.spyOn(client, "hasConsent").mockRejectedValue(new Error("network down"));
+  const error = new Error("network down");
+  vi.spyOn(client, "hasConsent").mockRejectedValue(error);
   render(<VaultProvider client={client}><Probe /></VaultProvider>);
   await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("false"));
+  expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("hasConsent"), error);
+  consoleError.mockRestore();
 });

@@ -26,7 +26,10 @@ export function useConsent(): { loading: boolean; enabled: boolean } {
       try {
         const enabled = await client.hasConsent(address);
         if (!cancelled) setState({ loading: false, enabled });
-      } catch {
+      } catch (e) {
+        // Fail-closed stays the visible behavior (Off), but a swallowed error hides real bugs
+        // (e.g. a typo'd call) behind the same "Off" a legitimate network failure would show.
+        console.error("useConsent: hasConsent read failed, rendering Off", e);
         if (!cancelled) setState({ loading: false, enabled: false });
       }
     })();

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { MonthlyEarned } from "../../lib/earnings/fixtures";
+import type { MonthlyEarned } from "../../hooks/useEarnings";
 
 const PAGE = 3;
 /** Explicit names: `toLocaleString` depends on the runtime's ICU data, which varies across CI images. */
@@ -23,9 +23,15 @@ export function formatMonthLabel(label: string, now: number): string {
   return year === d.getUTCFullYear() ? name : `${name} ${year}`;
 }
 
-const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usd = (n: number) => `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Per-month earned, newest first. The backend sends `monthly` oldest→newest. */
+/**
+ * Per-month earned, newest first. The backend sends `monthly` oldest→newest.
+ *
+ * `earnedUsd` is rendered sign-aware (`+` green / `−` red) even though `useEarnings` currently clamps
+ * every month at 0 — a down month is unreachable today but not a contract this component should
+ * assume away.
+ */
 export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; now: number }) {
   const [shown, setShown] = useState(PAGE);
   const rows = [...monthly].reverse();
@@ -40,7 +46,12 @@ export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; n
           className="flex items-center justify-between border-t border-line py-3.5 font-semibold"
         >
           <span>{formatMonthLabel(m.label, now)}</span>
-          <span className="text-pos [font-variant-numeric:tabular-nums]">+{usd(m.earnedUsd)}</span>
+          <span
+            className={`[font-variant-numeric:tabular-nums] ${m.earnedUsd < 0 ? "text-neg" : "text-pos"}`}
+          >
+            {m.earnedUsd < 0 ? "−" : "+"}
+            {usd(m.earnedUsd)}
+          </span>
         </div>
       ))}
       {shown < rows.length && (

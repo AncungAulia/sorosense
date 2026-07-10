@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card } from "../ui";
 import { Bars } from "./Bars";
 import { MonthlyBreakdown } from "./MonthlyBreakdown";
-import type { ChartPoint, MonthlyEarned } from "../../lib/earnings/fixtures";
+import type { ChartPoint, MonthlyEarned } from "../../hooks/useEarnings";
 import type { PeriodName } from "../../lib/earn/simulate";
 
 const HOUR = 3_600_000;

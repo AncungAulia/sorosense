@@ -8,6 +8,14 @@ import { UNIT } from "../lib/vault/units";
 import { buildEarningsFixture, type ChartPoint, type MonthlyEarned } from "../lib/earnings/fixtures";
 
 /**
+ * Re-exported so consumers (`GrowthCard`, `MonthlyBreakdown`) depend on this hook's seam, not on the
+ * fixture that currently backs it. When the backend is exposed over HTTP and `buildEarningsFixture`
+ * is replaced, these types keep being defined wherever the real shape comes from — no consumer import
+ * has to change.
+ */
+export type { ChartPoint, MonthlyEarned };
+
+/**
  * Per-bucket drill-down. Mirrors `BucketBreakdown` in `backend/src/api/earnings.ts` and adds
  * `earnedUsd`, which the hero's BucketToggle needs and the backend has not yet exposed.
  */

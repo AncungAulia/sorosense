@@ -40,3 +40,12 @@ test("no Load more when everything already fits", () => {
   expect(screen.getAllByTestId("month-row")).toHaveLength(2);
   expect(screen.queryByRole("button", { name: /Load more/ })).not.toBeInTheDocument();
 });
+
+test("a negative month renders as a loss, not a gain", () => {
+  const withLoss = [...monthly.slice(0, -1), { label: "2026-07", earnedUsd: -12.5 }];
+  render(<MonthlyBreakdown monthly={withLoss} now={NOW} />);
+  const first = screen.getAllByTestId("month-row")[0]!;
+  expect(first.textContent).toContain("−$12.50");
+  expect(first.textContent).not.toContain("+");
+  expect(first.querySelector("span:last-child")).toHaveClass("text-neg");
+});
