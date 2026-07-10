@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { keeper } from "./support/bridge";
-import { connectWallet, depositEurc } from "./support/journey";
+import { connectWallet, depositEurc, goBackTo } from "./support/journey";
 
 test("the demo journey: connect → simulate → deposit → agent works → approve a safe exit", async ({ page }) => {
   // 1. Connect. Freighter is stubbed at the lib/wallet.ts seam (NEXT_PUBLIC_E2E).
@@ -69,5 +69,96 @@ test("the demo journey: connect → simulate → deposit → agent works → app
 
   await page.getByRole("button", { name: "View all activity" }).click();
   await expect(page.getByText("Reviewed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
+});
+
+/**
+ * Safety is invisible (R11). No surface may name a risk, a tier, or a score — not as a label, not in
+ * body copy. "safety" is deliberately absent from the pattern: "Paused EURC pool for safety" is the
+ * agent explaining what it did, not a rating pinned to the user's money.
+ */
+const RISK_WORDS = /\b(risk|risks|risky|tier|tiers|score|scores)\b/i;
+
+async function expectNoRiskWording(page: Page, surface: string): Promise<void> {
+  const text = await page.locator("body").innerText();
+  expect(text, `risk wording on ${surface}`).not.toMatch(RISK_WORDS);
+}
+
+test("no user surface exposes a risk label, tier, or score", async ({ page }) => {
+  await page.goto("/");
+  await expectNoRiskWording(page, "landing");
+
+  await connectWallet(page);
+  await page.getByRole("button", { name: "Add funds" }).click();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await depositEurc(page, "500");
+
+  // The paused/amber surfaces are the likeliest place for a risk word to slip in, so tour them
+  // with a frozen pool and a live exit proposal on the books.
+  await keeper(page, "allocate", "EUR", "500");
+  await keeper(page, "freeze", "EUR");
+  await keeper(page, "proposeExit", "EUR");
+  await expectNoRiskWording(page, "/home (frozen)");
+
+  await page.getByRole("button", { name: "Review paused pool" }).click();
+  await expect(page.getByRole("dialog", { name: "Approve safe exit" })).toBeVisible();
+  await expectNoRiskWording(page, "the safe-exit sheet");
+  await page.getByRole("button", { name: "Keep it paused" }).click();
+
+  await page.getByRole("button", { name: "View all activity" }).click();
+  await expect(page).toHaveURL(/\/account\/activity$/);
+  await expectNoRiskWording(page, "/account/activity");
+  await goBackTo(page, /\/home$/);
+
+  await page.getByRole("link", { name: "Earn" }).click();
+  await expect(page).toHaveURL(/\/earn$/);
+  await expectNoRiskWording(page, "/earn (funded)");
+
+  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await expect(page).toHaveURL(/\/withdraw$/);
+  await expectNoRiskWording(page, "/withdraw");
+  await goBackTo(page, /\/earn$/);
+
+  await page.getByRole("button", { name: "Deposit" }).click();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await expectNoRiskWording(page, "/add-funds");
+
+  await page.getByRole("button", { name: /^EURC/ }).click();
+  await expect(page).toHaveURL(/\/deposit\/eurc$/);
+  await expectNoRiskWording(page, "/deposit/eurc (pool paused)");
+  await goBackTo(page, /\/add-funds$/);
+  await goBackTo(page, /\/earn$/);
+
+  await page.getByRole("link", { name: "Account" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expectNoRiskWording(page, "/account");
+});
+
+/**
+ * A rebalance moves funds between healthy pools under the standing mandate; a safe exit moves them
+ * out of a paused one. Only the second may ask. This pins down that the first never does.
+ *
+ * `BottomSheet` renders `role="dialog"` even while closed (`aria-hidden={!open}`), so a raw
+ * `[role=dialog]` locator would always match. `getByRole` skips aria-hidden subtrees — which is
+ * precisely the distinction under test.
+ */
+test("a rebalance never asks the user to approve anything", async ({ page }) => {
+  await connectWallet(page);
+  await page.getByRole("button", { name: "Add funds" }).click();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await depositEurc(page, "500");
+  await keeper(page, "allocate", "USD", "1000");
+
+  await keeper(page, "rebalance", "USD", "1000");
+
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Review paused pool" })).toHaveCount(0);
+
+  // The rebalance still surfaces as agent activity — visible, just never blocking. The row carries
+  // no "Review" affordance; only `proposed-exit` ever does (components/activity/ActivityRow.tsx:12).
+  await expect(page.getByText(/^Switched to DeFindex/)).toBeVisible();
+  await page.getByRole("button", { name: "View all activity" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
 });

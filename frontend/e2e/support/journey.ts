@@ -16,6 +16,19 @@ export async function connectWallet(page: Page): Promise<void> {
 }
 
 /**
+ * Pop a `(flow)` screen with the app's own Back button, then wait for the URL to settle.
+ *
+ * Never `page.goBack()`: the App Router navigates with `history.pushState`, and a browser-level back
+ * fired while a push is still in flight eats two entries. Asserting the destination after every move
+ * is what keeps the history deterministic.
+ */
+export async function goBackTo(page: Page, url: RegExp): Promise<void> {
+  // `exact`, or the keypad's "Backspace" also answers to the name "Back".
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(url);
+}
+
+/**
  * Deposit `amount` EURC through the real UI: pick the coin → keypad → "Deposit fund" → the one-time
  * consent mandate. The caller must already be on `/add-funds`. The e2e vault starts empty and
  * `seedVault` never granted consent anyway, so the very first deposit is what surfaces the sheet.
