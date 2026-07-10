@@ -32,11 +32,12 @@ export default function EarnPage() {
           >
             $0.00
           </div>
-          <div className="mt-3.5 flex items-center justify-center gap-2 text-[13.5px] font-medium text-muted">
-            <span aria-hidden="true" className="flex items-end gap-[2px]">
-              <i className="block h-[6px] w-[3px] rounded-sm bg-pos" />
-              <i className="block h-[10px] w-[3px] rounded-sm bg-pos" />
-              <i className="block h-[14px] w-[3px] rounded-sm bg-pos" />
+          {/* `.yield` in mock-2: the rate is a gain, so it carries the positive accent, not muted grey. */}
+          <div className="mt-3.5 flex items-center justify-center gap-2 text-[14px] font-semibold text-pos">
+            <span aria-hidden="true" className="flex items-end gap-[3px]">
+              <i className="block h-[6px] w-[4px] rounded-[1px] bg-pos" />
+              <i className="block h-[10px] w-[4px] rounded-[1px] bg-pos" />
+              <i className="block h-[14px] w-[4px] rounded-[1px] bg-pos" />
             </span>
             <span data-testid="hero-apy" className="[font-variant-numeric:tabular-nums]">
               {getBucketMeta(currency).apy.toFixed(2)}% APY

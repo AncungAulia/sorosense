@@ -8,3 +8,4 @@ export { TopBlur } from "./TopBlur";
 export { Keypad } from "./Keypad";
 export { SubHeader } from "./SubHeader";
 export { CoinBadge } from "./CoinBadge";
+export { Segmented } from "./Segmented";

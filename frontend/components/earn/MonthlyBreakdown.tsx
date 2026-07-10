@@ -43,7 +43,7 @@ export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; n
         <div
           key={m.label}
           data-testid="month-row"
-          className="flex items-center justify-between border-t border-line py-3.5 font-semibold"
+          className="flex items-center justify-between border-t border-line py-[13px] font-semibold"
         >
           <span>{formatMonthLabel(m.label, now)}</span>
           <span
@@ -57,7 +57,7 @@ export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; n
       {shown < rows.length && (
         <button
           onClick={() => setShown((n) => Math.min(n + PAGE, rows.length))}
-          className="flex w-full items-center justify-center gap-1.5 border-t border-line py-3.5 text-sm font-semibold text-muted"
+          className="flex w-full items-center justify-center gap-[3px] border-t border-line pb-[3px] pt-[13px] text-[13.5px] font-medium text-muted"
         >
           Load more
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Card } from "../ui";
+import { Card, Segmented } from "../ui";
 import { Bars } from "./Bars";
 import { MonthlyBreakdown } from "./MonthlyBreakdown";
 import type { ChartPoint, MonthlyEarned } from "../../hooks/useEarnings";
@@ -71,18 +71,14 @@ export function GrowthCard({
     <Card className="p-5">
       <div className="mb-1 text-[15px] font-medium text-muted">Growth</div>
       <Bars values={windowBars(chart, period, now)} />
-      <div className="mt-3 grid grid-cols-4 gap-1 rounded-full bg-black/[.04] p-1" role="group" aria-label="Period">
-        {PERIODS.map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            aria-pressed={p === period}
-            className={`h-9 rounded-full text-sm font-semibold ${p === period ? "bg-white text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.08)]" : "text-muted"}`}
-          >
-            {PERIOD_LABEL[p]}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        options={PERIODS}
+        value={period}
+        onChange={setPeriod}
+        label="Period"
+        variant="period"
+        renderLabel={(p) => PERIOD_LABEL[p]}
+      />
       <MonthlyBreakdown monthly={monthly} now={now} />
     </Card>
   );

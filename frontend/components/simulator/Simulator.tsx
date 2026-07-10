@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
-import { Card } from "../ui";
+import { Card, Segmented } from "../ui";
 import { Bars } from "../earn/Bars";
 import { PERIOD_DAYS, simulate, simulateCurve, type PeriodName } from "../../lib/earn/simulate";
 
@@ -18,6 +18,10 @@ const SYMBOL: Record<Currency, string> = { USD: "$", EUR: "€", MXN: "MX$" };
 const STEP = 500;
 const MIN = 500;
 const MAX = 1_000_000;
+
+/** `.hstep button` — the same dimensional treatment as `.icobtn`: white edge, card fill, soft shadow. */
+const STEP_BUTTON =
+  "grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border border-white bg-card text-[17px] leading-none text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]";
 
 const money = (n: number, currency: Currency) =>
   `${SYMBOL[currency]}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -48,32 +52,29 @@ export function Simulator({
     <Card className="p-5">
       <div className="flex items-center justify-between">
         <div className="whitespace-nowrap text-[15px] font-semibold">Simulate earnings</div>
-        <div className="flex h-9 items-center gap-1 rounded-full bg-black/[.04] px-1" role="group" aria-label="Amount">
-          <button onClick={() => step(-STEP)} aria-label="Decrease" className="h-7 w-7 rounded-full text-lg leading-none">
+        {/* `.hstep`: two dimensional round buttons around the figure — no track behind them. */}
+        <div className="flex shrink-0 items-center gap-[7px]" role="group" aria-label="Amount">
+          <button onClick={() => step(-STEP)} aria-label="Decrease" className={STEP_BUTTON}>
             −
           </button>
-          <span data-testid="amount" className="min-w-[76px] text-center text-sm font-semibold [font-variant-numeric:tabular-nums]">
+          <span data-testid="amount" className="min-w-[52px] text-center text-[15px] font-semibold [font-variant-numeric:tabular-nums]">
             {SYMBOL[currency]}
             {amount.toLocaleString("en-US")}
           </span>
-          <button onClick={() => step(STEP)} aria-label="Increase" className="h-7 w-7 rounded-full text-lg leading-none">
+          <button onClick={() => step(STEP)} aria-label="Increase" className={STEP_BUTTON}>
             +
           </button>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-1 rounded-full bg-black/[.04] p-1" role="group" aria-label="Currency">
-        {CURRENCIES.map((c) => (
-          <button
-            key={c}
-            onClick={() => onCurrencyChange(c)}
-            aria-pressed={c === currency}
-            className={`h-9 rounded-full text-sm font-semibold ${c === currency ? "bg-white text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.08)]" : "text-muted"}`}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        options={CURRENCIES}
+        value={currency}
+        onChange={onCurrencyChange}
+        label="Currency"
+        variant="currency"
+        className="mt-3"
+      />
 
       <p className="mb-0.5 mt-4 text-[15px] font-medium text-muted">You would earn</p>
       <div data-testid="projection" className="text-[38px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]">
@@ -82,18 +83,14 @@ export function Simulator({
 
       <Bars values={curve} />
 
-      <div className="mt-3 grid grid-cols-4 gap-1 rounded-full bg-black/[.04] p-1" role="group" aria-label="Period">
-        {PERIODS.map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            aria-pressed={p === period}
-            className={`h-9 rounded-full text-sm font-semibold ${p === period ? "bg-white text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.08)]" : "text-muted"}`}
-          >
-            {PERIOD_LABEL[p]}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        options={PERIODS}
+        value={period}
+        onChange={setPeriod}
+        label="Period"
+        variant="period"
+        renderLabel={(p) => PERIOD_LABEL[p]}
+      />
     </Card>
   );
 }

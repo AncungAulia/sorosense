@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Card, Toast } from "../../../components/ui";
+import { Button, Card, Toast } from "../../../components/ui";
 import { Identicon } from "../../../components/account/Identicon";
 import { LogoutSheet } from "../../../components/account/LogoutSheet";
 import { useConsent } from "../../../hooks/useConsent";
@@ -65,12 +65,11 @@ export default function AccountPage() {
       </div>
 
       <Card className="mt-5 px-5 py-1">
-        <button onClick={() => nav.forward("/account/activity")} className="flex w-full items-center gap-3.5 py-3.5 text-left">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/[.04]">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-            </svg>
-          </span>
+        {/* `.listrow` in mock-2: the icon sits bare, at 22px. No badge, no fill behind it. */}
+        <button onClick={() => nav.forward("/account/activity")} className="flex w-full items-center gap-[13px] py-3.5 text-left">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
           <span className="grow">
             <span className="block font-semibold">Activity</span>
             <span className="block text-[12.5px] text-muted">All agent and account actions</span>
@@ -87,12 +86,10 @@ export default function AccountPage() {
         contract and the keeper: STE-38 / STE-39 / STE-40, running in parallel with this unit.
       */}
       <Card className="mt-4 px-5 py-1">
-        <div className="flex items-center gap-3.5 py-3.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/[.04]">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2" />
-            </svg>
-          </span>
+        <div className="flex items-center gap-[13px] py-3.5">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+            <path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2" />
+          </svg>
           <span className="grow">
             <span className="block font-semibold">Auto reinvest rewards</span>
             <span className="block text-[12.5px] text-muted">Yield rewards flow back into your pool</span>
@@ -103,12 +100,14 @@ export default function AccountPage() {
         </div>
       </Card>
 
-      <button
-        onClick={() => setConfirming(true)}
-        className="mt-4 flex h-14 w-full items-center justify-center rounded-full bg-black/[.04] text-base font-semibold text-neg"
-      >
+      {/*
+        `.pill-btn.b-soft` is the glass Button; only the label takes the negative accent. The `!`
+        is load-bearing: `variant="glass"` already sets `text-ink-2`, and which of two same-specificity
+        utilities wins depends on their order in the generated stylesheet, not in this string.
+      */}
+      <Button variant="glass" className="mt-4 text-neg!" onClick={() => setConfirming(true)}>
         Log out
-      </button>
+      </Button>
 
       <LogoutSheet open={confirming} onClose={() => setConfirming(false)} onConfirm={logout} />
       <Toast open={!!toast} message={toast} />
