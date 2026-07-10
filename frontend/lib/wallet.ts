@@ -28,7 +28,10 @@ export function getKit(): typeof StellarWalletsKit {
     // Freighter pre-selected. If a user connected via a non-Freighter
     // fallback (xBull/Lobstr/...), a post-refresh signTransaction() would
     // target Freighter unless the app re-runs authModal()/setWallet() first.
-    // Persisting the selected wallet id is a Task 9/10 follow-up.
+    // Task 10 works around the *display* half of this (see getWalletName()
+    // below) by persisting the product name captured at connect time — it
+    // does NOT persist the selected wallet id itself, so the signing-target
+    // mismatch above is still open.
     StellarWalletsKit.init({
       network: Networks.TESTNET,
       selectedWalletId: FREIGHTER_ID, // Freighter-first
@@ -39,10 +42,21 @@ export function getKit(): typeof StellarWalletsKit {
   return StellarWalletsKit;
 }
 
-export async function connect(): Promise<string> {
+// The kit tracks which wallet module (Freighter/xBull/Lobstr/...) is currently active as a
+// *static* getter, `StellarWalletsKit.selectedModule: ModuleInterface`, which carries a
+// `productName` meant for display (e.g. "Freighter", "xBull"). This is only truthful right
+// after authModal()/setWallet() has run — see the KNOWN LIMITATION note on getKit() above:
+// a page reload always re-initializes with Freighter pre-selected regardless of which wallet
+// the user actually connected with last. Callers must capture this value at connect time and
+// persist it themselves; do not call getWalletName() to "refresh" the name on hydration.
+export function getWalletName(): string {
+  return getKit().selectedModule.productName;
+}
+
+export async function connect(): Promise<{ address: string; name: string }> {
   try {
     const { address } = await getKit().authModal();
-    return address;
+    return { address, name: getWalletName() };
   } catch (e) {
     throw toWalletError(e);
   }

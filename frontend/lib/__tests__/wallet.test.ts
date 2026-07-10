@@ -14,7 +14,14 @@ const signTransaction = vi.fn(async () => ({ signedTxXdr: "signed-xdr" }));
 const disconnect = vi.fn(async () => undefined);
 
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
-  StellarWalletsKit: { init, authModal, getAddress, signTransaction, disconnect },
+  StellarWalletsKit: {
+    init,
+    authModal,
+    getAddress,
+    signTransaction,
+    disconnect,
+    selectedModule: { productId: "freighter", productName: "Freighter" },
+  },
   Networks: { TESTNET: "TESTNET" },
 }));
 
@@ -31,9 +38,10 @@ afterEach(() => {
   vi.resetModules();
 });
 
-test("connect() returns the selected wallet address", async () => {
+test("connect() returns the selected wallet's address and product name", async () => {
   const { connect } = await import("../wallet");
-  await expect(connect()).resolves.toBe("GABC123");
+  // The kit mock must now also expose `selectedModule`.
+  await expect(connect()).resolves.toEqual({ address: "GABC123", name: "Freighter" });
   expect(init).toHaveBeenCalledWith(
     expect.objectContaining({ selectedWalletId: "freighter", network: "TESTNET" })
   );
