@@ -49,7 +49,7 @@ Screens (in `docs/tests/linear-STE-44/screenshots/`):
   ![consent-sheet](screenshots/02-consent-sheet.png)
 - **Deposit toast, captured deterministically (new for STE-44).** Taken immediately after `await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();`, before any further assertion can let the 2500 ms auto-dismiss run out. This is the toast STE-44 says never shows — it is visible here, sitting above "Reinvested rewards" in the Agent activity list, still on `/home` after the push from the deposit screen:
   ![deposit-toast](screenshots/03a-deposit-toast.png)
-- **Home, funded** — `EUR bucket · €500.00`. Taken a few assertions after the toast above; by this point in some runs the toast may already have faded (2500 ms budget) — that is expected and is exactly why `03a-deposit-toast` exists as a separate, deterministic capture:
+- **Home, funded** — `EUR bucket · €500.00`. Taken a few assertions after the toast above. `03a-deposit-toast` is captured immediately after the toast's own `toBeVisible()` assertion so it can never race the 2500 ms auto-dismiss; the two `shot()` calls are separated only by further `toBeVisible()` assertions, which change no state, so in this run `03a-deposit-toast.png` and `03-home-funded.png` are byte-for-byte identical. That redundancy is expected, not a bug in the capture, and is exactly why `03a-deposit-toast` exists as its own deterministic capture rather than relying on this one:
   ![home-funded](screenshots/03-home-funded.png)
 - **Activity** — the agent's work (`Allocated to Blend USDC`, `Reinvested rewards`) after the keeper's `allocate` + `compound`:
   ![activity-rows](screenshots/04-activity-rows.png)
@@ -71,5 +71,5 @@ Screens (in `docs/tests/linear-STE-44/screenshots/`):
 
 - `pnpm -r typecheck` — clean (`vault-client`, `frontend`, `backend`). `noUncheckedIndexedAccess` covers the e2e specs (they sit inside `frontend/tsconfig.json`'s include); no changes here touched typed code.
 - `pnpm -C frontend lint` — clean, no output beyond the `eslint` invocation.
-- `pnpm -r test` — 296 passed (`vault-client` 18, `backend` 131, `frontend` 147), including the existing `providers/__tests__/ToastProvider.test.tsx` (4 cases, from Task 1) and the migrated `DepositKeypad`/`WithdrawKeypad`/`ExitApproval` suites. No test file changed in this unit.
+- `pnpm -r test` — 296 passed (`vault-client` 18, `backend` 131, `frontend` 147), including the existing `providers/__tests__/ToastProvider.test.tsx` (4 cases, from Task 1) and the `DepositKeypad`/`WithdrawKeypad` suites, migrated to `useToast()` in Tasks 2-3, plus the `ExitApproval` suite, which still runs but covers a component that was **not** migrated (it stays on its own page-local `<Toast>`, per the Summary above). No test file changed in this unit.
 - `pnpm e2e` — 4 passed, all four specs in `frontend/e2e/demo-flow.spec.ts` including the new withdrawal test.
