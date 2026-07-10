@@ -9,10 +9,24 @@ import { PhoneStage, TableStage } from "./HeroStage";
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Extra viewports the Earn section holds (pinned) before the phone moves on to
+// Protect — a beat to read. The Earn section's height is tied to this.
+const EARN_DWELL = 0.8;
+
+// Maps scroll position (in viewport units, u = scrollY / viewportHeight) to the
+// phone's section-space progress. The flat stretch at Earn is the read dwell.
+function scrollToPose(u: number) {
+  if (u <= 1) return u; // hero -> Earn
+  if (u <= 1 + EARN_DWELL) return 1; // hold at Earn to read
+  if (u <= 2 + EARN_DWELL) return 1 + (u - (1 + EARN_DWELL)); // Earn -> Protect
+  return 2; // Protect
+}
+
 export function Hero() {
   const [ready, setReady] = useState(false);
+  // Section-space scroll progress: 0 = hero, 1 = Earn, 2 = Protect, ...
   const progress = useRef(0);
-  const heroRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // On (re)load, always start at the hero — otherwise the browser restores the
   // scroll position and the entrance animation fights the scrubbed Earn pose.
@@ -22,15 +36,18 @@ export function Hero() {
     progress.current = 0;
   }, []);
 
-  // One viewport of scroll scrubs the phone from the hero pose to the Earn pose.
+  // Scrolling the whole feature stack scrubs the phone through its poses, with a
+  // read dwell at Earn (see scrollToPose).
   useEffect(() => {
     const st = ScrollTrigger.create({
-      trigger: heroRef.current,
+      trigger: containerRef.current,
       start: "top top",
-      end: "bottom top",
+      end: "bottom bottom",
       scrub: true,
       onUpdate: (self) => {
-        progress.current = self.progress;
+        const vh = window.innerHeight || 1;
+        const u = (self.progress * (self.end - self.start)) / vh;
+        progress.current = scrollToPose(u);
         invalidate(); // demand mode: render a frame for this scroll tick
       },
     });
@@ -38,7 +55,7 @@ export function Hero() {
   }, []);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       {/* Phone overlay — fixed above everything, transparent. Not part of the
           hero frame, so it flies across into the next section. */}
       <div
@@ -51,10 +68,7 @@ export function Hero() {
 
       {/* Hero frame — maroon backdrop + 3D table, clipped to this section so it
           scrolls away with the copy at the same speed. */}
-      <section
-        ref={heroRef}
-        className="relative min-h-[100svh] overflow-hidden bg-[#160f0a]"
-      >
+      <section className="relative min-h-[100svh] overflow-hidden bg-[#160f0a]">
         <div
           className={`absolute inset-0 z-0 transition-opacity duration-300 ease-out ${
             ready ? "opacity-100" : "opacity-0"
@@ -95,27 +109,50 @@ export function Hero() {
         </div>
       </section>
 
-      {/* Earn — white section; the phone has flown in on the left. */}
-      <section className="relative z-10 flex min-h-[100svh] items-center justify-end bg-white px-6 pt-[72px] sm:px-10 lg:pr-[89px] xl:pr-[121px]">
-        <div className="max-w-2xl -translate-y-[25px] text-right text-ink">
-          <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
-            Earn
-          </p>
+      {/* Earn — white; the phone flew in on the left. The section is taller than
+          a viewport and its copy is pinned (sticky) so it holds for a beat
+          (EARN_DWELL) to be read before the phone moves on to Protect. */}
+      <section
+        className="relative bg-white"
+        style={{ minHeight: `${(1 + EARN_DWELL) * 100}svh` }}
+      >
+        <div className="sticky top-0 z-10 flex h-[100svh] items-center justify-end px-6 pt-[72px] sm:px-10 lg:pr-[89px] xl:pr-[121px]">
+          <div className="max-w-2xl -translate-y-[25px] text-right text-ink">
+            <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+              Earn
+            </p>
 
-          <div className="mt-3 flex items-baseline justify-end gap-x-2.5 tabular-nums">
-            <span className="text-2xl text-muted md:text-3xl">up to</span>
-            <span className="font-display text-6xl font-normal leading-none md:text-8xl">
-              8.59%
-            </span>
-            <span className="text-2xl md:text-3xl">APY</span>
+            <div className="mt-3 flex items-baseline justify-end gap-x-2.5 tabular-nums">
+              <span className="text-2xl text-muted md:text-3xl">up to</span>
+              <span className="font-display text-6xl font-normal leading-none md:text-8xl">
+                8.59%
+              </span>
+              <span className="text-2xl md:text-3xl">APY</span>
+            </div>
+
+            <p className="mt-1 font-display text-4xl font-normal leading-tight tracking-tight md:text-6xl">
+              on your stablecoins
+            </p>
+
+            <p className="mt-5 text-base text-muted md:text-lg">
+              The highest safe yield on Stellar right now, and always variable.
+            </p>
           </div>
+        </div>
+      </section>
 
-          <p className="mt-1 font-display text-4xl font-normal leading-tight tracking-tight md:text-6xl">
-            on your stablecoins
+      {/* Protect — white section; the phone has flown to the right. */}
+      <section className="relative z-10 flex min-h-[100svh] items-center justify-start bg-white px-6 pt-[72px] sm:px-10 lg:pl-[89px] xl:pl-[121px]">
+        <div className="max-w-xl text-left text-ink">
+          <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+            Protect
           </p>
-
-          <p className="mt-5 text-base text-muted md:text-lg">
-            The highest safe yield on Stellar right now, and always variable.
+          <h2 className="mt-3 font-display text-[clamp(2.25rem,4.4vw,4.25rem)] font-normal leading-[1.05] tracking-tight">
+            Guarded around the clock.
+          </h2>
+          <p className="mt-5 max-w-md text-base text-muted md:text-lg">
+            Sentinel watches every pool and pulls your funds out the moment one
+            turns dangerous.
           </p>
         </div>
       </section>

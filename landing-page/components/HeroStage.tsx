@@ -13,35 +13,72 @@ const CAM_DURATION = 2.5;
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const CAMERA = { position: [CAM_FROM.x, CAM_FROM.y, CAM_FROM.z] as [number, number, number], fov: 19 };
 
-/* ---- Phone poses (scroll: hero -> Earn) ---- */
+/* ---- Phone poses, in scroll order. Section-space progress `sp` indexes them:
+   0 = hero, 1 = Earn, 2 = Protect, ... The phone lerps between adjacent poses.
+   Append new poses here (+ a matching section in Hero.tsx) to extend the flight. */
 const HERO = {
   pos: new THREE.Vector3(0.14, 0.8, 0.05),
   rot: new THREE.Vector3(1.57, 0, 3.12),
   scale: 2.5,
+  spin: 0,
 };
 const EARN = {
   pos: new THREE.Vector3(-0.31, 1.24, 0),
   rot: new THREE.Vector3(1.27, -0.5, 2.99),
   scale: 2.55,
+  spin: 1, // one full Y turn on the way in
 };
-const SPIN = Math.PI * 2;
+const PROTECT = {
+  pos: new THREE.Vector3(-0.02, 1.65, 0.23),
+  rot: new THREE.Vector3(1.17, 0.36, -2.59),
+  scale: 2.55,
+  spin: 0, // short-path tilt from Earn (left) to Protect (right), no full turn
+};
+const POSES = [HERO, EARN, PROTECT];
+
 const SCREEN_POS: [number, number, number] = [0, 0.0815, -0.0055];
 const SCREEN_SIZE: [number, number] = [0.071, 0.151];
 
+const TWO_PI = Math.PI * 2;
 const lerp = THREE.MathUtils.lerp;
+const clamp = THREE.MathUtils.clamp;
 
-// Applies the shared hero -> Earn pose to a phone group. Both the overlay phone
-// and the ghost use it so they move as one.
-function applyPhonePose(g: THREE.Object3D, p: number) {
+// Shortest-path angle lerp — swings the tilt the short way (lean left -> lean
+// right) instead of unwinding almost a full turn when the two angles differ by
+// more than π (e.g. +2.99 -> -2.5 rad is only ~46° the short way).
+function lerpAngle(a: number, b: number, f: number) {
+  let d = (b - a) % TWO_PI;
+  if (d > Math.PI) d -= TWO_PI;
+  else if (d < -Math.PI) d += TWO_PI;
+  return a + d * f;
+}
+
+// Which pose segment section-space progress `sp` falls in, plus the 0..1 blend.
+function segAt(sp: number) {
+  const i = Math.min(Math.max(Math.floor(sp), 0), POSES.length - 2);
+  return { a: POSES[i], b: POSES[i + 1], f: clamp(sp - i, 0, 1) };
+}
+
+// Applies the phone pose at section-space progress `sp`. Used by the overlay
+// phone and the ghost so they move as one. X/Z tilts take the short path; Y uses
+// an explicit spin offset so the hero -> Earn full turn is preserved.
+function applyPhonePose(g: THREE.Object3D, sp: number) {
+  const { a, b, f } = segAt(sp);
   g.position.set(
-    lerp(HERO.pos.x, EARN.pos.x, p),
-    lerp(HERO.pos.y, EARN.pos.y, p),
-    lerp(HERO.pos.z, EARN.pos.z, p),
+    lerp(a.pos.x, b.pos.x, f),
+    lerp(a.pos.y, b.pos.y, f),
+    lerp(a.pos.z, b.pos.z, f),
   );
-  g.rotation.x = lerp(HERO.rot.x, EARN.rot.x, p);
-  g.rotation.y = lerp(HERO.rot.y, EARN.rot.y - SPIN, p);
-  g.rotation.z = lerp(HERO.rot.z, EARN.rot.z, p);
-  g.scale.setScalar(lerp(HERO.scale, EARN.scale, p));
+  g.rotation.x = lerpAngle(a.rot.x, b.rot.x, f);
+  g.rotation.y = lerp(a.rot.y, b.rot.y - TWO_PI * b.spin, f);
+  g.rotation.z = lerpAngle(a.rot.z, b.rot.z, f);
+  g.scale.setScalar(lerp(a.scale, b.scale, f));
+}
+
+// Phone x at `sp` — so the grounding shadow can follow it across the sections.
+function phoneXAt(sp: number) {
+  const { a, b, f } = segAt(sp);
+  return lerp(a.pos.x, b.pos.x, f);
 }
 
 function setShadow(root: THREE.Object3D, cast: boolean, receive: boolean) {
@@ -158,14 +195,15 @@ function GhostPhone({ progress }: { progress: { current: number } }) {
 function Shadow({ progress }: { progress: { current: number } }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
-    const p = progress.current;
+    const sp = progress.current;
     const g = ref.current;
     if (!g) return;
-    g.position.x = lerp(HERO.pos.x, EARN.pos.x, p);
+    g.position.x = phoneXAt(sp);
+    const op = lerp(0, 0.5, clamp(sp, 0, 1)); // fade in over hero -> Earn, then hold
     g.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.isMesh && !Array.isArray(m.material)) {
-        (m.material as THREE.Material).opacity = lerp(0, 0.5, p);
+        (m.material as THREE.Material).opacity = op;
       }
     });
   });
