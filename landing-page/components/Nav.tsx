@@ -9,45 +9,79 @@ const links = [
   { href: "#faq", label: "FAQ" },
 ];
 
+const HERO_BG = "#160f0a"; // matches the hero section background
+const NAV_H = 72;
+
+/* Vector-3 wordmark, recolored via CSS mask so it follows the nav text colour
+   (cloud over the hero, ink once past it). */
 function Logo() {
+  const src = encodeURI("/logos/Vector-3.svg");
+  const height = 44;
+  const width = Math.round(height * (1402 / 696));
   return (
-    <a href="#" className="flex items-center gap-2.5 font-semibold tracking-tight">
+    <a href="#" aria-label="SoroSense" className="flex items-center">
       <span
-        className="h-[22px] w-[22px] rounded-md"
+        role="img"
+        aria-label="SoroSense"
         style={{
-          background:
-            "conic-gradient(from 210deg, #9db8f5, #6f8fe6, #b7cbf8, #9db8f5)",
+          display: "inline-block",
+          height,
+          width,
+          transform: "translate(0px, 2px)",
+          backgroundColor: "currentColor",
+          transition: "background-color 300ms ease",
+          WebkitMaskImage: `url("${src}")`,
+          maskImage: `url("${src}")`,
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
         }}
       />
-      SoroSense
     </a>
   );
 }
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [pastHero, setPastHero] = useState(false);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 24);
+      // Flip to the white theme only once the navbar clears the hero section.
+      setPastHero(y >= window.innerHeight - NAV_H);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
-  const solid = scrolled || open;
+  const glass = scrolled || open; // show a glass background at all
+  const white = pastHero; // glass tint + text theme: white vs maroon
 
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        solid
-          ? "border-b border-mist bg-cloud/70 backdrop-blur-md backdrop-saturate-150"
+        glass
+          ? white
+            ? "bg-cloud/70 backdrop-blur-md backdrop-saturate-150"
+            : "backdrop-blur-md backdrop-saturate-150"
           : ""
       }`}
+      style={glass && !white ? { backgroundColor: `${HERO_BG}b3` } : undefined}
     >
       <nav
-        className={`mx-auto grid h-[72px] max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 ${
-          solid ? "text-ink" : "text-cloud"
+        className={`mx-auto grid h-[72px] max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 transition-colors duration-300 ${
+          white ? "text-ink" : "text-cloud"
         }`}
       >
         <Logo />
@@ -83,7 +117,7 @@ export function Nav() {
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
             className={`inline-flex h-10 w-10 items-center justify-center rounded-full border md:hidden ${
-              solid ? "border-ink/15" : "border-white/30"
+              white ? "border-ink/15" : "border-white/30"
             }`}
           >
             <svg
@@ -114,7 +148,12 @@ export function Nav() {
 
       {/* Mobile menu panel */}
       {open && (
-        <div className="border-t border-mist bg-cloud px-6 py-4 text-ink md:hidden">
+        <div
+          className={`border-t px-6 py-4 md:hidden ${
+            white ? "border-mist bg-cloud text-ink" : "border-white/10 text-cloud"
+          }`}
+          style={!white ? { backgroundColor: HERO_BG } : undefined}
+        >
           <div className="flex flex-col gap-1">
             {links.map((l) => (
               <a

@@ -23,7 +23,7 @@ function Table() {
 }
 useGLTF.preload("/models/wooden_table.glb");
 
-function Phone() {
+export function Phone() {
   const { scene } = useGLTF("/models/iphone.glb");
   const screen = useTexture("/images/mock-app.png");
   screen.colorSpace = THREE.SRGBColorSpace;
