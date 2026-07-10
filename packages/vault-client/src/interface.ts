@@ -95,6 +95,12 @@ export interface VaultClient {
    * Sentinel-vetted Safe set, in the bucket's own currency, supply/vault/hold-to-earn only.
    */
   setPolicyConsent(depositor: Address): PreparedTx;
+  /**
+   * Toggle the depositor's auto-compound (reinvest-rewards) preference. Separate from the safety
+   * mandate — `setPolicyConsent` is untouched (KTD3); this is a freely-revocable economic preference,
+   * not a risk/pool choice (STE-38 Opsi 2). Signer: depositor. Default (unset) is enabled.
+   */
+  setAutoCompound(depositor: Address, enabled: boolean): PreparedTx;
   /** Approve an agent-proposed safe exit after a freeze, moving funds to the target pool. Signer: depositor. */
   approveExit(depositor: Address, exitId: string): PreparedTx;
 
@@ -125,6 +131,8 @@ export interface VaultClient {
   poolStatus(pool: PoolId): Promise<PoolStatus>;
   /** Whether the depositor has signed the one-time safety-mandate consent. */
   hasConsent(depositor: Address): Promise<boolean>;
+  /** Whether the depositor wants rewards auto-compounded. Default true (unset = enabled). */
+  autoCompoundEnabled(depositor: Address): Promise<boolean>;
   /** The pool currently holding a currency bucket's funds, if allocated. */
   activePool(currency: Currency): Promise<PoolId | null>;
   /** A pending safe-exit proposal for a currency bucket, if any. */

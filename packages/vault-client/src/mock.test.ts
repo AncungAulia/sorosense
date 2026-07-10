@@ -144,3 +144,39 @@ describe('MockVaultClient — NAV reads (sharePrice / assetValueOf)', () => {
     expect(() => v.simulateYield('USD', -1n)).toThrow(/non-negative/);
   });
 });
+
+describe('MockVaultClient — auto-compound preference', () => {
+  it('defaults to enabled for an unset depositor', async () => {
+    const v = new MockVaultClient();
+    expect(await v.autoCompoundEnabled('alice')).toBe(true);
+  });
+
+  it('setAutoCompound(false) disables, (true) re-enables', async () => {
+    const v = new MockVaultClient();
+    await v.setAutoCompound('alice', false).signAndSubmit(depositor);
+    expect(await v.autoCompoundEnabled('alice')).toBe(false);
+    await v.setAutoCompound('alice', true).signAndSubmit(depositor);
+    expect(await v.autoCompoundEnabled('alice')).toBe(true);
+  });
+
+  it('toggling one depositor never affects another', async () => {
+    const v = new MockVaultClient();
+    await v.setAutoCompound('alice', false).signAndSubmit(depositor);
+    expect(await v.autoCompoundEnabled('alice')).toBe(false);
+    expect(await v.autoCompoundEnabled('bob')).toBe(true); // untouched, still default
+  });
+
+  it('is depositor-signed — the keeper cannot toggle it', async () => {
+    const v = new MockVaultClient();
+    await expect(v.setAutoCompound('alice', false).signAndSubmit(keeper)).rejects.toThrow(
+      /wrong signer/,
+    );
+  });
+
+  it('does not touch the safety mandate (consent unchanged)', async () => {
+    const v = new MockVaultClient();
+    await v.setPolicyConsent('alice').signAndSubmit(depositor);
+    await v.setAutoCompound('alice', false).signAndSubmit(depositor);
+    expect(await v.hasConsent('alice')).toBe(true); // consent survives an auto-compound toggle
+  });
+});
