@@ -1,53 +1,66 @@
 "use client";
 import { useState } from "react";
+import type { Currency } from "@sorosense/vault-client";
 import { Button } from "../../../components/ui";
 import { BucketToggle } from "../../../components/bucket/BucketToggle";
-import { useBuckets } from "../../../hooks/useBuckets";
+import { Simulator } from "../../../components/simulator/Simulator";
+import { useEarnings } from "../../../hooks/useEarnings";
 import { useNav } from "../../../hooks/useNav";
-import { UNIT } from "../../../lib/vault/units";
-import { getContributions } from "../../../lib/vault/contributions";
-import { getFxRateToUsd } from "../../../lib/vault/data";
+import { getBucketMeta } from "../../../lib/vault/data";
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EarnPage() {
   const nav = useNav();
-  const { loading, buckets, totalUsd } = useBuckets();
+  const { loading, view } = useEarnings();
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [i, setI] = useState(0);
-
-  // "Total earned" = current value − net contributions, blended to USD. Immune to
-  // deposits/withdrawals; only moves with yield (Coinbase/Nexo/Kraken headline a lifetime
-  // earned figure here, not APY — APY already lives on Home). Per-bucket + growth chart
-  // land in U16 from the backend cost-basis; the frontend ledger mirrors it.
-  const earnedOf = (currency: (typeof buckets)[number]["currency"], value: bigint) =>
-    Math.max(0, (Number(value - getContributions(currency)) / Number(UNIT)) * getFxRateToUsd(currency));
-
-  const views = [
-    { name: "All buckets", currency: undefined, earned: buckets.reduce((s, b) => s + earnedOf(b.currency, b.value), 0), balance: totalUsd },
-    ...buckets.map((b) => ({ name: b.name, currency: b.currency, earned: earnedOf(b.currency, b.value), balance: b.valueUsd })),
-  ];
-  const index = Math.min(i, views.length - 1);
-  const v = views[index] ?? views[0]!;
 
   if (loading) {
     return <div className="py-[30px] text-center text-sm text-muted">Loading…</div>;
   }
 
-  // Nothing deposited and nothing earned → onboarding, not a dead "$0.00 earned".
-  if (buckets.length === 0 && v.earned === 0) {
+  if (!view.hasDeposit) {
     return (
       <div>
-        <div className="py-[30px] text-center">
-          <div className="text-[15px] font-medium text-muted">Start earning</div>
-          <div className="mx-auto mt-2 max-w-[260px] text-[26px] font-semibold leading-tight tracking-[-.01em]">
-            Deposit to start earning
+        <div className="pb-[18px] pt-0.5 text-center">
+          <div className="text-[15px] font-medium text-muted">Earn balance</div>
+          <div
+            data-testid="earn-balance"
+            className="mt-2 text-[54px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]"
+          >
+            $0.00
           </div>
-          <div className="mt-3 text-[13.5px] text-muted">The agent finds the safest yield · no lockup</div>
+          <div className="mt-3.5 flex items-center justify-center gap-2 text-[13.5px] font-medium text-muted">
+            <span aria-hidden="true" className="flex items-end gap-[2px]">
+              <i className="block h-[6px] w-[3px] rounded-sm bg-pos" />
+              <i className="block h-[10px] w-[3px] rounded-sm bg-pos" />
+              <i className="block h-[14px] w-[3px] rounded-sm bg-pos" />
+            </span>
+            <span data-testid="hero-apy" className="[font-variant-numeric:tabular-nums]">
+              {getBucketMeta(currency).apy.toFixed(2)}% APY
+            </span>
+          </div>
         </div>
-        <Button onClick={() => nav.forward("/add-funds")}>Deposit</Button>
+        <Button onClick={() => nav.forward("/add-funds")}>Start earning</Button>
+        <p className="my-3 text-center text-[13px] text-muted">No lockup, move to your wallet anytime</p>
+        <Simulator currency={currency} onCurrencyChange={setCurrency} />
       </div>
     );
   }
+
+  const views = [
+    { name: "All buckets", currency: undefined, earned: view.earnedUsd, balance: view.balanceUsd, apy: view.apy },
+    ...view.buckets.map((b) => ({
+      name: getBucketMeta(b.currency).name,
+      currency: b.currency,
+      earned: b.earnedUsd,
+      balance: b.usdValue,
+      apy: getBucketMeta(b.currency).apy,
+    })),
+  ];
+  const index = Math.min(i, views.length - 1);
+  const v = views[index] ?? views[0]!;
 
   return (
     <div>
@@ -57,7 +70,7 @@ export default function EarnPage() {
           {usd(v.earned)}
         </div>
         <div className="mt-3 text-[13.5px] text-muted [font-variant-numeric:tabular-nums]">
-          on {usd(v.balance)} balance · no lockup
+          {usd(v.balance)} balance · {v.apy.toFixed(2)}% APY
         </div>
         <BucketToggle views={views} index={index} onCycle={() => setI((n) => (n + 1) % views.length)} />
       </div>
