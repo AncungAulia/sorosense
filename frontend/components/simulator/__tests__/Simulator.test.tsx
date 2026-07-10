@@ -50,18 +50,20 @@ test("bars redraw when the curve's shape changes — the chart is not an ornamen
   const user = userEvent.setup();
   const heights = () => screen.getAllByTestId("bar").map((b) => b.style.height);
   render(<Harness />);
-  const usd = heights();
-  expect(usd).toHaveLength(20);
+  const usdYear = heights();
+  expect(usdYear).toHaveLength(20);
 
-  // <Bars> normalizes against the series maximum, so a shorter horizon at the SAME apy yields the
-  // same normalized shape. Only the projection moves. Asserting otherwise would test a fiction.
+  // `(1 + apy/100)^(t/365)` is NOT self-similar under time rescaling: a one-year horizon is visibly
+  // convex, a one-day horizon is near-linear. <Bars> normalizes against the series maximum, so the
+  // curvature survives normalization and the bars really do redraw.
   await user.click(screen.getByRole("button", { name: "Day" }));
-  expect(heights()).toEqual(usd);
+  const usdDay = heights();
+  expect(usdDay).not.toEqual(usdYear);
   expect(screen.getByTestId("projection").textContent).toBe("$0.23");
 
-  // A different APY bends the compound curve differently, so the bars must redraw.
+  // A different APY bends the curve differently too.
   await user.click(screen.getByRole("button", { name: "EUR" }));
-  expect(heights()).not.toEqual(usd);
+  expect(heights()).not.toEqual(usdDay);
 });
 
 test("R11 — no pool selector, no risk label anywhere", () => {

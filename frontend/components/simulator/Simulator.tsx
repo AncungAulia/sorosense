@@ -38,11 +38,10 @@ export function Simulator({
 
   const periodDays = PERIOD_DAYS[period];
   const { projectedEarnings } = simulate({ currency, amount, periodDays });
-  // The curve is always sampled over the full-year horizon, independent of the selected period: it
-  // illustrates the bucket's compounding shape (which only currency/APY changes), not a zoomed-in
-  // window. `(1+apy/100)^x` is not self-similar under rescaling, so tying the curve to the selected
-  // period would make it redraw on every period click too — only the headline projection should move.
-  const curve = simulateCurve({ currency, amount, periodDays: PERIOD_DAYS.year });
+  // 20 samples of the projection's own growth curve. <Bars> normalizes against the series maximum,
+  // but the curve is not self-similar under time rescaling — a one-year horizon is visibly convex
+  // where a one-day horizon is near-linear — so the bars really do redraw when the period changes.
+  const curve = simulateCurve({ currency, amount, periodDays });
   const step = (delta: number) => setAmount((a) => Math.min(MAX, Math.max(MIN, a + delta)));
 
   return (
