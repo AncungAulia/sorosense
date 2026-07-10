@@ -30,6 +30,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   // ToastProvider dismisses it after TOAST_MS. It outlives the push to /home now (STE-44) because
   // the provider lives at the root layout, above both route groups.
   await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();
+  await shot(page, "03a-deposit-toast");
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
   await shot(page, "03-home-funded");
