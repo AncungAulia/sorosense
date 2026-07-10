@@ -12,12 +12,12 @@ const links = [
 const HERO_BG = "#160f0a"; // matches the hero section background
 const NAV_H = 72;
 
-/* Vector-3 wordmark, recolored via CSS mask so it follows the nav text colour
+/* soro sense wordmark, recolored via CSS mask so it follows the nav text colour
    (cloud over the hero, ink once past it). */
 function Logo() {
-  const src = encodeURI("/logos/Vector-3.svg");
-  const height = 44;
-  const width = Math.round(height * (1402 / 696));
+  const src = encodeURI("/logos/soro sense.svg");
+  const height = 37;
+  const width = Math.round(height * (1105 / 533));
   return (
     <a href="#" aria-label="SoroSense" className="flex items-center">
       <span
@@ -27,7 +27,6 @@ function Logo() {
           display: "inline-block",
           height,
           width,
-          transform: "translate(0px, 2px)",
           backgroundColor: "currentColor",
           transition: "background-color 300ms ease",
           WebkitMaskImage: `url("${src}")`,

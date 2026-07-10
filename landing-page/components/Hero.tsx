@@ -9,17 +9,27 @@ import { PhoneStage, TableStage } from "./HeroStage";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Extra viewports the Earn section holds (pinned) before the phone moves on to
-// Protect — a beat to read. The Earn section's height is tied to this.
+// Extra viewports each feature section holds (pinned) before the phone moves on
+// — a beat to read. Each section's height is tied to its dwell.
 const EARN_DWELL = 0.8;
+const PROTECT_DWELL = 0.8;
+const SIM_DWELL = 0.8;
 
 // Maps scroll position (in viewport units, u = scrollY / viewportHeight) to the
-// phone's section-space progress. The flat stretch at Earn is the read dwell.
+// phone's section-space progress (0=hero, 1=Earn, 2=Protect, 3=Simulate). Each
+// stop transitions over 1 viewport, then holds for its dwell to be read.
 function scrollToPose(u: number) {
-  if (u <= 1) return u; // hero -> Earn
-  if (u <= 1 + EARN_DWELL) return 1; // hold at Earn to read
-  if (u <= 2 + EARN_DWELL) return 1 + (u - (1 + EARN_DWELL)); // Earn -> Protect
-  return 2; // Protect
+  let t = u;
+  if (t <= 1) return t; // hero -> Earn
+  t -= 1;
+  if (t <= EARN_DWELL) return 1; // hold Earn
+  t -= EARN_DWELL;
+  if (t <= 1) return 1 + t; // Earn -> Protect
+  t -= 1;
+  if (t <= PROTECT_DWELL) return 2; // hold Protect
+  t -= PROTECT_DWELL;
+  if (t <= 1) return 2 + t; // Protect -> Simulate
+  return 3; // Simulate (held)
 }
 
 export function Hero() {
@@ -141,19 +151,50 @@ export function Hero() {
         </div>
       </section>
 
-      {/* Protect — white section; the phone has flown to the right. */}
-      <section className="relative z-10 flex min-h-[100svh] items-center justify-start bg-white px-6 pt-[72px] sm:px-10 lg:pl-[89px] xl:pl-[121px]">
-        <div className="max-w-xl text-left text-ink">
-          <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
-            Protect
-          </p>
-          <h2 className="mt-3 font-display text-[clamp(2.25rem,4.4vw,4.25rem)] font-normal leading-[1.05] tracking-tight">
-            Guarded around the clock.
-          </h2>
-          <p className="mt-5 max-w-md text-base text-muted md:text-lg">
-            Sentinel watches every pool and pulls your funds out the moment one
-            turns dangerous.
-          </p>
+      {/* Protect — white; phone on the right, held for a read beat. */}
+      <section
+        className="relative bg-white"
+        style={{ minHeight: `${(1 + PROTECT_DWELL) * 100}svh` }}
+      >
+        <div className="sticky top-0 z-10 flex h-[100svh] items-center justify-start px-6 pt-[72px] sm:px-10 lg:pl-[89px] xl:pl-[121px]">
+          <div className="max-w-xl text-left text-ink">
+            <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+              Protect
+            </p>
+            <h2 className="mt-3 font-display text-[clamp(2.25rem,4.4vw,4.25rem)] font-normal leading-[1.05] tracking-tight">
+              Guarded around the clock.
+            </h2>
+            <p className="mt-5 max-w-md text-base text-muted md:text-lg">
+              Sentinel watches every pool and pulls your funds out the moment one
+              turns dangerous.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Simulate — white; the phone rests in the centre, flanked by copy. */}
+      <section
+        className="relative bg-white"
+        style={{ minHeight: `${(1 + SIM_DWELL) * 100}svh` }}
+      >
+        <div className="sticky top-0 z-10 flex h-[100svh] items-center justify-between gap-6 px-6 pt-[72px] sm:px-10 lg:px-[89px] xl:px-[121px]">
+          {/* copy1 (left) */}
+          <div className="max-w-xs text-left text-ink">
+            <p className="font-display text-2xl font-normal leading-none tracking-tight text-brand-ink md:text-3xl">
+              Simulate
+            </p>
+            <h2 className="mt-3 font-display text-3xl font-normal leading-tight tracking-tight md:text-4xl">
+              See it before you deposit.
+            </h2>
+          </div>
+
+          {/* copy2 (right) */}
+          <div className="max-w-xs text-right text-muted">
+            <p className="text-base md:text-lg">
+              Enter any amount and any period, and get an exact projection of
+              what you&apos;d earn.
+            </p>
+          </div>
         </div>
       </section>
     </div>

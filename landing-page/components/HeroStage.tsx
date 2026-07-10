@@ -34,7 +34,13 @@ const PROTECT = {
   scale: 2.55,
   spin: 0, // short-path tilt from Earn (left) to Protect (right), no full turn
 };
-const POSES = [HERO, EARN, PROTECT];
+const SIMULATE = {
+  pos: new THREE.Vector3(-0.1, 0.86, 0),
+  rot: new THREE.Vector3(1.67, 0, -2.86),
+  scale: 2.7,
+  spin: -1, // one full Y turn in, opposite direction to the hero -> Earn spin
+};
+const POSES = [HERO, EARN, PROTECT, SIMULATE];
 
 const SCREEN_POS: [number, number, number] = [0, 0.0815, -0.0055];
 const SCREEN_SIZE: [number, number] = [0.071, 0.151];
