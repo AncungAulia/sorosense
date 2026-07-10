@@ -35,7 +35,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // note in lib/wallet.ts), so after a refresh `getWalletName()` would lie and always say
     // "Freighter". The name recorded at connect time, persisted here, is the only truthful
     // source for a restored session — do not call getWalletName() again on hydration.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // (No second eslint-disable needed here: the rule flags this effect once, on the first
+    // setState call above.)
     if (savedName) setWalletName(savedName);
   }, []);
 

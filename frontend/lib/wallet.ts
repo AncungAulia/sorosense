@@ -28,7 +28,10 @@ export function getKit(): typeof StellarWalletsKit {
     // Freighter pre-selected. If a user connected via a non-Freighter
     // fallback (xBull/Lobstr/...), a post-refresh signTransaction() would
     // target Freighter unless the app re-runs authModal()/setWallet() first.
-    // Persisting the selected wallet id is a Task 9/10 follow-up.
+    // Task 10 works around the *display* half of this (see getWalletName()
+    // below) by persisting the product name captured at connect time — it
+    // does NOT persist the selected wallet id itself, so the signing-target
+    // mismatch above is still open.
     StellarWalletsKit.init({
       network: Networks.TESTNET,
       selectedWalletId: FREIGHTER_ID, // Freighter-first
