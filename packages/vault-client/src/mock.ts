@@ -34,6 +34,8 @@ const VIRTUAL_OFFSET = 1n;
 export class MockVaultClient implements VaultClient {
   private shares = new Map<string, Shares>();
   private consent = new Set<Address>();
+  /** Depositors who turned auto-compound OFF. Absent = ON (default enabled). */
+  private autoCompoundOff = new Set<Address>();
   private frozen = new Set<PoolId>();
   private active = new Map<Currency, PoolId>();
   private holdings = new Map<Currency, Amount>();
@@ -102,6 +104,14 @@ export class MockVaultClient implements VaultClient {
     // Idempotent: re-signing is a no-op. No tier argument by design (KTD3).
     return this.prepare('depositor', () => {
       this.consent.add(depositor);
+    });
+  }
+
+  setAutoCompound(depositor: Address, enabled: boolean): PreparedTx {
+    // Economic preference, separate from consent (STE-38). Default is enabled, so we only track OFF.
+    return this.prepare('depositor', () => {
+      if (enabled) this.autoCompoundOff.delete(depositor);
+      else this.autoCompoundOff.add(depositor);
     });
   }
 
@@ -176,6 +186,10 @@ export class MockVaultClient implements VaultClient {
 
   async hasConsent(depositor: Address): Promise<boolean> {
     return this.consent.has(depositor);
+  }
+
+  async autoCompoundEnabled(depositor: Address): Promise<boolean> {
+    return !this.autoCompoundOff.has(depositor); // default enabled
   }
 
   async activePool(currency: Currency): Promise<PoolId | null> {
