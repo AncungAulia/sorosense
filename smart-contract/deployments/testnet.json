@@ -4,7 +4,7 @@
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "vaultContractId": "CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "upgradable": true,
-  "binver": "1.1.0",
+  "binver": "1.2.0",
   "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
   "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
   "config": {
@@ -23,6 +23,13 @@
       "uploadTx": "a7ea54bb2c2bd86cdcec8d06eff87cf07ed1147b1e389602359c9686b2c1a3fa",
       "upgradeTx": "a6a5aacfcb4c7841c14bb0b9b2799997cd8a4801f9d9ce6e70c32252525136db",
       "note": "STE-31 (earn-history U2): adds the read-only NAV views `share_price(currency)` and `value_of(user,currency)`. Same contract id, storage preserved. Verified live post-upgrade: all three buckets price at 1000000000 (SHARE_PRICE_SCALE, the empty-bucket base) and `value_of` reads 0. Yield never accrues on-chain yet — `total_assets` moves only on deposit/withdraw — so `share_price` stays at the base scale until mark-to-market NAV ships."
+    },
+    {
+      "binver": "1.2.0",
+      "upgradedAt": "2026-07-11",
+      "wasmHash": "021b85bf6fb63985ece867d672b1c76d9595cfe030abf45a3fdab75450686f11",
+      "upgradeTx": "ff0eeca759d8319064f595c8400ec3d8e9cf4d43f335a19fe86457276b38f8b4",
+      "note": "STE-51: emit `ConsentSet { depositor }` on the first `set_policy_consent` (absent→set), so the one-time safety mandate becomes a derivable \"Yours\" activity row like AutoCompoundSet. Emitted once — a re-call is a silent no-op. Same contract id, storage preserved. Verified live: tx 4b41fdf0154f12a8161930e3f0dd738a394f09236be870d6cbc17aaeea52b6f8 emitted `Event: ConsentSet (consent_set)` and has_consent read true."
     }
   ],
   "previousDeployments": [

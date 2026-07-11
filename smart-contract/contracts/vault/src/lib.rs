@@ -26,7 +26,7 @@ use soroban_sdk::{
 use types::{Config, Currency, Error, ExitProposal, PoolStatus};
 
 // Binary version metadata (bumped on each upgraded build).
-contractmeta!(key = "binver", val = "1.1.0");
+contractmeta!(key = "binver", val = "1.2.0");
 
 #[contract]
 pub struct Vault;
@@ -47,9 +47,15 @@ impl Vault {
     // ── Depositor-signed writes ───────────────────────────────────────────
 
     /// Record the one-time safety-mandate consent (KTD3). Idempotent; no tier arg.
+    /// Emits `ConsentSet` only on the absent→set transition — the mandate is a real
+    /// user action (signed + paid), so it becomes a "Yours" activity row; a re-call
+    /// is a genuine no-op and emits nothing so the feed can't double.
     pub fn set_policy_consent(env: Env, depositor: Address) {
         depositor.require_auth();
-        storage::set_consent(&env, &depositor);
+        if !storage::has_consent(&env, &depositor) {
+            storage::set_consent(&env, &depositor);
+            events::ConsentSet { depositor }.publish(&env);
+        }
         storage::extend_instance(&env);
     }
 
