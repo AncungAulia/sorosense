@@ -72,10 +72,17 @@ const TOUR: TourScreen[] = [
 
 export default function Landing() {
   const router = useRouter();
-  const { connect } = useWallet();
+  const { connect, address, hydrated } = useWallet();
   const [inTour, setInTour] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // A returning user with a re-verified session skips onboarding entirely (STE-43). The wallet is
+  // hydrated (and verified) in WalletProvider, so we only react to it here. `replace`, not `push`,
+  // keeps the landing out of history so Back from /home doesn't return to onboarding.
+  useEffect(() => {
+    if (hydrated && address) router.replace("/home");
+  }, [hydrated, address, router]);
 
   // Auto-dismiss the connect-error toast so it doesn't linger.
   useEffect(() => {
@@ -83,6 +90,9 @@ export default function Landing() {
     const id = setTimeout(() => setError(null), 4000);
     return () => clearTimeout(id);
   }, [error]);
+
+  // Don't flash onboarding before hydration settles, or while forwarding a live session.
+  if (!hydrated || address) return null;
 
   async function onConnect() {
     setError(null);
