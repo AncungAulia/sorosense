@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { keeper } from "./support/bridge";
-import { connectWallet, depositEurc, goBackTo, shot } from "./support/journey";
+import { connectWallet, depositEurc, shot } from "./support/journey";
 
 test("the demo journey: connect → simulate → deposit → agent works → approve a safe exit", async ({ page }) => {
   // 1. Connect. Freighter is stubbed at the lib/wallet.ts seam (NEXT_PUBLIC_E2E).
@@ -48,7 +48,8 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   await expect(page.getByText("Allocated to Blend USDC")).toBeVisible();
   await expect(page.getByText(/^Reinvested rewards/)).toBeVisible();
   await shot(page, "04-activity-rows");
-  await goBackTo(page, /\/home$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/home$/);
 
   // 6. The Sentinel pauses the pool. A freeze moves nothing — it only protects.
   await keeper(page, "freeze", "EUR");
@@ -115,7 +116,8 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
   await page.getByRole("button", { name: "View all activity" }).click();
   await expect(page).toHaveURL(/\/account\/activity$/);
   await expectNoRiskWording(page, "/account/activity");
-  await goBackTo(page, /\/home$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/home$/);
 
   await page.getByRole("link", { name: "Earn" }).click();
   await expect(page).toHaveURL(/\/earn$/);
@@ -124,7 +126,8 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
   await page.getByRole("button", { name: "Move to wallet" }).click();
   await expect(page).toHaveURL(/\/withdraw$/);
   await expectNoRiskWording(page, "/withdraw");
-  await goBackTo(page, /\/earn$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/earn$/);
 
   await page.getByRole("button", { name: "Deposit" }).click();
   await expect(page).toHaveURL(/\/add-funds$/);
@@ -133,8 +136,10 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
   await page.getByRole("button", { name: /^EURC/ }).click();
   await expect(page).toHaveURL(/\/deposit\/eurc$/);
   await expectNoRiskWording(page, "/deposit/eurc (pool paused)");
-  await goBackTo(page, /\/add-funds$/);
-  await goBackTo(page, /\/earn$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/earn$/);
 
   await page.getByRole("link", { name: "Account" }).click();
   await expect(page).toHaveURL(/\/account$/);

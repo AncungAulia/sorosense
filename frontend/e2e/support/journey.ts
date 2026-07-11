@@ -9,14 +9,6 @@ export async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(EVIDENCE_DIR, `${name}.png`) });
 }
 
-/**
- * Every gated route is reached by clicking, never by `page.goto()`. A hard load of `/home`,
- * `/earn`, `/deposit/*` … bounces to the landing page even with a session in localStorage:
- * `AuthGate`'s effect runs before `WalletProvider` hydrates `address`, so it always sees
- * "disconnected" on first paint. That is STE-43, a pre-existing bug this unit does not fix —
- * clicking through is also the truer journey, so the specs lose nothing by it.
- */
-
 /** Land in the app with a stubbed wallet connected. The stub signs without a popup. */
 export async function connectWallet(page: Page): Promise<void> {
   await page.goto("/");
@@ -34,19 +26,6 @@ export async function connectWallet(page: Page): Promise<void> {
     await connect.click();
   }
   await expect(page).toHaveURL(/\/home$/);
-}
-
-/**
- * Pop a `(flow)` screen with the app's own Back button, then wait for the URL to settle.
- *
- * Never `page.goBack()`: the App Router navigates with `history.pushState`, and a browser-level back
- * fired while a push is still in flight eats two entries. Asserting the destination after every move
- * is what keeps the history deterministic.
- */
-export async function goBackTo(page: Page, url: RegExp): Promise<void> {
-  // `exact`, or the keypad's "Backspace" also answers to the name "Back".
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page).toHaveURL(url);
 }
 
 /**
