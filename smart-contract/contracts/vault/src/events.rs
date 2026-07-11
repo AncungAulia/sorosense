@@ -25,6 +25,16 @@ pub struct Withdraw {
     pub shares: i128,
 }
 
+/// Emitted on every `set_auto_compound`, including a re-set to the same value —
+/// the frontend derives the "Yours" activity row from this, so a silent no-op
+/// would drop a user action the depositor actually signed and paid for.
+#[contractevent]
+pub struct AutoCompoundSet {
+    #[topic]
+    pub depositor: Address,
+    pub enabled: bool,
+}
+
 #[contractevent]
 pub struct Allocated {
     #[topic]

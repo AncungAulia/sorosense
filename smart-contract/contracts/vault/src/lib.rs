@@ -53,6 +53,26 @@ impl Vault {
         storage::extend_instance(&env);
     }
 
+    /// Turn the depositor's auto-compound (reinvest-rewards) preference on or off.
+    /// Idempotent. This is an *economic* preference, deliberately not part of the
+    /// safety mandate: `set_policy_consent` stays whole and unrevocable, because a
+    /// bucket is pooled and a revoked consent would leave the keeper unable to tell
+    /// one depositor's shares from the rest (STE-38 opsi 2, KTD3 + KTD-SC2 intact).
+    /// Turning it off stops reinvestment only — allocate, rebalance, and the
+    /// freeze-exit path are untouched.
+    ///
+    /// The contract records the preference; it does not enforce it. There is no
+    /// on-chain compound entrypoint to gate — yield re-supply is a pool-level
+    /// `allocate`, and a pooled bucket cannot attribute it per depositor without
+    /// per-depositor accounting the vault does not keep. The keeper reads this and
+    /// skips compound for depositors who are off (STE-40), fail-closed.
+    pub fn set_auto_compound(env: Env, depositor: Address, enabled: bool) {
+        depositor.require_auth();
+        storage::set_auto_compound(&env, &depositor, enabled);
+        storage::extend_instance(&env);
+        events::AutoCompoundSet { depositor, enabled }.publish(&env);
+    }
+
     /// Deposit `amount` of the currency's stablecoin into that bucket. Requires
     /// prior consent (KTD-SC2), so every principal in a pooled bucket is consented.
     pub fn deposit(env: Env, depositor: Address, currency: Currency, amount: i128) {
@@ -314,6 +334,11 @@ impl Vault {
     /// Whether the depositor has recorded the one-time safety-mandate consent.
     pub fn has_consent(env: Env, depositor: Address) -> bool {
         storage::has_consent(&env, &depositor)
+    }
+
+    /// Whether the depositor wants rewards auto-compounded. Unset reads `true`.
+    pub fn auto_compound_enabled(env: Env, depositor: Address) -> bool {
+        storage::auto_compound_enabled(&env, &depositor)
     }
 
     /// The pool currently holding a currency bucket's funds, if allocated.

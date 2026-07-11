@@ -3,8 +3,9 @@
 //! One module owns every key so no entrypoint re-derives a key or forgets a TTL
 //! bump. Instance storage: admin/keeper/config/pause/exit-counter. Persistent
 //! storage: per-`(depositor,currency)` shares, per-currency totals/active pool,
-//! per-pool holdings, per-depositor consent, per-pool frozen flag, per-currency
-//! pending exit, per-currency token + configured pool. Reads default sensibly.
+//! per-pool holdings, per-depositor consent + auto-compound preference, per-pool
+//! frozen flag, per-currency pending exit, per-currency token + configured pool.
+//! Reads default sensibly.
 
 use soroban_sdk::{contracttype, Address, Env};
 
@@ -28,6 +29,7 @@ pub enum DataKey {
     ActivePool(Currency),
     PoolHoldings(Currency, Address),
     Consent(Address),
+    AutoCompound(Address),
     Frozen(Address),
     PendingExit(Currency),
 }
@@ -187,6 +189,16 @@ pub fn has_consent(env: &Env, depositor: &Address) -> bool {
 }
 pub fn set_consent(env: &Env, depositor: &Address) {
     set_persist(env, &DataKey::Consent(depositor.clone()), &true);
+}
+
+/// Absent means enabled — a depositor who never touched the preference (and every
+/// depositor from before it existed) auto-compounds, so the key's absence is the
+/// on-by-default answer rather than a missing read.
+pub fn auto_compound_enabled(env: &Env, depositor: &Address) -> bool {
+    get_persist::<bool>(env, &DataKey::AutoCompound(depositor.clone())).unwrap_or(true)
+}
+pub fn set_auto_compound(env: &Env, depositor: &Address, enabled: bool) {
+    set_persist(env, &DataKey::AutoCompound(depositor.clone()), &enabled);
 }
 
 pub fn is_frozen(env: &Env, pool: &Address) -> bool {
