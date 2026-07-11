@@ -202,11 +202,14 @@ import { WalletProvider } from "../WalletProvider";
 import { useWallet } from "../../hooks/useWallet";
 import * as wallet from "../../lib/wallet";
 
+// One canonical live address: getAddress() (the re-verification read) returns the SAME address
+// connect() hands back, i.e. "the live wallet is the one you connected". The mismatch/locked tests
+// override getAddress per-case to a different value or a throw; everything else restores cleanly.
 vi.mock("../../lib/wallet", () => ({
   connect: vi.fn(async () => ({ address: "GABC123", name: "Freighter" })),
   disconnect: vi.fn(async () => {}),
   signTransaction: vi.fn(async () => "SIGNED"),
-  getAddress: vi.fn(async () => "GXYZ789"),
+  getAddress: vi.fn(async () => "GABC123"),
 }));
 
 function Probe() {
@@ -244,10 +247,10 @@ test("hydration with no stored session ends disconnected but hydrated", async ()
 });
 
 test("restores a stored session only after getAddress() confirms it", async () => {
-  localStorage.setItem("soro.wallet", "GXYZ789");
+  localStorage.setItem("soro.wallet", "GABC123");
   localStorage.setItem("soro.wallet.name", "Freighter");
   render(<WalletProvider><Probe /></WalletProvider>);
-  expect(await screen.findByText("GXYZ789")).toBeInTheDocument();
+  expect(await screen.findByText("GABC123")).toBeInTheDocument();
   expect(screen.getByTestId("flag").textContent).toBe("true");
   expect(screen.getByTestId("walletName").textContent).toBe("Freighter");
   expect(wallet.getAddress).toHaveBeenCalledTimes(1);
@@ -255,7 +258,7 @@ test("restores a stored session only after getAddress() confirms it", async () =
 
 test("clears a stale session when getAddress() disagrees", async () => {
   vi.mocked(wallet.getAddress).mockResolvedValueOnce("GDIFFERENT");
-  localStorage.setItem("soro.wallet", "GXYZ789");
+  localStorage.setItem("soro.wallet", "GABC123");
   localStorage.setItem("soro.wallet.name", "Freighter");
   render(<WalletProvider><Probe /></WalletProvider>);
   await waitFor(() => expect(screen.getByTestId("hydrated").textContent).toBe("true"));
@@ -267,7 +270,7 @@ test("clears a stale session when getAddress() disagrees", async () => {
 
 test("clears a stored session when the wallet is locked (getAddress throws)", async () => {
   vi.mocked(wallet.getAddress).mockRejectedValueOnce(new Error("locked"));
-  localStorage.setItem("soro.wallet", "GXYZ789");
+  localStorage.setItem("soro.wallet", "GABC123");
   render(<WalletProvider><Probe /></WalletProvider>);
   await waitFor(() => expect(screen.getByTestId("hydrated").textContent).toBe("true"));
   expect(screen.getByTestId("addr").textContent).toBe("none");
