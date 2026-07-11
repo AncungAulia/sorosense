@@ -1,0 +1,195 @@
+/**
+ * Offline unit tests for {@link RealVaultClient}. No network: the generated bindings client is
+ * replaced by an injected fake (`makeClient`) so we assert the seam ⇄ contract encoding boundary
+ * and the two-phase write contract deterministically.
+ */
+
+import { describe, expect, it, vi } from 'vitest';
+import { RealVaultClient, type BindingsVaultClient } from './real';
+import { mockSigner } from './mock';
+
+/** A fake read `AssembledTransaction` — only `.result` matters to the adapter. */
+const readTx = <T>(result: T): Promise<{ result: T }> => Promise.resolve({ result });
+
+/** A fake write `AssembledTransaction`: its `signAndSend` invokes the passed signer and reports success. */
+function writeTx() {
+  return {
+    signAndSend: vi.fn(
+      async (opts?: { signTransaction?: (xdr: string) => Promise<unknown> }) => {
+        if (opts?.signTransaction) await opts.signTransaction('xdr-body');
+        return {
+          sendTransactionResponse: { hash: 'tx-hash-1' },
+          getTransactionResponse: { status: 'SUCCESS' },
+        };
+      },
+    ),
+  };
+}
+
+/** Build an injected client whose methods are `vi.fn`s; overrides let a test shape specific returns. */
+function makeClient(overrides: Partial<Record<keyof BindingsVaultClient, unknown>> = {}) {
+  const base: Record<string, unknown> = {
+    balance_of: vi.fn(() => readTx(0n)),
+    share_price: vi.fn(() => readTx(1_000_000_000n)),
+    value_of: vi.fn(() => readTx(0n)),
+    pool_status: vi.fn(() => readTx({ tag: 'Active', values: undefined })),
+    has_consent: vi.fn(() => readTx(false)),
+    auto_compound_enabled: vi.fn(() => readTx(true)),
+    active_pool: vi.fn(() => readTx(undefined)),
+    pending_exit: vi.fn(() => readTx(undefined)),
+    deposit: vi.fn(() => Promise.resolve(writeTx())),
+    withdraw: vi.fn(() => Promise.resolve(writeTx())),
+    set_policy_consent: vi.fn(() => Promise.resolve(writeTx())),
+    set_auto_compound: vi.fn(() => Promise.resolve(writeTx())),
+    approve_exit: vi.fn(() => Promise.resolve(writeTx())),
+    allocate: vi.fn(() => Promise.resolve(writeTx())),
+    deallocate: vi.fn(() => Promise.resolve(writeTx())),
+    freeze: vi.fn(() => Promise.resolve(writeTx())),
+    unfreeze: vi.fn(() => Promise.resolve(writeTx())),
+    propose_exit: vi.fn(() => Promise.resolve(writeTx())),
+    ...overrides,
+  };
+  return base as unknown as BindingsVaultClient;
+}
+
+const opts = {
+  contractId: 'CCONTRACT',
+  rpcUrl: 'https://rpc.example',
+  networkPassphrase: 'Test SDF Network ; September 2015',
+};
+
+describe('RealVaultClient reads', () => {
+  it('sharePrice decodes the i128 result to a bigint', async () => {
+    const share_price = vi.fn(() => readTx(1_500_000_000n));
+    const v = new RealVaultClient({ ...opts, client: makeClient({ share_price }) });
+
+    expect(await v.sharePrice('USD')).toBe(1_500_000_000n);
+    // Currency was encoded to the contract enum on the way in.
+    expect(share_price).toHaveBeenCalledWith({ currency: { tag: 'Usd', values: undefined } });
+  });
+
+  it('poolStatus maps the contract tag to the seam union', async () => {
+    const active = new RealVaultClient({
+      ...opts,
+      client: makeClient({ pool_status: vi.fn(() => readTx({ tag: 'Active', values: undefined })) }),
+    });
+    const frozen = new RealVaultClient({
+      ...opts,
+      client: makeClient({ pool_status: vi.fn(() => readTx({ tag: 'Frozen', values: undefined })) }),
+    });
+
+    expect(await active.poolStatus('blend-usdc')).toBe('active');
+    expect(await frozen.poolStatus('blend-usdc')).toBe('frozen');
+  });
+
+  it('activePool maps Option<string> to PoolId | null', async () => {
+    const some = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx('pool-abc')) }),
+    });
+    const none = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(undefined)) }),
+    });
+
+    expect(await some.activePool('USD')).toBe('pool-abc');
+    expect(await none.activePool('USD')).toBeNull();
+  });
+
+  it('pendingExit decodes ExitProposal (u64 id → string) or null', async () => {
+    const withExit = new RealVaultClient({
+      ...opts,
+      client: makeClient({
+        pending_exit: vi.fn(() =>
+          readTx({
+            currency: { tag: 'Eur', values: undefined },
+            from_pool: 'pool-frozen',
+            id: 7n,
+            to_pool: 'pool-safe',
+          }),
+        ),
+      }),
+    });
+    const none = new RealVaultClient({
+      ...opts,
+      client: makeClient({ pending_exit: vi.fn(() => readTx(undefined)) }),
+    });
+
+    expect(await withExit.pendingExit('EUR')).toEqual({
+      id: '7',
+      currency: 'EUR',
+      fromPool: 'pool-frozen',
+      toPool: 'pool-safe',
+    });
+    expect(await none.pendingExit('EUR')).toBeNull();
+  });
+
+  it('balanceOf / assetValueOf / hasConsent / autoCompoundEnabled decode straight through', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({
+        balance_of: vi.fn(() => readTx(42n)),
+        value_of: vi.fn(() => readTx(50n)),
+        has_consent: vi.fn(() => readTx(true)),
+        auto_compound_enabled: vi.fn(() => readTx(false)),
+      }),
+    });
+
+    expect(await v.balanceOf('alice', 'MXN')).toBe(42n);
+    expect(await v.assetValueOf('alice', 'MXN')).toBe(50n);
+    expect(await v.hasConsent('alice')).toBe(true);
+    expect(await v.autoCompoundEnabled('alice')).toBe(false);
+  });
+});
+
+describe('RealVaultClient writes', () => {
+  it('deposit encodes the currency and returns a PreparedTx requiring the depositor', () => {
+    const v = new RealVaultClient({ ...opts, client: makeClient() });
+    const tx = v.deposit('alice', 'USD', 1_000n);
+
+    expect(tx.requiredSigner).toBe('depositor');
+    expect(typeof tx.xdr).toBe('string');
+  });
+
+  it('signAndSubmit rejects a wrong-role signer without assembling or signing', async () => {
+    const deposit = vi.fn(() => Promise.resolve(writeTx()));
+    const v = new RealVaultClient({ ...opts, client: makeClient({ deposit }) });
+    const keeper = mockSigner('keeper', 'sentinel');
+    const signSpy = vi.spyOn(keeper, 'sign');
+
+    await expect(v.deposit('alice', 'USD', 1_000n).signAndSubmit(keeper)).rejects.toThrow(
+      /wrong signer/,
+    );
+    // Guard trips before any network assembly or signature.
+    expect(deposit).not.toHaveBeenCalled();
+    expect(signSpy).not.toHaveBeenCalled();
+  });
+
+  it('signAndSubmit with the right role signs, sends, and returns { hash, success }', async () => {
+    const client = makeClient();
+    const v = new RealVaultClient({ ...opts, client });
+    const depositor = mockSigner('depositor', 'alice');
+    const signSpy = vi.spyOn(depositor, 'sign');
+
+    const result = await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+
+    expect(client.deposit).toHaveBeenCalledWith({
+      depositor: 'alice',
+      currency: { tag: 'Usd', values: undefined },
+      amount: 1_000n,
+    });
+    expect(signSpy).toHaveBeenCalledOnce();
+    expect(result).toEqual({ hash: 'tx-hash-1', success: true });
+  });
+
+  it('keeper writes require the keeper role', async () => {
+    const v = new RealVaultClient({ ...opts, client: makeClient() });
+    const depositor = mockSigner('depositor', 'alice');
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    const freeze = v.freeze('blend-usdc');
+    expect(freeze.requiredSigner).toBe('keeper');
+    await expect(freeze.signAndSubmit(depositor)).rejects.toThrow(/wrong signer/);
+    expect((await v.freeze('blend-usdc').signAndSubmit(keeper)).success).toBe(true);
+  });
+});

@@ -24,3 +24,6 @@ export type {
 export { SHARE_PRICE_SCALE } from './interface';
 
 export { MockVaultClient, mockSigner } from './mock';
+
+export { RealVaultClient } from './real';
+export type { RealVaultClientOptions, BindingsVaultClient } from './real';
