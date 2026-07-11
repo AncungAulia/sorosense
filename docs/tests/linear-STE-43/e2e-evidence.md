@@ -11,6 +11,8 @@ Behavioral proof, not visual — the bug and the fix are both about which URL th
 
 Bonus cleanup folded into this same branch: `goBackTo()`, a workaround helper in the e2e journey support code for a stale deep-link limitation, was retired now that `page.goBack()` behaves correctly on its own (the existing `connectWallet()` journey helper was adjusted to tolerate the new landing auto-forward racing against its own button-visibility check, rather than reintroducing a workaround).
 
+The retirement was gated on stability, per the plan's decision rule (Axel's ACC: "bonus, bukan syarat"). `page.goBack()` was spiked across **8 dedicated consecutive full-suite runs** plus 3 baseline runs — **11 runs, 66/66 tests, 0 flakes** — before `goBackTo()` was removed and `page.goBack()` + an immediate `expect(page).toHaveURL(...)` was inlined at each of its 5 call sites in `demo-flow.spec.ts`. The architectural reason it is safe: the app's own Back button (what `goBackTo` clicked, `SubHeader.tsx` → `router.back()`) and `page.goBack()` both invoke the identical browser `history.back()` primitive, so there was never a mechanism difference — only a timing one, and the settle-then-assert discipline (every back is preceded by a confirmed-settled navigation and followed by a URL assertion) is preserved unchanged at every site.
+
 ## Green gate
 
 Run from the repo root on branch `AncungAulia/ancungaulia-ste-43-authgate-bounces-deep-links-to-landing-despite-a-stored`, commit `d78b880`.
