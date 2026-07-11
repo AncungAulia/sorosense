@@ -20,7 +20,19 @@ export async function shot(page: Page, name: string): Promise<void> {
 /** Land in the app with a stubbed wallet connected. The stub signs without a popup. */
 export async function connectWallet(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByRole("button", { name: "Connect wallet" }).click();
+  // With a session already stored, the landing auto-forwards to /home (STE-43) before the button
+  // ever renders — that path is itself proof the fix works. Only click when onboarding is actually
+  // shown. `goto` resolves on HTML load, well before hydration flips the landing past its `null`
+  // SSR shell, so a one-shot `isVisible()` right after `goto` reads false even when the button is
+  // about to appear (no stored session, the common case) — race whichever settles first instead.
+  const connect = page.getByRole("button", { name: "Connect wallet" });
+  const showsButton = await Promise.race([
+    connect.waitFor({ state: "visible" }).then(() => true),
+    page.waitForURL(/\/home$/).then(() => false),
+  ]).catch(() => false);
+  if (showsButton) {
+    await connect.click();
+  }
   await expect(page).toHaveURL(/\/home$/);
 }
 
