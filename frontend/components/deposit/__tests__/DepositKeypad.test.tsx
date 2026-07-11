@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockVaultClient } from "@sorosense/vault-client";
 import { VaultProvider } from "../../../providers/VaultProvider";
+import { ToastProvider } from "../../../providers/ToastProvider";
 import { DepositKeypad } from "../DepositKeypad";
 
 const push = vi.fn();
@@ -13,7 +14,7 @@ function setup(sym: string) {
   const sign = vi.fn(async (xdr: string) => `sig:${xdr}`);
   useWallet.mockReturnValue({ address: "GNEW", isConnected: true, signTransaction: sign });
   const client = new MockVaultClient(); // fresh: hasConsent=false → consent required
-  render(<VaultProvider client={client}><DepositKeypad sym={sym} /></VaultProvider>);
+  render(<VaultProvider client={client}><ToastProvider><DepositKeypad sym={sym} /></ToastProvider></VaultProvider>);
   return { sign, client };
 }
 

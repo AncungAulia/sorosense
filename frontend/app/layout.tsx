@@ -3,6 +3,7 @@ import './globals.css';
 import { switzer } from '../lib/fonts';
 import { WalletProvider } from '../providers/WalletProvider';
 import { VaultProvider } from '../providers/VaultProvider';
+import { ToastProvider } from '../providers/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'SoroSense',
@@ -27,7 +28,9 @@ export default function RootLayout({
     <html lang="en" className={`${switzer.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         <WalletProvider>
-          <VaultProvider>{children}</VaultProvider>
+          <VaultProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </VaultProvider>
         </WalletProvider>
       </body>
     </html>

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 
-const EVIDENCE_DIR = path.join("..", "docs", "tests", "linear-STE-27", "screenshots");
+const EVIDENCE_DIR = path.join("..", "docs", "tests", "linear-STE-44", "screenshots");
 
 /** Capture PR evidence. Opt-in via `E2E_EVIDENCE=1`, so an ordinary run leaves the tree clean. */
 export async function shot(page: Page, name: string): Promise<void> {

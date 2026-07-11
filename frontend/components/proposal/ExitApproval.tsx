@@ -24,8 +24,9 @@ export function ExitApproval({ open, onClose }: { open: boolean; onClose: () => 
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
 
-  // ExitApproval stays mounted at page level (unlike WithdrawKeypad, which unmounts on
-  // navigation), so the toast needs its own auto-dismiss or it lingers over the page forever.
+  // This toast is rendered here, not through ToastProvider: ExitApproval stays mounted at page
+  // level and never navigates, so the provider (STE-44) would buy it nothing. Being page-local it
+  // needs its own auto-dismiss, or it lingers over the page forever.
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 2500);

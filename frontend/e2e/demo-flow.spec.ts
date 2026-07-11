@@ -26,9 +26,11 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   await page.getByRole("button", { name: "Start earning" }).click();
   await expect(page).toHaveURL(/\/add-funds$/);
   await depositEurc(page, "500");
-  // The bucket row is the deposit's only visible confirmation: DepositKeypad's "Deposited. Agent is
-  // allocating." toast unmounts with the screen that pushes to /home, so the user never sees it
-  // (STE-44). Asserting the row instead tests what actually reaches them.
+  // The toast is asserted before the bucket row because it is the only assertion with a deadline:
+  // ToastProvider dismisses it after TOAST_MS. It outlives the push to /home now (STE-44) because
+  // the provider lives at the root layout, above both route groups.
+  await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();
+  await shot(page, "03a-deposit-toast");
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
   await shot(page, "03-home-funded");
@@ -166,4 +168,33 @@ test("a rebalance never asks the user to approve anything", async ({ page }) => 
   await page.getByRole("button", { name: "View all activity" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
+});
+
+/**
+ * The withdraw twin of the deposit toast (STE-44). `WithdrawKeypad` had the same shape —
+ * `setToast(...)` immediately before `router.push("/home")` — so its confirmation unmounted with its
+ * screen too. The ticket only named deposit; the bug was in both.
+ */
+test("a completed withdrawal confirms itself on /home", async ({ page }) => {
+  await connectWallet(page);
+  await page.getByRole("button", { name: "Add funds" }).click();
+  await expect(page).toHaveURL(/\/add-funds$/);
+  await depositEurc(page, "500");
+
+  await page.getByRole("link", { name: "Earn" }).click();
+  await expect(page).toHaveURL(/\/earn$/);
+  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await expect(page).toHaveURL(/\/withdraw$/);
+
+  // A partial amount, never "Max": the vault is a module singleton shared with the specs above, so
+  // the bucket's absolute balance is not ours to assume — only that it holds more than €100.
+  for (const digit of "100") {
+    await page.getByRole("button", { name: digit, exact: true }).click();
+  }
+  await expect(page.getByTestId("keypad-value")).toHaveText("100");
+  await page.getByRole("button", { name: "Move to wallet" }).click();
+
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByText("Sent to your wallet")).toBeVisible();
+  await shot(page, "09-withdraw-toast");
 });
