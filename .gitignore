@@ -29,7 +29,13 @@ test-results/
 .turbo/
 
 # Generated contract bindings (regenerate via smart-contract/scripts/bindings.ts)
-packages/vault-client/bindings/
+packages/vault-client/bindings/**
+!packages/vault-client/bindings/
+!packages/vault-client/bindings/src/
+!packages/vault-client/bindings/src/**
+!packages/vault-client/bindings/package.json
+!packages/vault-client/bindings/tsconfig.json
+!packages/vault-client/bindings/README.md
 
 # Local editor/tooling cache
 .impeccable/
