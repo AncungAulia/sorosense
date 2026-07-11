@@ -158,6 +158,119 @@ mod shares {
     }
 }
 
+// ── nav: share_price / value_of views ─────────────────────────────────────
+
+mod nav {
+    use super::*;
+    use crate::shares::SHARE_PRICE_SCALE;
+    use crate::storage;
+
+    /// Raise a bucket's NAV without minting shares — the only way to lift its share
+    /// price, standing in for the pool yield this contract does not accrue yet
+    /// (mark-to-market NAV is deferred to a later upgrade). Writes storage directly
+    /// from inside the contract's context; deliberately not a vault entrypoint.
+    fn simulate_yield(ctx: &Ctx, currency: Currency, amount: i128) {
+        ctx.env.as_contract(&ctx.vault.address, || {
+            let total = storage::get_total_assets(&ctx.env, currency);
+            storage::set_total_assets(&ctx.env, currency, total + amount);
+        });
+    }
+
+    #[test]
+    fn empty_bucket_prices_at_base_scale() {
+        let ctx = setup();
+        // Virtual offset cancels rather than dividing by zero.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        let d = Address::generate(&ctx.env);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 0);
+    }
+
+    #[test]
+    fn deposit_alone_does_not_move_price() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        // Shares and assets rise together, so NAV per share stays at the base.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 100_000);
+    }
+
+    #[test]
+    fn share_price_rises_with_accrued_nav() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+
+        // (110_000 + 1_000) * 1e9 / (100_000 + 1_000), floored.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), 1_099_009_900);
+        assert!(ctx.vault.share_price(&Currency::Usd) > SHARE_PRICE_SCALE);
+        // The lone depositor owns the whole bucket, so the yield is all theirs:
+        // 100_000 * 111_000 / 101_000, floored.
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 109_900);
+    }
+
+    #[test]
+    fn value_of_previews_what_withdraw_returns() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // Fund the vault for the accrued portion, as a deallocate would before withdraw.
+        ctx.usd_admin.mint(&ctx.vault.address, &10_000);
+
+        let previewed = ctx.vault.value_of(&d, &Currency::Usd);
+        let owned = ctx.vault.balance_of(&d, &Currency::Usd);
+        ctx.vault.withdraw(&d, &Currency::Usd, &owned);
+        assert_eq!(ctx.usd_token.balance(&d), previewed);
+    }
+
+    #[test]
+    fn yield_splits_by_share_not_by_deposit_order() {
+        let ctx = setup();
+        let a = funded_depositor(&ctx, 100_000);
+        let b = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&a, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // b buys in after the yield, so b's shares cost more and carry none of it.
+        ctx.vault.deposit(&b, &Currency::Usd, &100_000);
+
+        let (a_shares, b_shares) = (
+            ctx.vault.balance_of(&a, &Currency::Usd),
+            ctx.vault.balance_of(&b, &Currency::Usd),
+        );
+        assert!(b_shares < a_shares);
+        assert!(ctx.vault.value_of(&a, &Currency::Usd) > ctx.vault.value_of(&b, &Currency::Usd));
+        // b is made whole on their principal (modulo floor rounding), not diluted.
+        assert!(ctx.vault.value_of(&b, &Currency::Usd) >= 100_000 - 1);
+    }
+
+    #[test]
+    fn unfunded_currency_reads_base_price_and_zero_value() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // Buckets never blend: EUR is untouched by USD's NAV.
+        assert_eq!(ctx.vault.share_price(&Currency::Eur), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Eur), 0);
+    }
+
+    #[test]
+    fn views_are_public_reads_not_admin_gated() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+
+        // Drop all mocked auth: an admin-gated call now rejects...
+        ctx.env.set_auths(&[]);
+        assert!(ctx.vault.try_set_pool_allowed(&ctx.pool_a, &true).is_err());
+        // ...while the NAV views still answer anyone, like `pool_allowed`/`active_pool`.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 100_000);
+    }
+}
+
 // ── consent ─────────────────────────────────────────────────────────────
 
 mod consent {
