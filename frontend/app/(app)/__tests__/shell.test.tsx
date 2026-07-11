@@ -9,14 +9,14 @@ const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 
 test("renders nav + children when connected", () => {
-  useWallet.mockReturnValue({ isConnected: true });
+  useWallet.mockReturnValue({ isConnected: true, hydrated: true });
   render(<AppLayout><p>home body</p></AppLayout>);
   expect(screen.getByText("home body")).toBeInTheDocument();
   expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
 });
 
 test("redirects to / when not connected", () => {
-  useWallet.mockReturnValue({ isConnected: false });
+  useWallet.mockReturnValue({ isConnected: false, hydrated: true });
   render(<AppLayout><p>home body</p></AppLayout>);
   expect(push).toHaveBeenCalledWith("/");
 });
