@@ -58,15 +58,31 @@ import { connectWallet } from "./support/journey";
  * These two specs pin both symptoms.
  */
 
+/**
+ * Wait FOR the STE-43 bounce rather than asserting the URL directly. The redirect is fired from
+ * AuthGate's effect a beat after `goto` resolves, so a plain `toHaveURL(/\/home$/)` matches the
+ * still-correct URL on its first poll and returns before the redirect ever runs — it would pass
+ * even with the bug present. This waits for the URL to reach the landing (`pathname === "/"`); if
+ * that happens within the window the deep link bounced, which must not.
+ */
+async function bouncedToLanding(page: import("@playwright/test").Page): Promise<boolean> {
+  return page
+    .waitForURL((url) => url.pathname === "/", { timeout: 2000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
 test("a hard load of a gated route keeps a stored session on that route", async ({ page }) => {
   await connectWallet(page); // stores soro.wallet in this context
 
   await page.goto("/home");
+  expect(await bouncedToLanding(page), "hard load of /home bounced to landing (STE-43)").toBe(false);
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("navigation")).toBeVisible(); // the app shell, not the landing
 
   // A deeper gated route survives a hard load too.
   await page.goto("/account");
+  expect(await bouncedToLanding(page), "hard load of /account bounced to landing (STE-43)").toBe(false);
   await expect(page).toHaveURL(/\/account$/);
 });
 
