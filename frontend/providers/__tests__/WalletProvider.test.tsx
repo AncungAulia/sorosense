@@ -100,3 +100,17 @@ test("exposes and persists the wallet name across a remount", async () => {
   render(<WalletProvider><Probe /></WalletProvider>);
   await waitFor(() => expect(screen.getByTestId("walletName").textContent).toBe("Freighter"));
 });
+
+test("fails closed (no hang) when localStorage access itself throws", async () => {
+  const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    throw new Error("storage disabled");
+  });
+  try {
+    render(<WalletProvider><Probe /></WalletProvider>);
+    await waitFor(() => expect(screen.getByTestId("hydrated").textContent).toBe("true"));
+    expect(screen.getByTestId("addr").textContent).toBe("none");
+    expect(screen.getByTestId("flag").textContent).toBe("false");
+  } finally {
+    spy.mockRestore();
+  }
+});

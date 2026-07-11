@@ -30,12 +30,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const saved = window.localStorage.getItem(KEY);
-      if (!saved) {
-        if (alive) setAddress(null);
-        return;
-      }
       try {
+        const saved = window.localStorage.getItem(KEY);
+        if (!saved) {
+          if (alive) setAddress(null);
+          return;
+        }
+        // Re-verify the restored address against the live wallet before trusting it: a
+        // previously-saved address is not a live session (the user may have revoked, locked, or
+        // switched accounts), so entering the app on it would only fail later, at signing time.
         const live = await wallet.getAddress();
         if (!alive) return;
         if (live === saved) {
@@ -46,12 +49,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setWalletName(window.localStorage.getItem(NAME_KEY));
           return;
         }
+        // Mismatch (account switch / foreign wallet) — fall through to clear.
       } catch {
-        // locked / revoked / no permission — fall through to clear.
+        // getAddress rejected (locked / revoked / no permission), OR localStorage access itself
+        // threw (private mode / sandboxed). Either way: no verified session. Fall through to clear
+        // and resolve hydration — never hang at the undefined/skeleton state.
       }
       if (!alive) return;
-      window.localStorage.removeItem(KEY);
-      window.localStorage.removeItem(NAME_KEY);
+      try {
+        window.localStorage.removeItem(KEY);
+        window.localStorage.removeItem(NAME_KEY);
+      } catch {
+        // storage unavailable — nothing to clear.
+      }
       setAddress(null);
     })();
     return () => {
