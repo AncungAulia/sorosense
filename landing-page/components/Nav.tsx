@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./Button";
 
 const links = [
@@ -9,11 +9,10 @@ const links = [
   { href: "#faq", label: "FAQ" },
 ];
 
-const HERO_BG = "#160f0a"; // matches the hero section background
-const NAV_H = 72;
+const DARK_GLASS = "rgba(22,17,13,0.72)"; // warm dark glass over hero + Risk
+const DARK_PANEL = "#161310"; // solid dark for the mobile menu
 
-/* soro sense wordmark, recolored via CSS mask so it follows the nav text colour
-   (cloud over the hero, ink once past it). */
+/* soro sense wordmark, recolored via CSS mask so it follows the nav text colour. */
 function Logo() {
   const src = encodeURI("/logos/soro sense.svg");
   const height = 37;
@@ -43,44 +42,69 @@ function Logo() {
   );
 }
 
+// Luminance of a CSS colour, or null if transparent / unparseable.
+function luminance(color: string): number | null {
+  const m = color.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const [r, g, b, a = 1] = m[1].split(",").map((s) => parseFloat(s));
+  if (!a) return null;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+// Is the painted background directly behind the navbar dark?
+function bgIsDark(header: HTMLElement | null): boolean {
+  const els = document.elementsFromPoint(window.innerWidth / 2, 40);
+  for (const el of els) {
+    if (header && header.contains(el)) continue;
+    const l = luminance(getComputedStyle(el).backgroundColor);
+    if (l === null) continue; // transparent — keep looking behind
+    return l < 120;
+  }
+  return false;
+}
+
 export function Nav() {
+  const headerRef = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [pastHero, setPastHero] = useState(false);
+  const [dark, setDark] = useState(true); // hero starts dark
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    let raf = 0;
     const onScroll = () => {
-      const y = window.scrollY;
-      setScrolled(y > 24);
-      // Flip to the white theme only once the navbar clears the hero section.
-      setPastHero(y >= window.innerHeight - NAV_H);
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        setScrolled(window.scrollY > 24);
+        setDark(bgIsDark(headerRef.current));
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
   }, []);
 
   const glass = scrolled || open; // show a glass background at all
-  const white = pastHero; // glass tint + text theme: white vs maroon
 
   return (
     <header
+      ref={headerRef}
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
         glass
-          ? white
-            ? "bg-cloud/70 backdrop-blur-md backdrop-saturate-150"
-            : "backdrop-blur-md backdrop-saturate-150"
+          ? dark
+            ? "backdrop-blur-md backdrop-saturate-150"
+            : "bg-cloud/70 backdrop-blur-md backdrop-saturate-150"
           : ""
       }`}
-      style={glass && !white ? { backgroundColor: `${HERO_BG}b3` } : undefined}
+      style={glass && dark ? { backgroundColor: DARK_GLASS } : undefined}
     >
       <nav
         className={`mx-auto grid h-[72px] max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 transition-colors duration-300 ${
-          white ? "text-ink" : "text-cloud"
+          dark ? "text-cloud" : "text-ink"
         }`}
       >
         <Logo />
@@ -116,7 +140,7 @@ export function Nav() {
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
             className={`inline-flex h-10 w-10 items-center justify-center rounded-full border md:hidden ${
-              white ? "border-ink/15" : "border-white/30"
+              dark ? "border-white/30" : "border-ink/15"
             }`}
           >
             <svg
@@ -149,9 +173,9 @@ export function Nav() {
       {open && (
         <div
           className={`border-t px-6 py-4 md:hidden ${
-            white ? "border-mist bg-cloud text-ink" : "border-white/10 text-cloud"
+            dark ? "border-white/10 text-cloud" : "border-mist bg-cloud text-ink"
           }`}
-          style={!white ? { backgroundColor: HERO_BG } : undefined}
+          style={dark ? { backgroundColor: DARK_PANEL } : undefined}
         >
           <div className="flex flex-col gap-1">
             {links.map((l) => (

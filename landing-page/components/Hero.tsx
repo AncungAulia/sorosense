@@ -11,8 +11,10 @@ gsap.registerPlugin(ScrollTrigger);
 
 // Extra viewports each feature section holds (pinned) before the phone moves on
 // — a beat to read. Each section's height is tied to its dwell.
-const EARN_DWELL = 0.8;
-const PROTECT_DWELL = 0.8;
+// Heavy (Lenis) scroll already gives each stop weight, so no read-hold between
+// the feature stops — they flow straight into each other.
+const EARN_DWELL = 0;
+const PROTECT_DWELL = 0;
 const SIM_DWELL = 0.8;
 
 // Maps scroll position (in viewport units, u = scrollY / viewportHeight) to the
@@ -37,6 +39,7 @@ export function Hero() {
   // Section-space scroll progress: 0 = hero, 1 = Earn, 2 = Protect, ...
   const progress = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const phoneFadeRef = useRef<HTMLDivElement>(null);
 
   // On (re)load, always start at the hero — otherwise the browser restores the
   // scroll position and the entrance animation fights the scrubbed Earn pose.
@@ -64,6 +67,33 @@ export function Hero() {
     return () => st.kill();
   }, []);
 
+  // The phone is stuck to the white (Simulate) layer: once the feature stack
+  // ends, it scrolls up and off with it — like the hero table — instead of
+  // sliding onto the grey Risk layer below.
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = containerRef.current;
+        const stick = phoneFadeRef.current;
+        if (!el || !stick) return;
+        const vh = window.innerHeight || 1;
+        // px scrolled past the feature stack; move the phone up by the same.
+        const past = Math.min(Math.max(vh - el.getBoundingClientRect().bottom, 0), vh * 1.5);
+        stick.style.transform = `translateY(${-past}px)`;
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
   return (
     <div ref={containerRef} className="relative">
       {/* Phone overlay — fixed above everything, transparent. Not part of the
@@ -73,7 +103,9 @@ export function Hero() {
           ready ? "opacity-100" : "opacity-0"
         }`}
       >
-        <PhoneStage progress={progress} onReady={() => setReady(true)} />
+        <div ref={phoneFadeRef} className="h-full w-full">
+          <PhoneStage progress={progress} onReady={() => setReady(true)} />
+        </div>
       </div>
 
       {/* Hero frame — maroon backdrop + 3D table, clipped to this section so it
