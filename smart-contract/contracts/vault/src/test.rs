@@ -276,6 +276,7 @@ mod nav {
 
 mod consent {
     use super::*;
+    use soroban_sdk::testutils::Events as _;
 
     #[test]
     fn deposit_without_consent_panics() {
@@ -297,6 +298,32 @@ mod consent {
         ctx.vault.set_policy_consent(&d);
         ctx.vault.set_policy_consent(&d); // re-sign is a no-op
         assert!(ctx.vault.has_consent(&d));
+    }
+
+    #[test]
+    fn first_consent_emits_event_then_recall_is_silent() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        // `events().all()` returns the most recent invocation's events, so we check
+        // right after each call. First consent (absent→set) emits one ConsentSet.
+        ctx.vault.set_policy_consent(&d);
+        assert_eq!(vault_event_count(&ctx), 1);
+        assert!(ctx.vault.has_consent(&d));
+        // Re-signing is a genuine no-op — its invocation emits nothing, so no
+        // duplicate "Signed mandate" row can appear in the live feed.
+        ctx.vault.set_policy_consent(&d);
+        assert_eq!(vault_event_count(&ctx), 0);
+        assert!(ctx.vault.has_consent(&d));
+    }
+
+    /// Events published by the vault in the most recent invocation.
+    fn vault_event_count(ctx: &Ctx) -> usize {
+        ctx.env
+            .events()
+            .all()
+            .filter_by_contract(&ctx.vault.address)
+            .events()
+            .len()
     }
 
     #[test]
@@ -383,7 +410,9 @@ mod auto_compound {
     #[test]
     fn set_publishes_event() {
         let ctx = setup();
-        let d = funded_depositor(&ctx, 100_000);
+        // A raw address (no consent) so this asserts ONLY the auto_compound_set event —
+        // set_policy_consent now emits its own ConsentSet, which funded_depositor triggers.
+        let d = Address::generate(&ctx.env);
         ctx.vault.set_auto_compound(&d, &false);
 
         // The depositor is a topic (indexable), `enabled` rides in the data map.
