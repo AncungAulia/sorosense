@@ -8,7 +8,7 @@ const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 
 test("flow layout renders children and no bottom nav", () => {
-  useWallet.mockReturnValue({ isConnected: true });
+  useWallet.mockReturnValue({ isConnected: true, hydrated: true });
   render(<FlowLayout><p>flow body</p></FlowLayout>);
   expect(screen.getByText("flow body")).toBeInTheDocument();
   expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
