@@ -242,13 +242,13 @@ export function Hero() {
           </p>
           {/* mobile button — smaller so it clears the phone */}
           <div className="reveal-up mt-5 md:hidden" style={{ animationDelay: "1.06s" }}>
-            <Button href="#" variant="blue" size="sm">
+            <Button href="#" variant="blueSolid" size="sm">
               Get started
             </Button>
           </div>
           {/* desktop button */}
           <div className="reveal-up mt-8 hidden md:block" style={{ animationDelay: "1.06s" }}>
-            <Button href="#" variant="blue">
+            <Button href="#" variant="blueSolid">
               Get started
             </Button>
           </div>

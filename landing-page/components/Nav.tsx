@@ -42,23 +42,27 @@ function Logo() {
   );
 }
 
-// Luminance of a CSS colour, or null if transparent / unparseable.
+// Luminance of a CSS colour, or null if (near-)transparent / unparseable — so
+// the sampler sees through glassy, semi-transparent layers (e.g. the Risk
+// notification cards) to the solid background painted behind them.
 function luminance(color: string): number | null {
   const m = color.match(/rgba?\(([^)]+)\)/);
   if (!m) return null;
   const [r, g, b, a = 1] = m[1].split(",").map((s) => parseFloat(s));
-  if (!a) return null;
+  if (a < 0.5) return null;
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
-// Is the painted background directly behind the navbar dark?
+// Is the painted background directly behind the navbar dark? The threshold is
+// generous (160) so the navbar already flips to dark glass while the Risk
+// section is only greying, not just once it reaches full charcoal.
 function bgIsDark(header: HTMLElement | null): boolean {
   const els = document.elementsFromPoint(window.innerWidth / 2, 40);
   for (const el of els) {
     if (header && header.contains(el)) continue;
     const l = luminance(getComputedStyle(el).backgroundColor);
     if (l === null) continue; // transparent — keep looking behind
-    return l < 120;
+    return l < 160;
   }
   return false;
 }
