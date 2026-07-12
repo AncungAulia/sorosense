@@ -26,6 +26,9 @@ import type { SnapshotStore } from '../earnings/snapshotter.js';
 /** The three currency buckets (never converted; blended only for display). */
 export const ALL_CURRENCIES = ['USD', 'EUR', 'MXN'] as const;
 
+/** Stablecoin base unit (7-dp stroops scale) — mirrors `holdings.ts`/`frontend/lib/vault/units.ts` UNIT. */
+const UNIT = 10_000_000n;
+
 /** Per-bucket drill-down under the blended headline. */
 export interface BucketBreakdown {
   currency: Currency;
@@ -122,7 +125,8 @@ function earnedCumulativeUsdAt(
     const basis = basesAtT.get(bucketKey(user, c)) ?? { shares: 0n, contributed: 0n };
     const valueNative = (basis.shares * priceAt(snapshots, c, t)) / SHARE_PRICE_SCALE;
     const earnedNative = valueNative - basis.contributed;
-    total += Number(earnedNative) * (rates.get(c) ?? 0);
+    // Normalize the 7-dp base unit to whole currency units before applying the display FX rate.
+    total += (Number(earnedNative) / Number(UNIT)) * (rates.get(c) ?? 0);
   }
   return total;
 }
@@ -151,13 +155,14 @@ export async function getEarnings(user: Address, deps: EarningsDeps): Promise<Re
   for (const c of currencies) {
     const nativeValue = await deps.vault.assetValueOf(user, c);
     const rate = rates.get(c) ?? 0;
-    const usdValue = Number(nativeValue) * rate;
+    // Normalize the 7-dp base unit to whole currency units before applying the display FX rate.
+    const usdValue = (Number(nativeValue) / Number(UNIT)) * rate;
     buckets.push({ currency: c, nativeValue, usdValue });
     balanceUsd += usdValue;
 
     const contributed = allBases.get(bucketKey(user, c))?.contributed ?? 0n;
     // Native yield only (value − contributions); FX is not part of earned (R7).
-    earnedUsd += Number(nativeValue - contributed) * rate;
+    earnedUsd += (Number(nativeValue - contributed) / Number(UNIT)) * rate;
     apyWeighted += bestApy(c) * usdValue;
   }
 

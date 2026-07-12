@@ -10,9 +10,11 @@
     "dev": "mastra dev"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.8",
     "@mastra/core": "^1.49.0",
     "@sorosense/vault-client": "workspace:*",
     "@stellar/stellar-sdk": "^14.6.1",
+    "hono": "^4.12.29",
     "zod": "^3.23.8"
   },
   "devDependencies": {
