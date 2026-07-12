@@ -8,6 +8,9 @@ import { getEarnings, type EarningsDeps, type FxSource } from './earnings.js';
 
 const USER: Address = 'alice';
 const SCALE = 1_000_000_000n; // SHARE_PRICE_SCALE
+const UNIT = 10_000_000n; // 7-dp stablecoin base unit (mirrors earnings.ts / holdings.ts)
+/** Whole currency units → native 7-dp base units, so USD assertions read at human scale. */
+const U = (units: bigint): bigint => units * UNIT;
 
 /** Vault stub returning fixed per-bucket asset values (this surface only reads `assetValueOf`). */
 const stubVault = (values: Partial<Record<Currency, bigint>>) => ({
@@ -58,11 +61,11 @@ describe('getEarnings — blended-USD balance + drill-down (R3, R4)', () => {
   it('blends buckets to USD and the drill-down sums to the headline', async () => {
     const res = await getEarnings(
       USER,
-      deps({ vault: stubVault({ USD: 100n, EUR: 100n }), fx: okFx({ EUR: 1.14 }) }),
+      deps({ vault: stubVault({ USD: U(100n), EUR: U(100n) }), fx: okFx({ EUR: 1.14 }) }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    // 100 USD × 1 + 100 EUR × 1.14 = 214
+    // 100 USD × 1 + 100 EUR × 1.14 = 214 (values are 7-dp base units, normalized ÷UNIT before FX)
     expect(res.value.balanceUsd).toBeCloseTo(214, 6);
     const eur = res.value.buckets.find((b) => b.currency === 'EUR');
     expect(eur?.usdValue).toBeCloseTo(114, 6);
@@ -71,9 +74,46 @@ describe('getEarnings — blended-USD balance + drill-down (R3, R4)', () => {
   });
 });
 
+describe('getEarnings — ÷UNIT scaling (U3): native 7-dp amounts convert to human-scale USD', () => {
+  it('a 1000-unit bucket (1_000_0000000n at 1e7) × rate is ~1000×rate, not 1e7× it', async () => {
+    // 1_000_0000000n = 1000.0 units at the 7-dp base scale (== U(1000n)).
+    const nativeValue = 1_000_0000000n;
+    const rate = 1.5; // e.g. an EUR/USD-style FX rate
+    const res = await getEarnings(
+      USER,
+      deps({ vault: stubVault({ EUR: nativeValue }), fx: okFx({ EUR: rate }) }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // Human scale: 1000 units × 1.5 = 1500. The old `value × rate` (no ÷UNIT) would be 1.5e10.
+    expect(res.value.balanceUsd).toBeCloseTo(1500, 6);
+    const eur = res.value.buckets.find((b) => b.currency === 'EUR');
+    expect(eur?.usdValue).toBeCloseTo(1500, 6);
+    expect(eur?.nativeValue).toBe(nativeValue); // native amount is untouched, only display is normalized
+    // Guard against a regression back to the 1e7×-too-large magnitude.
+    expect(res.value.balanceUsd).toBeLessThan(1e6);
+  });
+
+  it('earned is normalized on the same ÷UNIT scale as value (yield stays human-scale)', async () => {
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(1050n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1)],
+        fx: okFx(),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // 1050 value − 1000 contributed = 50 earned (both ÷UNIT), not 5e8.
+    expect(res.value.earnedUsd).toBeCloseTo(50, 6);
+    expect(res.value.earnedUsd).toBeLessThan(1e6);
+  });
+});
+
 describe('getEarnings — FX is display-only, never earnings (AE1, R6, R7)', () => {
   it('a rising EUR/USD lifts the balance but leaves earned flat when yield is zero', async () => {
-    const base = { vault: stubVault({ EUR: 100n }), events: [dep('EUR', 100n, 100n, 1)] };
+    const base = { vault: stubVault({ EUR: U(100n) }), events: [dep('EUR', U(100n), U(100n), 1)] };
 
     const low = await getEarnings(USER, deps({ ...base, fx: okFx({ EUR: 1.14 }) }));
     const high = await getEarnings(USER, deps({ ...base, fx: okFx({ EUR: 1.16 }) }));
@@ -88,11 +128,11 @@ describe('getEarnings — FX is display-only, never earnings (AE1, R6, R7)', () 
   it('counts real yield as earned (value − contributions)', async () => {
     const res = await getEarnings(
       USER,
-      deps({ vault: stubVault({ USD: 1199n }), events: [dep('USD', 1000n, 1000n, 1)], fx: okFx() }),
+      deps({ vault: stubVault({ USD: U(1199n) }), events: [dep('USD', U(1000n), U(1000n), 1)], fx: okFx() }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.value.earnedUsd).toBeCloseTo(199, 6); // 1199 value − 1000 contributed
+    expect(res.value.earnedUsd).toBeCloseTo(199, 6); // 1199 value − 1000 contributed (÷UNIT normalized)
   });
 });
 
@@ -117,8 +157,8 @@ describe('getEarnings — chart + monthly breakdown (AE3, R8, R9)', () => {
     const res = await getEarnings(
       USER,
       deps({
-        vault: stubVault({ USD: 1100n }),
-        events: [dep('USD', 1000n, 1000n, 1, jan1)],
+        vault: stubVault({ USD: U(1100n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, jan1)],
         // Jan: base price (no yield). Feb: price up 10%.
         snapshots: store([
           { currency: 'USD', price: SCALE, ts: jan15 },
@@ -143,10 +183,10 @@ describe('getEarnings — chart + monthly breakdown (AE3, R8, R9)', () => {
     const res = await getEarnings(
       USER,
       deps({
-        vault: stubVault({ USD: 1599n }),
+        vault: stubVault({ USD: U(1599n) }),
         events: [
-          dep('USD', 1000n, 1000n, 1, Date.UTC(2026, 0, 1)),
-          dep('USD', 500n, 454n, 2, feb10), // buys in at ~1.1 → adds ~0 earned
+          dep('USD', U(1000n), U(1000n), 1, Date.UTC(2026, 0, 1)),
+          dep('USD', U(500n), U(454n), 2, feb10), // buys in at ~1.1 → adds ~0 earned
         ],
         snapshots: store([
           { currency: 'USD', price, ts: feb5 },
