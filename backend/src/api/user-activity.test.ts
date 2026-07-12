@@ -34,6 +34,24 @@ describe('deriveUserActivity', () => {
     expect(rows.find((r) => r.kind === 'approve-exit')?.currency).toBe('MXN');
   });
 
+  it('maps auto-compound to a per-depositor row with no currency and an on/off detail', () => {
+    const events: UserActionEvent[] = [
+      { kind: 'auto-compound', depositor: 'alice', enabled: true, seq: 1 },
+      { kind: 'auto-compound', depositor: 'alice', enabled: false, seq: 2 },
+    ];
+    const rows = deriveUserActivity(events);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ depositor: 'alice', kind: 'auto-compound', actor: 'you', seq: 1 });
+    // The reinvest toggle is global to the depositor, not scoped to a bucket.
+    expect(rows[0]?.currency).toBeUndefined();
+    expect(rows[1]?.currency).toBeUndefined();
+    expect(rows[0]?.detail).toContain('on');
+    expect(rows[1]?.detail).toContain('off');
+    // Never a risk label, tier, or score.
+    expect(rows[0]?.detail).not.toMatch(RISK_WORDS);
+    expect(rows[1]?.detail).not.toMatch(RISK_WORDS);
+  });
+
   it('is deterministic — shuffled input by seq yields the seq-ordered output', () => {
     const events: UserActionEvent[] = [
       { kind: 'approve-exit', depositor: 'alice', currency: 'USD', seq: 3 },

@@ -11,19 +11,26 @@
 
 import type { Address, Amount, Currency } from '@sorosense/vault-client';
 
-/** The user actions surfaced under "Yours". `sign-mandate` is the one-time consent (KTD3, no tier). */
-export type UserActionKind = 'deposit' | 'withdraw' | 'sign-mandate' | 'approve-exit';
+/**
+ * The user actions surfaced under "Yours". `sign-mandate` is the one-time consent (KTD3, no tier).
+ * `auto-compound` is the depositor's reinvest toggle (STE-39's `AutoCompoundSet`) — an economic
+ * preference, distinct from consent; it is global to the depositor, not per-currency.
+ */
+export type UserActionKind = 'deposit' | 'withdraw' | 'sign-mandate' | 'approve-exit' | 'auto-compound';
 
 /**
  * One decoded user action. `seq` is a monotonic ordering key so input array order does not matter.
  * `sign-mandate` is per-depositor and global (consent is not per-currency); `approve-exit` is
  * per-currency but carries no amount — the model reflects that rather than forcing empty fields.
+ * `auto-compound` is per-depositor and global (the toggle is not scoped to a bucket) and carries the
+ * new `enabled` state.
  */
 export type UserActionEvent =
   | { kind: 'deposit'; depositor: Address; currency: Currency; amount: Amount; seq: number; ts?: number }
   | { kind: 'withdraw'; depositor: Address; currency: Currency; amount: Amount; seq: number; ts?: number }
   | { kind: 'sign-mandate'; depositor: Address; seq: number; ts?: number }
-  | { kind: 'approve-exit'; depositor: Address; currency: Currency; seq: number; ts?: number };
+  | { kind: 'approve-exit'; depositor: Address; currency: Currency; seq: number; ts?: number }
+  | { kind: 'auto-compound'; depositor: Address; enabled: boolean; seq: number; ts?: number };
 
 /**
  * A derived user-activity row. Shaped to merge cleanly with the agent feed in `getActivity` (U3):
@@ -52,6 +59,8 @@ function detailFor(ev: UserActionEvent): string {
       return 'Signed auto-optimize mandate';
     case 'approve-exit':
       return `Approved a safe exit for ${ev.currency}`;
+    case 'auto-compound':
+      return `Turned auto-reinvest ${ev.enabled ? 'on' : 'off'}`;
   }
 }
 
@@ -72,7 +81,9 @@ export function deriveUserActivity(events: readonly UserActionEvent[]): UserActi
       ts: ev.ts,
       actor: 'you' as const,
     };
-    // `sign-mandate` has no currency; the others do.
-    return ev.kind === 'sign-mandate' ? base : { ...base, currency: ev.currency };
+    // `sign-mandate` and `auto-compound` are per-depositor and global (no currency); the others carry one.
+    return ev.kind === 'sign-mandate' || ev.kind === 'auto-compound'
+      ? base
+      : { ...base, currency: ev.currency };
   });
 }
