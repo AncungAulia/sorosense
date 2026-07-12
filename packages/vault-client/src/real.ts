@@ -88,6 +88,14 @@ export interface RealVaultClientOptions {
   signer?: Signer;
   /** Override the underlying generated client — for tests, to avoid any network access. */
   client?: BindingsVaultClient;
+  /**
+   * Registry that turns a seam {@link PoolId} slug (e.g. `'blend-usdc'`) into the pool's on-chain
+   * contract {@link Address} before it's encoded for the vault. Injected by the caller (the backend
+   * builds it from env + catalog) — **no pool address is ever hardcoded in this package**. When
+   * omitted, pool slugs pass straight through (today's behavior, for callers already using addresses);
+   * when provided but a slug can't be resolved, the pool-taking method throws a clear `unknown pool`.
+   */
+  resolvePool?: (poolId: PoolId) => Address;
 }
 
 // ── Encoding helpers (seam ⇄ contract) ──────────────────────────────────────
@@ -131,8 +139,10 @@ const toSignTransaction = (signer: Signer) => async (xdr: string) => ({
 
 export class RealVaultClient implements VaultClient {
   private readonly client: BindingsVaultClient;
+  private readonly resolvePool?: (poolId: PoolId) => Address;
 
   constructor(options: RealVaultClientOptions) {
+    this.resolvePool = options.resolvePool;
     this.client =
       options.client ??
       new BindingsClient({
@@ -143,6 +153,25 @@ export class RealVaultClient implements VaultClient {
         publicKey: options.signer?.address,
         signTransaction: options.signer ? toSignTransaction(options.signer) : undefined,
       });
+  }
+
+  /**
+   * Resolve a seam {@link PoolId} slug to the pool's on-chain {@link Address} via the injected
+   * registry before it's encoded for the contract. With no registry the slug passes through
+   * (callers already holding an address keep working); with a registry, a slug that resolves to
+   * nothing — or a resolver that throws — surfaces a clear `unknown pool: <slug>` rather than a
+   * downstream ScVal encode failure. One helper, used by every pool-taking method (DRY).
+   */
+  private poolAddress(pool: PoolId): Address {
+    if (!this.resolvePool) return pool;
+    let resolved: Address | undefined;
+    try {
+      resolved = this.resolvePool(pool);
+    } catch (cause) {
+      throw new Error(`unknown pool: ${pool}`, { cause });
+    }
+    if (!resolved) throw new Error(`unknown pool: ${pool}`);
+    return resolved;
   }
 
   /**
@@ -203,31 +232,37 @@ export class RealVaultClient implements VaultClient {
 
   // ── Keeper / agent writes ────────────────────────────────────────────────
   allocate(pool: PoolId, currency: Currency, amount: Amount): PreparedTx {
+    const address = this.poolAddress(pool);
     return this.prepareWrite('keeper', 'allocate', () =>
-      this.client.allocate({ pool, currency: toBindingsCurrency(currency), amount }),
+      this.client.allocate({ pool: address, currency: toBindingsCurrency(currency), amount }),
     );
   }
 
   deallocate(pool: PoolId, currency: Currency, amount: Amount): PreparedTx {
+    const address = this.poolAddress(pool);
     return this.prepareWrite('keeper', 'deallocate', () =>
-      this.client.deallocate({ pool, currency: toBindingsCurrency(currency), amount }),
+      this.client.deallocate({ pool: address, currency: toBindingsCurrency(currency), amount }),
     );
   }
 
   freeze(pool: PoolId): PreparedTx {
-    return this.prepareWrite('keeper', 'freeze', () => this.client.freeze({ pool }));
+    const address = this.poolAddress(pool);
+    return this.prepareWrite('keeper', 'freeze', () => this.client.freeze({ pool: address }));
   }
 
   unfreeze(pool: PoolId): PreparedTx {
-    return this.prepareWrite('keeper', 'unfreeze', () => this.client.unfreeze({ pool }));
+    const address = this.poolAddress(pool);
+    return this.prepareWrite('keeper', 'unfreeze', () => this.client.unfreeze({ pool: address }));
   }
 
   proposeExit(currency: Currency, fromPool: PoolId, toPool: PoolId): PreparedTx {
+    const fromAddress = this.poolAddress(fromPool);
+    const toAddress = this.poolAddress(toPool);
     return this.prepareWrite('keeper', 'propose_exit', () =>
       this.client.propose_exit({
         currency: toBindingsCurrency(currency),
-        from_pool: fromPool,
-        to_pool: toPool,
+        from_pool: fromAddress,
+        to_pool: toAddress,
       }),
     );
   }
@@ -249,7 +284,7 @@ export class RealVaultClient implements VaultClient {
   }
 
   async poolStatus(pool: PoolId): Promise<PoolStatus> {
-    const tx = await this.client.pool_status({ pool });
+    const tx = await this.client.pool_status({ pool: this.poolAddress(pool) });
     return fromBindingsPoolStatus(tx.result);
   }
 
