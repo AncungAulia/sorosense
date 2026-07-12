@@ -79,10 +79,16 @@ export function Nav() {
       });
     };
     onScroll();
+    // Re-sample after the hero has painted, so the top-of-hero theme is right
+    // even without any scroll.
+    const t1 = setTimeout(onScroll, 200);
+    const t2 = setTimeout(onScroll, 700);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
@@ -124,14 +130,11 @@ export function Nav() {
 
         {/* Right */}
         <div className="flex items-center justify-end gap-3">
-          <Button
-            href="#"
-            size="sm"
-            variant="blue"
-            className="hidden sm:inline-flex"
-          >
-            Launch app
-          </Button>
+          <div className="hidden sm:block">
+            <Button href="#" size="sm" variant="blue">
+              Launch app
+            </Button>
+          </div>
 
           {/* Hamburger (mobile) */}
           <button

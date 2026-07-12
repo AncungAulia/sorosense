@@ -133,3 +133,35 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Mobile feature flow (Earn / Protect / Simulate): the phone parks in one pose,
+   so as you scroll each section's copy blur-crossfades in/out in place over the
+   still phone (the text stays pinned, it doesn't scroll). Desktop keeps the
+   scrubbed phone flight and never sees any of this. */
+@media (max-width: 767px) {
+  /* Pinned to the viewport (not sticky) so the copy never scrolls with its
+     section — it just cross-fades in place while the phone stays put. (The
+     last one, Simulate, is un-pinned on exit via JS so it scrolls up with the
+     white paper into the Risk section instead of fading.) */
+  .feature-copy {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    filter: blur(12px);
+    transition: opacity 0.5s ease, filter 0.5s ease;
+    will-change: opacity, filter;
+  }
+  .feature-copy.in {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Reduced motion: no blur, just a plain (instant, via the block above) swap. */
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .feature-copy,
+  .feature-copy.in {
+    filter: none;
+  }
+}

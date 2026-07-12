@@ -9,6 +9,7 @@ const CHARCOAL_CSS = `rgb(${CHARCOAL.join(",")})`;
 const INK: RGB = [11, 11, 12];
 const WHITE: RGB = [255, 255, 255];
 const BLUR_STEP = 1.5; // px of blur a card gains per newer one that pops
+const BUBBLE_DELAY = 0.12; // a beat (~1s of scroll) after night mode before cards pop
 
 type RGB = [number, number, number];
 const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
@@ -105,6 +106,16 @@ function ChartReconstruction() {
   const glowRef = useRef<SVGGElement>(null);
   const annRef = useRef<SVGGElement>(null);
   const [storyActive, setStoryActive] = useState(false);
+  const [mobile, setMobile] = useState(false);
+
+  // Narrow viewports zoom into the action (crop the flat dead-market lead-in), so
+  // the chart reads taller and the labels come out bigger — no distortion.
+  useEffect(() => {
+    const set = () => setMobile(window.innerWidth < 768);
+    set();
+    window.addEventListener("resize", set);
+    return () => window.removeEventListener("resize", set);
+  }, []);
 
   useEffect(() => {
     const line = lineRef.current;
@@ -140,7 +151,7 @@ function ChartReconstruction() {
         if (!chart || !line) return;
         const vh = window.innerHeight || 1;
         const top = chart.getBoundingClientRect().top;
-        const p = clamp((vh * 0.9 - top) / (vh * 0.55), 0, 1);
+        const p = clamp((vh - top) / (vh * 0.9), 0, 1);
         const len = line.getTotalLength();
         line.style.strokeDashoffset = `${len * (1 - p)}`;
         if (areaRef.current) areaRef.current.style.opacity = `${p}`;
@@ -170,8 +181,8 @@ function ChartReconstruction() {
     >
       <p className="font-display text-2xl font-normal tracking-tight text-white/50 md:text-3xl">How it happened</p>
 
-      <div ref={chartRef} className="mt-[13vh] w-full max-w-6xl">
-        <svg viewBox="0 0 1000 400" className="w-full" fill="none">
+      <div ref={chartRef} className="mt-[9vh] w-full max-w-6xl md:mt-[13vh]">
+        <svg viewBox={mobile ? "300 0 700 400" : "0 0 1000 400"} className="w-full" fill="none">
           <defs>
             <linearGradient id="riskFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor={RED} stopOpacity="0.3" />
@@ -200,7 +211,7 @@ function ChartReconstruction() {
 
           {/* annotations narrate the mechanism (Plus Jakarta Sans, no dots) */}
           <g ref={annRef} style={{ opacity: 0, fontFamily: "var(--font-jakarta)" }}>
-            <text x="40" y="292" fontSize="15" fill="rgba(255,255,255,0.5)">$1, dead market</text>
+            <text x={mobile ? 320 : 40} y="292" fontSize="15" fill="rgba(255,255,255,0.5)">$1, dead market</text>
             <text x="560" y="340" fontSize="15" fill="rgba(255,255,255,0.6)">one $5 trade</text>
             <text x="666" y="40" fontSize="16" fill={RED}>$107 faked</text>
             <text x="756" y="352" fontSize="15" fill="rgba(255,255,255,0.6)">$10.8M drained</text>
@@ -231,7 +242,7 @@ function ChartReconstruction() {
       </div>
 
       {/* the reflective punch — same gap as the eyebrow, reveals line by line */}
-      <div ref={storyRef} className="mt-[13vh] max-w-2xl text-center text-xl leading-relaxed text-white/75 md:text-2xl">
+      <div ref={storyRef} className="mt-[10vh] max-w-2xl text-center text-xl leading-relaxed text-white/75 md:mt-[13vh] md:text-2xl">
         {STORY_LINES.map((line, i) => (
           <p key={i} className={`story-line ${storyActive ? "in" : ""}`} style={{ transitionDelay: `${i * 0.14}s` }}>
             {line}
@@ -278,7 +289,7 @@ export function RiskSection() {
       `}</style>
 
       {/* pinned: grey -> night, then the notifications pile up */}
-      <section ref={pinRef} className="relative" style={{ height: "180vh" }}>
+      <section ref={pinRef} className="relative" style={{ height: "230vh" }}>
         <div
           className="sticky top-0 flex h-screen flex-col overflow-hidden px-6 pb-20 pt-28"
           style={{ backgroundColor: mix(PAPER, CHARCOAL, night) }}
@@ -292,11 +303,11 @@ export function RiskSection() {
 
           <div className="relative mx-auto mt-10 w-full max-w-5xl flex-1" style={{ opacity: night }}>
             {NOTIFS.map((n, i) => {
-              const shown = p > n.t;
+              const shown = p > n.t + BUBBLE_DELAY;
               const base = n.centered ? "translate(-50%,-50%) " : "";
-              const newerPopped = NOTIFS.filter((m, j) => j > i && p > m.t).length;
+              const newerPopped = NOTIFS.filter((m, j) => j > i && p > m.t + BUBBLE_DELAY).length;
               return (
-                <div key={i} className="absolute" style={{ ...n.pos, width: n.w, zIndex: n.climax ? 20 : n.abstract ? 5 : 10 }}>
+                <div key={i} className={`absolute ${n.abstract ? "hidden sm:block" : ""}`} style={{ ...n.pos, width: `min(${n.w}, 82vw)`, zIndex: n.climax ? 20 : n.abstract ? 5 : 10 }}>
                   <div
                     style={{
                       transformOrigin: "center",

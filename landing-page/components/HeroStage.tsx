@@ -16,31 +16,55 @@ const CAMERA = { position: [CAM_FROM.x, CAM_FROM.y, CAM_FROM.z] as [number, numb
 /* ---- Phone poses, in scroll order. Section-space progress `sp` indexes them:
    0 = hero, 1 = Earn, 2 = Protect, ... The phone lerps between adjacent poses.
    Append new poses here (+ a matching section in Hero.tsx) to extend the flight. */
-const HERO = {
+type Pose = { pos: THREE.Vector3; rot: THREE.Vector3; scale: number; spin: number };
+
+const HERO: Pose = {
   pos: new THREE.Vector3(0.14, 0.8, 0.05),
   rot: new THREE.Vector3(1.57, 0, 3.12),
   scale: 2.5,
   spin: 0,
 };
-const EARN = {
+const EARN: Pose = {
   pos: new THREE.Vector3(-0.31, 1.24, 0),
   rot: new THREE.Vector3(1.27, -0.5, 2.99),
   scale: 2.55,
   spin: 1, // one full Y turn on the way in
 };
-const PROTECT = {
+const PROTECT: Pose = {
   pos: new THREE.Vector3(-0.02, 1.65, 0.23),
   rot: new THREE.Vector3(1.17, 0.36, -2.59),
   scale: 2.55,
   spin: 0, // short-path tilt from Earn (left) to Protect (right), no full turn
 };
-const SIMULATE = {
+const SIMULATE: Pose = {
   pos: new THREE.Vector3(-0.1, 0.86, 0),
   rot: new THREE.Vector3(1.67, 0, -2.86),
   scale: 2.7,
   spin: -1, // one full Y turn in, opposite direction to the hero -> Earn spin
 };
-const POSES = [HERO, EARN, PROTECT, SIMULATE];
+const POSES: Pose[] = [HERO, EARN, PROTECT, SIMULATE];
+
+/* Mobile phone flight (viewport < 768), tuned in the /mock-mobile-3d lab.
+   The copy stacks top/centre, so the phone rides lower and smaller. Earn,
+   Protect and Simulate share ONE resting pose — the phone parks after the
+   hero -> Earn entrance and holds while the feature copy scrolls past it.
+   The full 360° spin is kept only on that entrance; the Protect -> Simulate
+   turn is dropped (nothing moves there on mobile). */
+const HERO_M: Pose = {
+  pos: new THREE.Vector3(-0.1153, 0.8, 0.0555),
+  rot: new THREE.Vector3(1.57, 0, 3.42),
+  scale: 1.75, // 2.5 × 0.70
+  spin: 0,
+};
+const PARK_M = {
+  pos: new THREE.Vector3(-0.1022, 0.72, -0.0011),
+  rot: new THREE.Vector3(1.67, 0.02, -2.86),
+  scale: 1.944, // 2.7 × 0.72
+};
+const EARN_M: Pose = { ...PARK_M, spin: 1 }; // keep the hero -> Earn full turn
+const PROTECT_M: Pose = { ...PARK_M, spin: 0 };
+const SIM_M: Pose = { ...PARK_M, spin: 0 }; // no Protect -> Simulate turn on mobile
+const MOBILE_POSES: Pose[] = [HERO_M, EARN_M, PROTECT_M, SIM_M];
 
 const SCREEN_POS: [number, number, number] = [0, 0.0815, -0.0055];
 const SCREEN_SIZE: [number, number] = [0.071, 0.151];
@@ -48,6 +72,8 @@ const SCREEN_SIZE: [number, number] = [0.071, 0.151];
 const TWO_PI = Math.PI * 2;
 const lerp = THREE.MathUtils.lerp;
 const clamp = THREE.MathUtils.clamp;
+
+const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768;
 
 // Shortest-path angle lerp — swings the tilt the short way (lean left -> lean
 // right) instead of unwinding almost a full turn when the two angles differ by
@@ -60,16 +86,17 @@ function lerpAngle(a: number, b: number, f: number) {
 }
 
 // Which pose segment section-space progress `sp` falls in, plus the 0..1 blend.
-function segAt(sp: number) {
-  const i = Math.min(Math.max(Math.floor(sp), 0), POSES.length - 2);
-  return { a: POSES[i], b: POSES[i + 1], f: clamp(sp - i, 0, 1) };
+// Desktop and mobile ride separate pose sets.
+function segAt(sp: number, poses: Pose[]) {
+  const i = Math.min(Math.max(Math.floor(sp), 0), poses.length - 2);
+  return { a: poses[i], b: poses[i + 1], f: clamp(sp - i, 0, 1) };
 }
 
 // Applies the phone pose at section-space progress `sp`. Used by the overlay
 // phone and the ghost so they move as one. X/Z tilts take the short path; Y uses
 // an explicit spin offset so the hero -> Earn full turn is preserved.
 function applyPhonePose(g: THREE.Object3D, sp: number) {
-  const { a, b, f } = segAt(sp);
+  const { a, b, f } = segAt(sp, isMobile() ? MOBILE_POSES : POSES);
   g.position.set(
     lerp(a.pos.x, b.pos.x, f),
     lerp(a.pos.y, b.pos.y, f),
@@ -83,7 +110,7 @@ function applyPhonePose(g: THREE.Object3D, sp: number) {
 
 // Phone x at `sp` — so the grounding shadow can follow it across the sections.
 function phoneXAt(sp: number) {
-  const { a, b, f } = segAt(sp);
+  const { a, b, f } = segAt(sp, isMobile() ? MOBILE_POSES : POSES);
   return lerp(a.pos.x, b.pos.x, f);
 }
 
