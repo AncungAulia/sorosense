@@ -12,9 +12,24 @@
     "minFirstDeposit": "1000000",
     "virtualOffset": "1000"
   },
+  "assets": {
+    "note": "STE-46: self-issued testnet assets (codes USDC/EURC) wrapped as SAC for a deterministic demo — NOT real Circle USDC/EURC. The issuer SECRET is backend-only (faucet POST /faucet, STE-45); it is never committed here — only the issuer public key is recorded.",
+    "issuer": "GDOWW3KRITEDQPL6UHB2NKT35UXY2HKXVYGWI47XZROI2KLBBTEWUL3T",
+    "USDC_SAC": "CDGJ4WQZFY3TH5LX442ZDJVPB5I2VMNEENRX23AYNMJFXLDMZQY5PSKA",
+    "EURC_SAC": "CCAEI5YDRHKKAHGBTC6K2P6FRZTBBV7H6TEKDDSEINPGHKY3XRBCT44A"
+  },
+  "pools": {
+    "note": "STE-46: mock_pool test-doubles, one per currency (real Blend testnet rejects non-Circle assets, so the demo uses these; real Blend is post-hackathon). Each is init'd with its SAC, allowlisted, and set as the bucket's configured pool. Recorded under the BLEND_POOL_* env names the backend/deploy.ts already read.",
+    "BLEND_POOL_USD": "CAO5SJRDBZFBE357BOPBT2HSLDPJFNE64M76J2C45GTN4IPN2R6ZHFDW",
+    "BLEND_POOL_EUR": "CCFGUZNJ2VQAI4LTA4X4JHGNQOIRVZI3EUFR2HVDVKFRCHTEVOGDGI5E"
+  },
+  "faucetSmokeTest": {
+    "note": "STE-46 verification: minted 1000 USDC to a trustline'd account, then deposit(100 USDC) into the vault succeeded live (no zero-balance panic). SAC transfer + vault Deposit event fired; balance_of and value_of both read 1000000000.",
+    "verifiedAt": "2026-07-12"
+  },
   "explorer": "https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "deployedAt": "2026-07-04",
-  "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + Blend pools (set_token/set_pool_allowed/set_configured_pool) are wired at origin U20 with real USDC/EURC SACs + Blend testnet pools. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
+  "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + pools (set_token/set_pool_allowed/set_configured_pool) are wired (STE-46) with self-issued USDC/EURC SACs + mock_pool test-doubles for a deterministic demo; real Blend is post-hackathon. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
   "upgrades": [
     {
       "binver": "1.1.0",
