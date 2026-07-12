@@ -91,3 +91,19 @@ npx tsx smart-contract/scripts/deploy.ts
 
 The demo can re-point a bucket at an engineered risky pool without redeploying via
 the admin `set_configured_pool` (the origin U21 Sentinel-trigger seam).
+
+## Testnet faucet assets + demo pools (STE-46)
+
+The demo uses **self-issued** assets coded USDC/EURC wrapped as SAC (not real Circle
+tokens) and `mock_pool` test-doubles (real Blend testnet rejects non-Circle assets).
+After a testnet reset, re-provision them and wire the vault:
+
+```bash
+npx tsx smart-contract/scripts/faucet-assets.ts
+# issues USDC/EURC SACs, deploys+init two mock_pools, set_token/set_pool_allowed/
+# set_configured_pool, writes USDC_SAC/EURC_SAC/BLEND_POOL_* to .env
+```
+
+The issuer **secret** (`stellar keys show <ISSUER_IDENTITY>`) is what the backend
+faucet signs mint with — share it over a secure channel, never commit it. Current
+testnet ids are recorded in [`deployments/testnet.json`](deployments/testnet.json).
