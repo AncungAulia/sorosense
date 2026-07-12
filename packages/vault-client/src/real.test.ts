@@ -193,3 +193,106 @@ describe('RealVaultClient writes', () => {
     expect((await v.freeze('blend-usdc').signAndSubmit(keeper)).success).toBe(true);
   });
 });
+
+describe('RealVaultClient pool registry (resolvePool)', () => {
+  // A real C… pool address the slug maps to; the assertion is that the *Address*, not the slug,
+  // reaches the bindings call.
+  const POOL_ADDR = 'CBLENDUSDCPOOLADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  const registry: Record<string, string> = { 'blend-usdc': POOL_ADDR };
+  const resolvePool = (poolId: string) => registry[poolId] as string;
+
+  it('allocate resolves the slug to the pool Address before encoding', async () => {
+    const client = makeClient();
+    const v = new RealVaultClient({ ...opts, client, resolvePool });
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    await v.allocate('blend-usdc', 'USD', 1_000n).signAndSubmit(keeper);
+
+    expect(client.allocate).toHaveBeenCalledWith({
+      pool: POOL_ADDR,
+      currency: { tag: 'Usd', values: undefined },
+      amount: 1_000n,
+    });
+  });
+
+  it('freeze resolves the slug to the pool Address before encoding', async () => {
+    const client = makeClient();
+    const v = new RealVaultClient({ ...opts, client, resolvePool });
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    await v.freeze('blend-usdc').signAndSubmit(keeper);
+
+    expect(client.freeze).toHaveBeenCalledWith({ pool: POOL_ADDR });
+  });
+
+  it('poolStatus resolves the slug to the pool Address before reading', async () => {
+    const pool_status = vi.fn(() => readTx({ tag: 'Active', values: undefined }));
+    const v = new RealVaultClient({ ...opts, client: makeClient({ pool_status }), resolvePool });
+
+    expect(await v.poolStatus('blend-usdc')).toBe('active');
+    expect(pool_status).toHaveBeenCalledWith({ pool: POOL_ADDR });
+  });
+
+  it('proposeExit resolves both the from and to pool slugs', async () => {
+    const toAddr = 'CBLENDSAFEPOOLADDRESSYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY';
+    const client = makeClient();
+    const v = new RealVaultClient({
+      ...opts,
+      client,
+      resolvePool: (id) => ({ 'blend-usdc': POOL_ADDR, 'blend-safe': toAddr })[id] as string,
+    });
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    await v.proposeExit('USD', 'blend-usdc', 'blend-safe').signAndSubmit(keeper);
+
+    expect(client.propose_exit).toHaveBeenCalledWith({
+      currency: { tag: 'Usd', values: undefined },
+      from_pool: POOL_ADDR,
+      to_pool: toAddr,
+    });
+  });
+
+  it('throws a clear "unknown pool" error when the registry returns nothing for a slug', async () => {
+    const v = new RealVaultClient({ ...opts, client: makeClient(), resolvePool });
+
+    // The write is built eagerly, so the resolve failure surfaces at call time — before any
+    // bindings/network work — as a clear message, not a raw ScVal encode failure.
+    expect(() => v.allocate('nope', 'USD', 1_000n)).toThrow(/unknown pool: nope/);
+    // The read is async, so the same clear failure surfaces as a rejection.
+    await expect(v.poolStatus('nope')).rejects.toThrow(/unknown pool: nope/);
+  });
+
+  it('throws a clear "unknown pool" error when the resolver itself throws', () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient(),
+      resolvePool: (id) => {
+        throw new Error(`no such pool ${id}`);
+      },
+    });
+
+    expect(() => v.allocate('blend-usdc', 'USD', 1_000n)).toThrow(/unknown pool: blend-usdc/);
+  });
+
+  it('without resolvePool a slug passes straight through (behavior unchanged)', async () => {
+    const client = makeClient();
+    const v = new RealVaultClient({ ...opts, client });
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    await v.allocate('blend-usdc', 'USD', 1_000n).signAndSubmit(keeper);
+
+    expect(client.allocate).toHaveBeenCalledWith({
+      pool: 'blend-usdc',
+      currency: { tag: 'Usd', values: undefined },
+      amount: 1_000n,
+    });
+  });
+
+  it('a currency read (sharePrice) is unaffected by resolvePool', async () => {
+    const share_price = vi.fn(() => readTx(1_500_000_000n));
+    const v = new RealVaultClient({ ...opts, client: makeClient({ share_price }), resolvePool });
+
+    expect(await v.sharePrice('USD')).toBe(1_500_000_000n);
+    expect(share_price).toHaveBeenCalledWith({ currency: { tag: 'Usd', values: undefined } });
+  });
+});
