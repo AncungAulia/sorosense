@@ -69,7 +69,7 @@ export const openApiSpec = {
         operationId: 'getHoldings',
         summary: 'Per-bucket holdings for a depositor.',
         parameters: [
-          { name: 'depositor', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'depositor', in: 'query', required: true, schema: { type: 'string', minLength: 1 } },
         ],
         responses: {
           '200': { description: 'holdings', content: { 'application/json': { schema: jsonArray } } },
@@ -85,7 +85,7 @@ export const openApiSpec = {
         operationId: 'getActivity',
         summary: 'Merged All / Yours / Automated activity feed.',
         parameters: [
-          { name: 'depositor', in: 'query', required: false, schema: { type: 'string' } },
+          { name: 'depositor', in: 'query', required: false, schema: { type: 'string', minLength: 1 } },
           { name: 'actor', in: 'query', required: false, schema: { type: 'string', enum: ['you', 'agent'] } },
           { name: 'currency', in: 'query', required: false, schema: { type: 'string', enum: [...CURRENCIES] } },
           { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 0 } },
@@ -101,7 +101,7 @@ export const openApiSpec = {
         operationId: 'getEarnings',
         summary: 'Blended-USD Earn view for a depositor.',
         parameters: [
-          { name: 'depositor', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'depositor', in: 'query', required: true, schema: { type: 'string', minLength: 1 } },
         ],
         responses: {
           '200': { description: 'earnings', content: { 'application/json': { schema: jsonObject } } },
