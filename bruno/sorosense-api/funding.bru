@@ -1,0 +1,11 @@
+meta {
+  name: funding
+  type: http
+  seq: 5
+}
+get {
+  url: {{baseUrl}}/funding
+}
+assert {
+  res.status: eq 200
+}

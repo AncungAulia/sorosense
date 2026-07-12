@@ -39,3 +39,4 @@ packages/vault-client/bindings/**
 
 # Local editor/tooling cache
 .impeccable/
+.schemathesis/

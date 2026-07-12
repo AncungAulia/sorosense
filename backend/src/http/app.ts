@@ -30,6 +30,7 @@ import { getFundingOptions } from '../api/funding.js';
 import { getHoldings } from '../api/holdings.js';
 import type { VaultEvent } from '../earnings/cost-basis.js';
 import type { SnapshotStore } from '../earnings/snapshotter.js';
+import { mountDocs } from './openapi.js';
 
 const CURRENCIES: readonly Currency[] = ['USD', 'EUR', 'MXN'];
 
@@ -159,6 +160,9 @@ export function createApp(deps: HttpAppDeps, options: HttpAppOptions = {}): Hono
 
   // GET /funding — the Add-funds list (pure; no Result, no seam, no FX).
   app.get('/funding', (c) => jsonBig(c, getFundingOptions()));
+
+  // OpenAPI spec (GET /openapi.json) + Swagger UI (GET /docs). Read-only, no secret.
+  mountDocs(app);
 
   return app;
 }
