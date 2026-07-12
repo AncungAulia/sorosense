@@ -10,20 +10,34 @@
 
 import { serve } from '@hono/node-server';
 
-import { makeReflectorFx } from '../api/earnings.js';
+import { makeReflectorFx, type FxSource } from '../api/earnings.js';
 import { ActivityLog } from '../api/activity.js';
 import { InMemorySnapshotStore } from '../earnings/snapshotter.js';
 import { getVaultClient } from '../tools/vault.js';
+import { ok } from '../lib/result.js';
 import { createApp } from './app.js';
 import { mountFaucet } from './faucet.js';
 import { makeFaucetMinter } from './faucet-minter.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8787', 10);
 
+/** True when the integration env is set (real testnet). Mirrors the selection in `tools/vault.ts`. */
+const live = Boolean(
+  process.env.VAULT_CONTRACT_ID &&
+    process.env.STELLAR_RPC_URL &&
+    process.env.STELLAR_NETWORK_PASSPHRASE &&
+    process.env.KEEPER_SECRET,
+);
+
+/** Deterministic offline FX for a mock/dev run — the mock server must not depend on the network.
+ * Live runs use the real Reflector FX. Display-only fixed rates; never a fund conversion. */
+const STUB_RATES: Record<string, number> = { USD: 1, EUR: 1.08, MXN: 0.058 };
+const stubFx: FxSource = async (currency) => ok(STUB_RATES[currency] ?? 1);
+
 const app = createApp(
   {
     vault: getVaultClient(),
-    fx: makeReflectorFx(),
+    fx: live ? makeReflectorFx() : stubFx,
     earnings: { events: [], snapshots: new InMemorySnapshotStore() },
     activity: { log: new ActivityLog(), userEvents: [] },
   },

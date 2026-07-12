@@ -1,0 +1,19 @@
+meta {
+  name: faucet
+  type: http
+  seq: 6
+}
+post {
+  url: {{baseUrl}}/faucet
+  body: json
+}
+body:json {
+  {
+    "address": "{{depositor}}",
+    "currency": "USD"
+  }
+}
+docs {
+  Env-gated: returns 404 unless the faucet env is set on the backend.
+  Never send or expect a secret. On a fresh wallet expect 409 (needs changeTrust).
+}
