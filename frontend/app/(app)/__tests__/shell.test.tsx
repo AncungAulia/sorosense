@@ -7,6 +7,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/home", useRouter: () =>
 vi.mock("next/link", () => ({ default: (props: ComponentProps<"a">) => <a {...props} /> }));
 const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
+vi.mock("../../../hooks/useIsDesktop", () => ({ useIsDesktop: () => false }));
 
 test("renders nav + children when connected", () => {
   useWallet.mockReturnValue({ isConnected: true, hydrated: true });

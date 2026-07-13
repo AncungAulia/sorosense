@@ -1,8 +1,9 @@
 "use client";
+import type { ReactNode } from "react";
 import { useWallet } from "../../hooks/useWallet";
 import { Identicon } from "../account/Identicon";
 
-export function TopBar({ onAvatarClick }: { onAvatarClick: () => void }) {
+export function TopBar({ onAvatarClick, account }: { onAvatarClick?: () => void; account?: ReactNode }) {
   const { address } = useWallet();
   return (
     <header className="relative z-50 flex items-center justify-between gap-4 h-[46px] mb-[18px]">
@@ -14,14 +15,16 @@ export function TopBar({ onAvatarClick }: { onAvatarClick: () => void }) {
         </span>
         SoroSense
       </span>
-      <button
-        type="button"
-        aria-label="Account"
-        onClick={onAvatarClick}
-        className="grid place-items-center w-[42px] h-[42px] rounded-full overflow-hidden p-0 border border-line bg-[#e8e8e6] cursor-pointer shadow-[0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]"
-      >
-        <Identicon address={address ?? ""} size={42} />
-      </button>
+      {account ?? (
+        <button
+          type="button"
+          aria-label="Account"
+          onClick={onAvatarClick}
+          className="grid place-items-center w-[42px] h-[42px] rounded-full overflow-hidden p-0 border border-line bg-[#e8e8e6] cursor-pointer shadow-[0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]"
+        >
+          <Identicon address={address ?? ""} size={42} />
+        </button>
+      )}
     </header>
   );
 }

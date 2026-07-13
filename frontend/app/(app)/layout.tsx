@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 import { AuthGate } from "../../components/AuthGate";
 import { BottomNav, TopBlur } from "../../components/ui";
 import { TopBar } from "../../components/ui/TopBar";
+import { AccountMenu } from "../../components/desktop/AccountMenu";
 import { useNav } from "../../hooks/useNav";
+import { useIsDesktop } from "../../hooks/useIsDesktop";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const nav = useNav();
+  const isDesktop = useIsDesktop();
   return (
     <AuthGate>
       <div className="relative min-h-dvh">
@@ -21,7 +24,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-[1200px] px-5 pb-[120px] pt-14 lg:px-9 lg:pb-11 lg:pt-[22px] xl:max-w-[1440px] 2xl:max-w-[1560px]">
           {/* Desktop-only top bar */}
           <div className="hidden lg:block">
-            <TopBar onAvatarClick={() => nav.forward("/account")} />
+            <TopBar account={isDesktop ? <AccountMenu /> : undefined} onAvatarClick={() => nav.forward("/account")} />
           </div>
           {children}
         </div>
