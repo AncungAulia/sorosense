@@ -55,6 +55,34 @@ test("desktop hero: eyebrow, flat Total segmented pressed, 'Earned this month' s
   expect(total).not.toHaveClass("bg-white"); // flat segmented, not a white raised pill
   expect(screen.getByText(/Earned this month/i)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add funds" })).toBeInTheDocument();
-  expect(screen.queryByText(/\b(risk|score|Safe|Watch|Sentinel)\b/i)).toBeNull();
+  // ExitApproval's own copy legitimately says "safe exit" (invisible-safety wording); it's mounted
+  // but aria-hidden (sheet closed), so scope this check to the visible page, not the hidden dialog.
+  expect(screen.queryByText(/\b(risk|score|Safe|Watch|Sentinel)\b/i, { ignore: '[aria-hidden="true"] *' })).toBeNull();
   isDesktop.mockReturnValue(false); // reset for any later test
+});
+
+test("desktop bottom row: Buckets, Growth (green bars), Agent activity; banner shows on frozen seed", async () => {
+  isDesktop.mockReturnValue(true);
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  const client = new MockVaultClient();
+  await seedVault(client, "GUSER"); // seeds a frozen EUR pool
+  render(<VaultProvider client={client}><HomePage /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Buckets" })).toBeInTheDocument());
+  expect(screen.getByRole("heading", { name: "Growth" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Agent activity" })).toBeInTheDocument();
+  expect(screen.getAllByTestId("bars").length).toBeGreaterThan(0); // green Bars rendered
+  expect(screen.getByText(/your earning is paused/i)).toBeInTheDocument(); // frozen → banner
+  isDesktop.mockReturnValue(false);
+});
+
+test("desktop FreezeBanner is hidden when nothing is frozen", async () => {
+  isDesktop.mockReturnValue(true);
+  useWallet.mockReturnValue({ address: "GEMPTY", isConnected: true });
+  const client = new MockVaultClient(); // no seed → no frozen pool
+  render(<VaultProvider client={client}><HomePage /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Buckets" })).toBeInTheDocument());
+  expect(screen.queryByText(/your earning is paused/i)).toBeNull(); // no banner when not pending
+  isDesktop.mockReturnValue(false);
 });

@@ -4,7 +4,14 @@ import { useNav } from "../../hooks/useNav";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useEarnings } from "../../hooks/useEarnings";
 import { formatCurrency } from "../../lib/vault/units";
-import { Button, Segmented } from "../ui";
+import { Button, Card, Segmented } from "../ui";
+import { useActivity } from "../../hooks/useActivity";
+import { usePendingExit } from "../../hooks/usePendingExit";
+import { BucketRow } from "../bucket/BucketRow";
+import { Bars } from "../earn/Bars";
+import { ActivityList } from "../activity/ActivityList";
+import { FreezeBanner } from "../status/FreezeBanner";
+import { ExitApproval } from "../proposal/ExitApproval";
 import { ValueChart } from "./ValueChart";
 
 const RANGES = ["Day", "Week", "Month", "Year"] as const;
@@ -40,12 +47,15 @@ const money = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigi
 
 export function DesktopOverview() {
   const nav = useNav();
-  const { buckets, totalUsd } = useBuckets();
+  const { loading, buckets, totalUsd } = useBuckets();
   const { view } = useEarnings();
 
   const [mode, setMode] = useState<Mode>("Total");
   const [range, setRange] = useState<Range>("Week");
   const [bucketIndex, setBucketIndex] = useState(0); // 0 = All buckets (blended); 1..n = each bucket
+  const activity = useActivity();
+  const pend = usePendingExit();
+  const [exitOpen, setExitOpen] = useState(false);
 
   // Selectable views: All (blended ≈USD) then one per bucket (native).
   const selectable = useMemo(() => {
@@ -88,7 +98,10 @@ export function DesktopOverview() {
   const headline = mode === "Total" ? sel.valueText : money(sel.earnedUsd);
 
   return (
-    <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card bg-card shadow-[0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]" aria-label="Your value">
+    <>
+      {pend && <FreezeBanner onReview={() => setExitOpen(true)} />}
+
+      <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card bg-card shadow-[0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]" aria-label="Your value">
       {/* LEFT */}
       <div className="flex min-w-0 flex-col px-7 py-6">
         <div className="mb-[18px] flex items-center justify-between gap-3">
@@ -158,5 +171,49 @@ export function DesktopOverview() {
         </div>
       </div>
     </section>
+
+      <div className="grid grid-cols-3 gap-4">
+        {/* Buckets */}
+        <Card className="flex flex-col px-5 py-[18px]" aria-label="Buckets">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-muted">Buckets</h2>
+          </div>
+          {loading ? (
+            <div className="py-6 text-center text-sm text-muted">Loading…</div>
+          ) : buckets.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+          ) : (
+            buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)
+          )}
+        </Card>
+
+        {/* Growth — monthly earnings bar chart (this year) */}
+        <Card className="flex flex-col px-5 py-[18px]" aria-label="Growth">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-muted">Growth</h2>
+            <span className="text-xs text-muted [font-variant-numeric:tabular-nums]">This year</span>
+          </div>
+          <Bars values={view.monthly.map((m) => m.earnedUsd)} />
+        </Card>
+
+        {/* Agent activity */}
+        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent activity">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-muted">Agent activity</h2>
+            <button
+              type="button"
+              onClick={() => nav.forward("/account/activity")}
+              className="inline-flex items-center gap-[3px] text-[12.5px] font-medium text-muted"
+            >
+              View all
+              <svg viewBox="0 0 24 24" className="w-3.5 fill-none stroke-current [stroke-width:2] [stroke-linecap:round] [stroke-linejoin:round]" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+            </button>
+          </div>
+          <ActivityList items={activity.slice(0, 3)} onReview={() => setExitOpen(true)} reviewed={!pend} />
+        </Card>
+      </div>
+
+      <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
+    </>
   );
 }
