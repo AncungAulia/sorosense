@@ -114,7 +114,8 @@ export function DesktopOverview() {
             onChange={setMode}
             label="Value or earned"
             variant="currency"
-            className="w-auto shrink-0"
+            fluid={false}
+            className="shrink-0"
           />
         </div>
 
@@ -166,7 +167,8 @@ export function DesktopOverview() {
           onChange={setRange}
           label="Range"
           variant="period"
-          className="w-auto self-end"
+          fluid={false}
+          className="self-end"
         />
         <div className="relative min-h-[210px] flex-1">
           <ValueChart data={series} />

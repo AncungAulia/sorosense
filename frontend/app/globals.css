@@ -26,6 +26,18 @@
 html, body { height: 100%; }
 body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 
+/* Tailwind v4 dropped the UA `cursor: pointer` on buttons — restore it for every interactive
+   element, and give keyboard users a visible focus ring (tab navigation was invisible before). */
+@layer base {
+  button:not(:disabled), a, label[for], summary, [role="button"], [role="menuitem"], [role="tab"] { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="menuitem"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
 /* ── Page enter transition ───────────────────────────────────────────────────
    Sub-screens (the (flow) route group) mount inside a template that carries the
    .page-enter class, so navigating into them slides the new page in from the
