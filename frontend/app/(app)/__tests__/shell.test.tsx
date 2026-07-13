@@ -20,3 +20,10 @@ test("redirects to / when not connected", () => {
   render(<AppLayout><p>home body</p></AppLayout>);
   expect(push).toHaveBeenCalledWith("/");
 });
+
+test("desktop chrome present: TopBar brand renders alongside the mobile bottom nav", () => {
+  useWallet.mockReturnValue({ isConnected: true, hydrated: true });
+  render(<AppLayout><p>home body</p></AppLayout>);
+  expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument(); // mobile BottomNav kept
+  expect(screen.getByText("SoroSense")).toBeInTheDocument();                    // desktop TopBar added
+});
