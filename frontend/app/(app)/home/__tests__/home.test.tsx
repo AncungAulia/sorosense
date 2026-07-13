@@ -9,6 +9,8 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const useWallet = vi.fn();
 vi.mock("../../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
+const isDesktop = vi.fn(() => false);
+vi.mock("../../../../hooks/useIsDesktop", () => ({ useIsDesktop: () => isDesktop() }));
 
 test("home renders buckets, activity preview and a View all link", async () => {
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
@@ -38,4 +40,21 @@ test("tapping the freeze banner opens the exit approval sheet", async () => {
   expect(dialog).toHaveAttribute("aria-hidden", "true");
   await user.click(screen.getByRole("button", { name: "Review paused pool" }));
   await waitFor(() => expect(dialog).toHaveAttribute("aria-hidden", "false"));
+});
+
+test("desktop hero: eyebrow, flat Total segmented pressed, 'Earned this month' sub-stat, no risk words", async () => {
+  isDesktop.mockReturnValue(true);
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  const client = new MockVaultClient();
+  await seedVault(client, "GUSER");
+  render(<VaultProvider client={client}><HomePage /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByText(/your value/i)).toBeInTheDocument());
+  const total = screen.getByRole("button", { name: "Total" });
+  expect(total).toHaveAttribute("aria-pressed", "true");
+  expect(total).not.toHaveClass("bg-white"); // flat segmented, not a white raised pill
+  expect(screen.getByText(/Earned this month/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add funds" })).toBeInTheDocument();
+  expect(screen.queryByText(/\b(risk|score|Safe|Watch|Sentinel)\b/i)).toBeNull();
+  isDesktop.mockReturnValue(false); // reset for any later test
 });

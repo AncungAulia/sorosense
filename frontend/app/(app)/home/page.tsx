@@ -10,8 +10,10 @@ import { ExitApproval } from "../../../components/proposal/ExitApproval";
 import { useBuckets } from "../../../hooks/useBuckets";
 import { useActivity } from "../../../hooks/useActivity";
 import { usePendingExit } from "../../../hooks/usePendingExit";
+import { useIsDesktop } from "../../../hooks/useIsDesktop";
+import { DesktopOverview } from "../../../components/home/DesktopOverview";
 
-export default function HomePage() {
+function MobileHome() {
   const nav = useNav();
   const { loading, buckets, totalUsd } = useBuckets();
   const activity = useActivity();
@@ -44,4 +46,9 @@ export default function HomePage() {
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
     </div>
   );
+}
+
+export default function HomePage() {
+  const isDesktop = useIsDesktop();
+  return isDesktop ? <DesktopOverview /> : <MobileHome />;
 }
