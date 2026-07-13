@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useNav } from "../../hooks/useNav";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useEarnings } from "../../hooks/useEarnings";
+import { usePanel } from "../../hooks/usePanel";
 import { formatCurrency } from "../../lib/vault/units";
 import { Button, Card, Segmented } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
@@ -12,6 +13,7 @@ import { Bars } from "../earn/Bars";
 import { ActivityList } from "../activity/ActivityList";
 import { FreezeBanner } from "../status/FreezeBanner";
 import { ExitApproval } from "../proposal/ExitApproval";
+import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
 import { ValueChart } from "./ValueChart";
 
 const RANGES = ["Day", "Week", "Month", "Year"] as const;
@@ -49,6 +51,7 @@ export function DesktopOverview() {
   const nav = useNav();
   const { loading, buckets, totalUsd } = useBuckets();
   const { view } = useEarnings();
+  const { panel, open, close } = usePanel();
 
   const [mode, setMode] = useState<Mode>("Total");
   const [range, setRange] = useState<Range>("Week");
@@ -151,7 +154,7 @@ export function DesktopOverview() {
         </div>
 
         <div className="mt-auto flex gap-2.5 pt-6">
-          <Button className="flex-1" onClick={() => nav.forward("/add-funds")}>Add funds</Button>
+          <Button className="flex-1" onClick={() => open("add-funds")}>Add funds</Button>
           <Button variant="glass" className="flex-1" onClick={() => nav.forward("/withdraw")}>Move to wallet</Button>
         </div>
       </div>
@@ -214,6 +217,8 @@ export function DesktopOverview() {
       </div>
 
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
+
+      <AddFundsDrawer open={panel === "add-funds"} onClose={close} />
     </>
   );
 }
