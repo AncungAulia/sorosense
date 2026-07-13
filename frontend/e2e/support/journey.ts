@@ -73,7 +73,8 @@ export async function expectDesktopHome(page: Page): Promise<void> {
 /**
  * Desktop deposit: the hero "Add funds" opens a right drawer (role=dialog "Add funds"), not a route.
  * Pick the coin inside the drawer, fill the <input> (not the numpad), Deposit → the one-time consent
- * Dialog → the in-drawer done step. Caller must already be on the desktop /home.
+ * Dialog → on success the drawer closes (no in-drawer done step) and a toast confirms. Caller must
+ * already be on the desktop /home.
  */
 export async function depositViaDrawer(page: Page, coin: "USDC" | "EURC" | "CETES", amount: string): Promise<void> {
   await page.getByRole("button", { name: "Add funds" }).click();
@@ -86,6 +87,6 @@ export async function depositViaDrawer(page: Page, coin: "USDC" | "EURC" | "CETE
   const consent = page.getByRole("dialog", { name: "Approve automatic earning" });
   await expect(consent).toBeVisible();
   await consent.getByRole("button", { name: "Agree & sign" }).click();
-  await expect(drawer.getByText("Deposit sent")).toBeVisible();
-  await drawer.getByRole("button", { name: "Done" }).click();
+  // Success closes the drawer (URL drops ?panel=) — the toast is the feedback.
+  await expect(drawer).toBeHidden();
 }

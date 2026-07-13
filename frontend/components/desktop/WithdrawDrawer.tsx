@@ -15,9 +15,10 @@ import { toWalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 /**
  * Desktop move-to-wallet drawer: mirrors WithdrawKeypad (interface-map §3, §13) with an <input>
- * instead of the numpad and an in-drawer done step. The withdraw submit is DUPLICATED from
- * WithdrawKeypad on purpose (mobile stays byte-identical): "Max" burns the full share balance via
- * balanceOf (no dust), else shares = entered * SCALE / sharePrice.
+ * instead of the numpad. The withdraw submit is DUPLICATED from WithdrawKeypad on purpose (mobile
+ * stays byte-identical): "Max" burns the full share balance via balanceOf (no dust), else
+ * shares = entered * SCALE / sharePrice. On success the drawer closes and a toast confirms — the
+ * dashboard behind reflects the reduced balance (no in-drawer success screen; desktop UX decision).
  */
 export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { buckets } = useBuckets();
@@ -28,7 +29,6 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
   const [amount, setAmount] = useState("0");
   const [maxSelected, setMaxSelected] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
   const inFlight = useRef(false);
 
   const active = buckets[i] ?? buckets[0];
@@ -43,7 +43,6 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
     setI(0);
     setAmount("0");
     setMaxSelected(false);
-    setDone(false);
   };
   const cycle = () => {
     if (!multi) return;
@@ -74,7 +73,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
       recordWithdraw(currency, isMax ? active.value : enteredAmount);
       show("Withdrawal submitted.");
       bump();
-      setDone(true);
+      close(); // desktop: no in-drawer success screen — close + toast (dashboard shows the new balance)
     } catch (e) {
       const w = toWalletError(e);
       if (w.code !== USER_CLOSED_MODAL) show(w.message);
@@ -87,63 +86,53 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
   return (
     <Drawer open={open} onClose={close} label="Move to wallet">
       <div className="flex items-center justify-between border-b border-line px-[22px] pb-3.5 pt-5">
-        <span className="text-[17px] font-semibold">{done ? "Done" : "Move to wallet"}</span>
-        <button aria-label="Close" onClick={close} className="grid h-[34px] w-[34px] place-items-center rounded-full bg-pill text-ink-2">
+        <span className="text-[17px] font-semibold">Move to wallet</span>
+        <button aria-label="Close" onClick={close} className="grid h-[34px] w-[34px] place-items-center rounded-full bg-pill text-ink-2 transition-colors hover:bg-line-2">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </div>
 
-      {done ? (
-        <div className="flex flex-1 flex-col items-center gap-3.5 px-[22px] py-11 text-center">
-          <div className="grid h-[66px] w-[66px] place-items-center rounded-full bg-[rgba(22,163,74,.12)] text-pos">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <div className="text-lg font-semibold">Sent to your wallet</div>
-          <Button className="mt-2" onClick={close}>Done</Button>
+      <div className="flex flex-1 flex-col overflow-auto px-[22px] py-5">
+        <div className="mb-2 flex justify-center">
+          <button
+            aria-label="Choose bucket"
+            onClick={cycle}
+            className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold transition-colors hover:bg-line-2"
+          >
+            <CoinBadge currency={active?.currency ?? "USD"} size={22} />
+            {active?.name ?? "USD bucket"}
+            {multi && (
+              <svg data-testid="bucket-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg>
+            )}
+          </button>
         </div>
-      ) : (
-        <div className="flex flex-1 flex-col overflow-auto px-[22px] py-5">
-          <div className="mb-2 flex justify-center">
-            <button
-              aria-label="Choose bucket"
-              onClick={cycle}
-              className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold"
-            >
-              <CoinBadge currency={active?.currency ?? "USD"} size={22} />
-              {active?.name ?? "USD bucket"}
-              {multi && (
-                <svg data-testid="bucket-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg>
-              )}
-            </button>
-          </div>
-          <p className="mb-3.5 text-center text-[12.5px] text-muted">
-            {active ? `${formatCurrency(active.value, active.currency)} available` : "—"}
-          </p>
-          <p className="mb-2 text-[12.5px] font-medium text-muted">Amount</p>
-          <div className="flex items-center gap-1.5 rounded-2xl border border-line-2 bg-white px-4 py-3.5 [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]">
-            <span className="text-[26px] font-semibold text-[#3f4448]">{cur}</span>
-            <input
-              inputMode="decimal"
-              aria-label="Amount"
-              value={amount}
-              onChange={(e) => {
-                setMaxSelected(false);
-                setAmount(sanitizeAmount(e.target.value));
-              }}
-              className="w-full min-w-0 flex-1 border-none bg-transparent text-[30px] font-semibold tracking-[-.02em] text-ink outline-none [font-variant-numeric:tabular-nums]"
-            />
-          </div>
-          <div className="mt-3 flex gap-2.5">
-            <button onClick={() => quick(0.1)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink">10%</button>
-            <button onClick={() => quick(0.5)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink">50%</button>
-            <button onClick={() => quick(1)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink">Max</button>
-          </div>
-          {exceeded && <p className="mt-2.5 text-center text-[12.5px] text-neg">Not enough balance</p>}
-          <div className="mt-auto pt-6">
-            <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
-          </div>
+        <p className="mb-3.5 text-center text-[12.5px] text-muted">
+          {active ? `${formatCurrency(active.value, active.currency)} available` : "—"}
+        </p>
+        <p className="mb-2 text-[12.5px] font-medium text-muted">Amount</p>
+        <div className="flex items-center gap-1.5 rounded-2xl border border-line-2 bg-white px-4 py-3.5 [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]">
+          <span className="text-[26px] font-semibold text-[#3f4448]">{cur}</span>
+          <input
+            inputMode="decimal"
+            aria-label="Amount"
+            value={amount}
+            onChange={(e) => {
+              setMaxSelected(false);
+              setAmount(sanitizeAmount(e.target.value));
+            }}
+            className="w-full min-w-0 flex-1 border-none bg-transparent text-[30px] font-semibold tracking-[-.02em] text-ink outline-none [font-variant-numeric:tabular-nums]"
+          />
         </div>
-      )}
+        <div className="mt-3 flex gap-2.5">
+          <button onClick={() => quick(0.1)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink transition-colors hover:bg-line-2">10%</button>
+          <button onClick={() => quick(0.5)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink transition-colors hover:bg-line-2">50%</button>
+          <button onClick={() => quick(1)} className="h-[46px] flex-1 rounded-[14px] bg-pill text-sm font-semibold text-ink transition-colors hover:bg-line-2">Max</button>
+        </div>
+        {exceeded && <p className="mt-2.5 text-center text-[12.5px] text-neg">Not enough balance</p>}
+        <div className="mt-auto pt-6">
+          <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
+        </div>
+      </div>
     </Drawer>
   );
 }

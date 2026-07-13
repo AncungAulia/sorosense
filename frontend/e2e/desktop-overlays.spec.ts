@@ -21,12 +21,8 @@ test("desktop overlays: add-funds drawer, move-to-wallet, account dropdown, acti
   await expect(wd).toBeVisible();
   await wd.getByLabel("Amount").fill("100");
   await wd.getByRole("button", { name: "Move to wallet" }).click();
-  await expect(wd.getByText("Sent to your wallet")).toBeVisible();
-  await wd.getByRole("button", { name: "Done" }).click();
-  // Toast copy is "Withdrawal submitted." (not "Sent to your wallet"): Task 7 deliberately gave the
-  // toast distinct copy from the in-drawer done heading, because ToastProvider's Toast never unmounts
-  // (fades to opacity-0 for TOAST_MS instead) — identical text would collide with the done heading
-  // while both are in the DOM, the same trap AddFundsDrawer (Task 6) avoids.
+  // Success closes the drawer (no in-drawer done step) + a global toast confirms.
+  await expect(wd).toBeHidden();
   await expect(page.getByText("Withdrawal submitted.")).toBeVisible(); // global toast
   await shot(page, "desktop-03-move-to-wallet");
 

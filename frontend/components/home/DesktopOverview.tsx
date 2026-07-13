@@ -8,9 +8,9 @@ import { Button, Card, Segmented } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
 import { BucketRow } from "../bucket/BucketRow";
-import { Bars } from "../earn/Bars";
 import { ActivityList } from "../activity/ActivityList";
-import { FreezeBanner } from "../status/FreezeBanner";
+import { FreezeBar } from "../desktop/FreezeBar";
+import { GrowthChart } from "../desktop/GrowthChart";
 import { SafeExitDialog } from "../desktop/SafeExitDialog";
 import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
 import { WithdrawDrawer } from "../desktop/WithdrawDrawer";
@@ -101,7 +101,7 @@ export function DesktopOverview() {
 
   return (
     <>
-      {pend && <FreezeBanner onReview={() => open("safe-exit")} />}
+      {pend && <FreezeBar onReview={() => open("safe-exit")} />}
 
       <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)]" aria-label="Your value">
       {/* LEFT */}
@@ -197,7 +197,7 @@ export function DesktopOverview() {
             <h2 className="text-[13px] font-semibold text-muted">Growth</h2>
             <span className="text-xs text-muted [font-variant-numeric:tabular-nums]">This year</span>
           </div>
-          <Bars values={view.monthly.map((m) => m.earnedUsd)} />
+          <GrowthChart monthly={view.monthly} />
         </Card>
 
         {/* Agent activity */}
