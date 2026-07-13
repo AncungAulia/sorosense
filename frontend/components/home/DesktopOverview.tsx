@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useNav } from "../../hooks/useNav";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useEarnings } from "../../hooks/useEarnings";
 import { usePanel } from "../../hooks/usePanel";
@@ -15,6 +14,7 @@ import { FreezeBanner } from "../status/FreezeBanner";
 import { ExitApproval } from "../proposal/ExitApproval";
 import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
 import { WithdrawDrawer } from "../desktop/WithdrawDrawer";
+import { ActivityDrawer } from "../desktop/ActivityDrawer";
 import { ValueChart } from "./ValueChart";
 
 const RANGES = ["Day", "Week", "Month", "Year"] as const;
@@ -49,7 +49,6 @@ function organicSeries(n: number, lo: number, hi: number, vol: number): number[]
 const money = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function DesktopOverview() {
-  const nav = useNav();
   const { loading, buckets, totalUsd } = useBuckets();
   const { view } = useEarnings();
   const { panel, open, close } = usePanel();
@@ -206,7 +205,7 @@ export function DesktopOverview() {
             <h2 className="text-[13px] font-semibold text-muted">Agent activity</h2>
             <button
               type="button"
-              onClick={() => nav.forward("/account/activity")}
+              onClick={() => open("activity")}
               className="inline-flex items-center gap-[3px] text-[12.5px] font-medium text-muted"
             >
               View all
@@ -221,6 +220,7 @@ export function DesktopOverview() {
 
       <AddFundsDrawer open={panel === "add-funds"} onClose={close} />
       <WithdrawDrawer open={panel === "move-to-wallet"} onClose={close} />
+      <ActivityDrawer open={panel === "activity"} onClose={close} onReview={() => setExitOpen(true)} />
     </>
   );
 }
