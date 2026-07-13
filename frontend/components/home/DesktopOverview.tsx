@@ -11,7 +11,7 @@ import { BucketRow } from "../bucket/BucketRow";
 import { Bars } from "../earn/Bars";
 import { ActivityList } from "../activity/ActivityList";
 import { FreezeBanner } from "../status/FreezeBanner";
-import { ExitApproval } from "../proposal/ExitApproval";
+import { SafeExitDialog } from "../desktop/SafeExitDialog";
 import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
 import { WithdrawDrawer } from "../desktop/WithdrawDrawer";
 import { ActivityDrawer } from "../desktop/ActivityDrawer";
@@ -58,7 +58,6 @@ export function DesktopOverview() {
   const [bucketIndex, setBucketIndex] = useState(0); // 0 = All buckets (blended); 1..n = each bucket
   const activity = useActivity();
   const pend = usePendingExit();
-  const [exitOpen, setExitOpen] = useState(false);
 
   // Selectable views: All (blended ≈USD) then one per bucket (native).
   const selectable = useMemo(() => {
@@ -102,7 +101,7 @@ export function DesktopOverview() {
 
   return (
     <>
-      {pend && <FreezeBanner onReview={() => setExitOpen(true)} />}
+      {pend && <FreezeBanner onReview={() => open("safe-exit")} />}
 
       <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)]" aria-label="Your value">
       {/* LEFT */}
@@ -212,15 +211,15 @@ export function DesktopOverview() {
               <svg viewBox="0 0 24 24" className="w-3.5 fill-none stroke-current [stroke-width:2] [stroke-linecap:round] [stroke-linejoin:round]" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
             </button>
           </div>
-          <ActivityList items={activity.slice(0, 3)} onReview={() => setExitOpen(true)} reviewed={!pend} />
+          <ActivityList items={activity.slice(0, 3)} onReview={() => open("safe-exit")} reviewed={!pend} />
         </Card>
       </div>
 
-      <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
+      <SafeExitDialog open={panel === "safe-exit"} onClose={close} />
 
       <AddFundsDrawer open={panel === "add-funds"} onClose={close} />
       <WithdrawDrawer open={panel === "move-to-wallet"} onClose={close} />
-      <ActivityDrawer open={panel === "activity"} onClose={close} onReview={() => setExitOpen(true)} />
+      <ActivityDrawer open={panel === "activity"} onClose={close} onReview={() => open("safe-exit")} />
     </>
   );
 }
