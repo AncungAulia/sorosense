@@ -52,12 +52,66 @@ the frozen cross-track contract the backend and frontend build against.
   generated client whose address comes from config, so `cargo test` runs against
   the in-repo `mock_pool` and testnet/mainnet is an env change, not a code change.
 
+## Contract surface
+
+Every entrypoint maps to the `VaultClient` interface, grouped by who must sign. Reads are public.
+
+**Depositor-signed** (the connected wallet)
+- `set_policy_consent(depositor)` — record the one-time safety mandate (idempotent, no tier).
+- `set_auto_compound(depositor, enabled)` — economic preference, separate from consent (unset reads on).
+- `deposit(depositor, currency, amount)` — mint shares into the currency bucket; requires consent.
+- `withdraw(depositor, currency, shares)` — burn shares, return the stablecoin at redeem NAV.
+- `approve_exit(depositor, exit_id)` — approve a proposed safe exit; caller must hold shares in the bucket.
+
+**Keeper-signed** (the off-chain Sentinel/agent)
+- `allocate(pool, currency, amount)` / `deallocate(pool, currency, amount)` — move pooled funds into/out of a pool.
+- `freeze(pool)` / `unfreeze(pool)` — protective freeze; blocks flows, moves **no** funds.
+- `propose_exit(currency, from_pool, to_pool)` — record a safe-exit proposal for a frozen bucket.
+
+**Admin-signed** (config authority; atomic `__constructor` at deploy)
+- `set_token(currency, sac)` · `set_pool_allowed(pool, allowed)` · `set_configured_pool(currency, pool)`
+- `pause()` / `unpause()` — emergency global halt · `upgrade(new_wasm_hash)` — swap code, keep storage.
+
+**Reads** (public, no auth)
+- `balance_of(user, currency)` · `share_price(currency)` · `value_of(user, currency)`
+- `pool_status(pool)` · `pool_allowed(pool)` · `has_consent(depositor)` · `auto_compound_enabled(depositor)`
+- `active_pool(currency)` · `configured_pool(currency)` · `pending_exit(currency)`
+
+**Events** (read by the backend activity feed + freeze banner): `Deposit`, `Withdraw`,
+`AutoCompoundSet`, `Allocated`, `Deallocated`, `Frozen`, `Unfrozen`, `ExitProposed`, `ExitApproved`.
+
+## The money-shot flow
+
+```mermaid
+flowchart TD
+    A["1 · set_policy_consent<br/>depositor"] --> B["2 · deposit<br/>depositor"]
+    B --> C["3 · allocate → Safe pool<br/>keeper"]
+    C --> D{"Sentinel<br/>monitors 24/7"}
+    D -->|"sustained better Safe pool"| E["auto-rebalance<br/>keeper · no approval"]
+    E --> D
+    D -->|"anomaly: thin liquidity<br/>+ oracle deviation"| F["freeze pool<br/>keeper · moves 0 funds"]
+    F --> G["propose_exit<br/>keeper"]
+    G --> H["approve_exit<br/>depositor signs"]
+    H --> I["withdraw<br/>depositor"]
+
+    classDef dep fill:#16324f,stroke:#4a90e2,color:#e8f0fb;
+    classDef keep fill:#12433d,stroke:#48c9b0,color:#e6f7f3;
+    classDef sen fill:#4a3b12,stroke:#e8b24c,color:#fbf3dc;
+    class A,B,H,I dep;
+    class C,E,F,G keep;
+    class D sen;
+```
+
+Blue = **depositor-signed**, green = **keeper-signed**, amber = the **Sentinel** decision. Allocate,
+rebalance, and freeze run under the one-time mandate with no per-move signature; the only
+depositor-signed fund movements are the freeze-exit approval and withdraw.
+
 ## Build & test
 
 ```bash
 # Prereqs: Rust + wasm target, stellar CLI 27.x
 cd smart-contract
-cargo test              # 23 tests: shares, consent, allocate, guard, integration
+cargo test              # 48 tests: shares, nav, consent, auto_compound, allocate, guard, integration
 stellar contract build  # optimized WASM → target/wasm32v1-none/release/vault.wasm
 ```
 
