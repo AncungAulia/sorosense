@@ -82,14 +82,29 @@ Every entrypoint maps to the `VaultClient` interface, grouped by who must sign. 
 
 ## The money-shot flow
 
-```
-consent ─▶ deposit ─▶ allocate (Safe pool) ─▶ auto-rebalance ─▶ Sentinel freeze (0 funds moved)
-                                                                        │
-                                              withdraw ◀─ approve exit ◀┘  (keeper proposes, depositor approves)
+```mermaid
+flowchart TD
+    A["1 · set_policy_consent<br/>depositor"] --> B["2 · deposit<br/>depositor"]
+    B --> C["3 · allocate → Safe pool<br/>keeper"]
+    C --> D{"Sentinel<br/>monitors 24/7"}
+    D -->|"sustained better Safe pool"| E["auto-rebalance<br/>keeper · no approval"]
+    E --> D
+    D -->|"anomaly: thin liquidity<br/>+ oracle deviation"| F["freeze pool<br/>keeper · moves 0 funds"]
+    F --> G["propose_exit<br/>keeper"]
+    G --> H["approve_exit<br/>depositor signs"]
+    H --> I["withdraw<br/>depositor"]
+
+    classDef dep fill:#16324f,stroke:#4a90e2,color:#e8f0fb;
+    classDef keep fill:#12433d,stroke:#48c9b0,color:#e6f7f3;
+    classDef sen fill:#4a3b12,stroke:#e8b24c,color:#fbf3dc;
+    class A,B,H,I dep;
+    class C,E,F,G keep;
+    class D sen;
 ```
 
-Deposit and withdraw are depositor-signed; allocate/rebalance/freeze run under the mandate with no
-per-move signature; the only depositor-signed fund movements are the freeze-exit approval and withdraw.
+Blue = **depositor-signed**, green = **keeper-signed**, amber = the **Sentinel** decision. Allocate,
+rebalance, and freeze run under the one-time mandate with no per-move signature; the only
+depositor-signed fund movements are the freeze-exit approval and withdraw.
 
 ## Build & test
 
