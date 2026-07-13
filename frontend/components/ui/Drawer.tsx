@@ -22,6 +22,9 @@ export function Drawer({
 }) {
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Mount flag gates createPortal to client-only (SSR has no document.body). Runs once — the
+  // set-state-in-effect this rule warns about is intentional here (same pattern as useEarnings).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
