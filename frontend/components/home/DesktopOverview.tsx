@@ -101,7 +101,7 @@ export function DesktopOverview() {
     <>
       {pend && <FreezeBanner onReview={() => setExitOpen(true)} />}
 
-      <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card bg-card shadow-[0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]" aria-label="Your value">
+      <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)]" aria-label="Your value">
       {/* LEFT */}
       <div className="flex min-w-0 flex-col px-7 py-6">
         <div className="mb-[18px] flex items-center justify-between gap-3">
