@@ -69,3 +69,23 @@ export async function expectDesktopHome(page: Page): Promise<void> {
   await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden(); // BottomNav CSS-hidden at lg
   await expect(page.getByText(/\b(risk|score|sentinel)\b/i)).toHaveCount(0);  // R11
 }
+
+/**
+ * Desktop deposit: the hero "Add funds" opens a right drawer (role=dialog "Add funds"), not a route.
+ * Pick the coin inside the drawer, fill the <input> (not the numpad), Deposit → the one-time consent
+ * Dialog → the in-drawer done step. Caller must already be on the desktop /home.
+ */
+export async function depositViaDrawer(page: Page, coin: "USDC" | "EURC" | "CETES", amount: string): Promise<void> {
+  await page.getByRole("button", { name: "Add funds" }).click();
+  const drawer = page.getByRole("dialog", { name: "Add funds" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: new RegExp(`^${coin}`) }).click();
+  await expect(drawer.getByText(`Deposit ${coin}`)).toBeVisible();
+  await drawer.getByLabel("Amount").fill(amount);
+  await drawer.getByRole("button", { name: "Deposit" }).click();
+  const consent = page.getByRole("dialog", { name: "Approve automatic earning" });
+  await expect(consent).toBeVisible();
+  await consent.getByRole("button", { name: "Agree & sign" }).click();
+  await expect(drawer.getByText("Deposit sent")).toBeVisible();
+  await drawer.getByRole("button", { name: "Done" }).click();
+}
