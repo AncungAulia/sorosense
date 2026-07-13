@@ -52,3 +52,20 @@ export async function depositEurc(page: Page, amount: string): Promise<void> {
 
   await expect(page).toHaveURL(/\/home$/);
 }
+
+/**
+ * Assert the desktop Overview chrome is on screen and the mobile bottom nav is hidden. Structural
+ * only (no bucket values) so it holds whether the shared MockVaultClient singleton is empty or was
+ * funded by an earlier spec. R11: only the never-appear tokens (risk/score/sentinel) are checked —
+ * "safe exit" is the vetted ExitApproval action name, always mounted, and is not a risk label.
+ */
+export async function expectDesktopHome(page: Page): Promise<void> {
+  await expect(page.getByText("SoroSense")).toBeVisible();          // desktop TopBar brand
+  await expect(page.getByText(/your value/i)).toBeVisible();        // hero eyebrow
+  await expect(page.getByRole("button", { name: "Add funds" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Buckets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Growth" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent activity" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden(); // BottomNav CSS-hidden at lg
+  await expect(page.getByText(/\b(risk|score|sentinel)\b/i)).toHaveCount(0);  // R11
+}
