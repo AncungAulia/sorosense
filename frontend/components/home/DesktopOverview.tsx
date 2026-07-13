@@ -14,6 +14,7 @@ import { ActivityList } from "../activity/ActivityList";
 import { FreezeBanner } from "../status/FreezeBanner";
 import { ExitApproval } from "../proposal/ExitApproval";
 import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
+import { WithdrawDrawer } from "../desktop/WithdrawDrawer";
 import { ValueChart } from "./ValueChart";
 
 const RANGES = ["Day", "Week", "Month", "Year"] as const;
@@ -155,7 +156,7 @@ export function DesktopOverview() {
 
         <div className="mt-auto flex gap-2.5 pt-6">
           <Button className="flex-1" onClick={() => open("add-funds")}>Add funds</Button>
-          <Button variant="glass" className="flex-1" onClick={() => nav.forward("/withdraw")}>Move to wallet</Button>
+          <Button variant="glass" className="flex-1" onClick={() => open("move-to-wallet")}>Move to wallet</Button>
         </div>
       </div>
 
@@ -219,6 +220,7 @@ export function DesktopOverview() {
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
 
       <AddFundsDrawer open={panel === "add-funds"} onClose={close} />
+      <WithdrawDrawer open={panel === "move-to-wallet"} onClose={close} />
     </>
   );
 }
