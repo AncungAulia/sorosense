@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #111316;
+  --color-ink-2: #2b3033;
+  --color-muted: #808080;
+  --color-faint: #a6a6a6;
+  --color-bg: #f2f2f2;
+  --color-card: #f8f8f8;
+  --color-pill: #f0f0f0;
+  --color-pill-ink: #505050;
+  --color-line: #e6e6e6;
+  --color-line-2: #dedede;
+  --color-pos: #16a34a;
+  --color-neg: #c0453b;
+  --color-warn: #b45309;
+  --color-warn-soft: #fbf1e2;
+
+  --radius-card: 22px;
+  --radius-sheet: 26px;
+  --radius-field: 16px;
+
+  --font-sans: var(--font-switzer), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body { height: 100%; }
+body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+/* Tailwind v4 dropped the UA `cursor: pointer` on buttons — restore it for every interactive
+   element, and give keyboard users a visible focus ring (tab navigation was invisible before). */
+@layer base {
+  button:not(:disabled), a, label[for], summary, [role="button"], [role="menuitem"], [role="tab"] { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  /* The outline follows each element's own border-radius, so a rounded-full pill keeps its shape
+     while focused — do NOT set border-radius here (that would override the element's own). */
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="menuitem"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+/* ── Loading skeleton: a light sweep glides across a soft-grey block ──────────
+   In @layer components so Tailwind's radius utilities (rounded-full/-xl/…) win —
+   callers set the shape, this only owns the base tone + the shimmer. `overflow`
+   clips the sweep to the rounded corners. Stilled under prefers-reduced-motion. */
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+@layer components {
+  .skeleton { position: relative; overflow: hidden; border-radius: 6px; background: var(--color-line); }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+    animation: skeleton-shimmer 1.5s infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+/* ── Thin motion (STE-48 Fase 3) — all calm, all stilled under reduced-motion ──
+   `.stagger > *` rise+fade the direct children on mount with a small cascade (the
+   portaled overlays live outside this wrapper, so U14 is untouched). `.fade-in`
+   crossfades loaded content in over its skeleton. `.chart-line` draws the value
+   line via stroke-dashoffset (needs pathLength="1"). `.grow-bar` grows a bar from
+   its base. Delays are set inline per element where a cascade is wanted. */
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes grow-bar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+.stagger > * { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(2) { animation-delay: 0.05s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.fade-in { animation: fade-in 0.3s ease both; }
+.chart-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chart-draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.grow-bar { transform-origin: bottom; animation: grow-bar 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > *, .fade-in, .grow-bar { animation: none; }
+  .chart-line { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ── Page enter transition ───────────────────────────────────────────────────
+   Sub-screens (the (flow) route group) mount inside a template that carries the
+   .page-enter class, so navigating into them slides the new page in from the
+   right (native-app feel). Reusable: any route with its own template can apply
+   .page-enter. Reduced-motion disables it. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* No fill-mode: the transform must NOT persist after the animation, or the
+   wrapper would become the containing block for `fixed` children (e.g. the
+   consent BottomSheet), reintroducing the closed-sheet-visible bug. */
+.page-enter { animation: page-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+}

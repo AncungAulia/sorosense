@@ -4,7 +4,7 @@
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "vaultContractId": "CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "upgradable": true,
-  "binver": "1.0.0",
+  "binver": "1.2.0",
   "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
   "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
   "config": {
@@ -12,9 +12,41 @@
     "minFirstDeposit": "1000000",
     "virtualOffset": "1000"
   },
+  "assets": {
+    "note": "STE-46: self-issued testnet assets (codes USDC/EURC) wrapped as SAC for a deterministic demo — NOT real Circle USDC/EURC. The issuer SECRET is backend-only (faucet POST /faucet, STE-45); it is never committed here — only the issuer public key is recorded.",
+    "issuer": "GDOWW3KRITEDQPL6UHB2NKT35UXY2HKXVYGWI47XZROI2KLBBTEWUL3T",
+    "USDC_SAC": "CDGJ4WQZFY3TH5LX442ZDJVPB5I2VMNEENRX23AYNMJFXLDMZQY5PSKA",
+    "EURC_SAC": "CCAEI5YDRHKKAHGBTC6K2P6FRZTBBV7H6TEKDDSEINPGHKY3XRBCT44A"
+  },
+  "pools": {
+    "note": "STE-46: mock_pool test-doubles, one per currency (real Blend testnet rejects non-Circle assets, so the demo uses these; real Blend is post-hackathon). Each is init'd with its SAC, allowlisted, and set as the bucket's configured pool. Recorded under the BLEND_POOL_* env names the backend/deploy.ts already read.",
+    "BLEND_POOL_USD": "CAO5SJRDBZFBE357BOPBT2HSLDPJFNE64M76J2C45GTN4IPN2R6ZHFDW",
+    "BLEND_POOL_EUR": "CCFGUZNJ2VQAI4LTA4X4JHGNQOIRVZI3EUFR2HVDVKFRCHTEVOGDGI5E"
+  },
+  "faucetSmokeTest": {
+    "note": "STE-46 verification: minted 1000 USDC to a trustline'd account, then deposit(100 USDC) into the vault succeeded live (no zero-balance panic). SAC transfer + vault Deposit event fired; balance_of and value_of both read 1000000000.",
+    "verifiedAt": "2026-07-12"
+  },
   "explorer": "https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "deployedAt": "2026-07-04",
-  "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + Blend pools (set_token/set_pool_allowed/set_configured_pool) are wired at origin U20 with real USDC/EURC SACs + Blend testnet pools. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
+  "notes": "Upgradable vault (admin-governed `upgrade(new_wasm_hash)`; storage preserved). Deployed + verified live: consent write/read smoke test AND a live on-chain upgrade tx both succeeded. Per-currency tokens + pools (set_token/set_pool_allowed/set_configured_pool) are wired (STE-46) with self-issued USDC/EURC SACs + mock_pool test-doubles for a deterministic demo; real Blend is post-hackathon. Upgrade should move behind a timelock/multisig before mainnet (deferred). Testnet resets ~quarterly — redeploy via scripts/deploy.ts.",
+  "upgrades": [
+    {
+      "binver": "1.1.0",
+      "upgradedAt": "2026-07-10",
+      "wasmHash": "11b7829503c49d84ad921dcff9235ad43cf33661b6f3f24e70e717daf7bab6bf",
+      "uploadTx": "a7ea54bb2c2bd86cdcec8d06eff87cf07ed1147b1e389602359c9686b2c1a3fa",
+      "upgradeTx": "a6a5aacfcb4c7841c14bb0b9b2799997cd8a4801f9d9ce6e70c32252525136db",
+      "note": "STE-31 (earn-history U2): adds the read-only NAV views `share_price(currency)` and `value_of(user,currency)`. Same contract id, storage preserved. Verified live post-upgrade: all three buckets price at 1000000000 (SHARE_PRICE_SCALE, the empty-bucket base) and `value_of` reads 0. Yield never accrues on-chain yet — `total_assets` moves only on deposit/withdraw — so `share_price` stays at the base scale until mark-to-market NAV ships."
+    },
+    {
+      "binver": "1.2.0",
+      "upgradedAt": "2026-07-11",
+      "wasmHash": "021b85bf6fb63985ece867d672b1c76d9595cfe030abf45a3fdab75450686f11",
+      "upgradeTx": "ff0eeca759d8319064f595c8400ec3d8e9cf4d43f335a19fe86457276b38f8b4",
+      "note": "STE-51: emit `ConsentSet { depositor }` on the first `set_policy_consent` (absent→set), so the one-time safety mandate becomes a derivable \"Yours\" activity row like AutoCompoundSet. Emitted once — a re-call is a silent no-op. Same contract id, storage preserved. Verified live: tx 4b41fdf0154f12a8161930e3f0dd738a394f09236be870d6cbc17aaeea52b6f8 emitted `Event: ConsentSet (consent_set)` and has_consent read true."
+    }
+  ],
   "previousDeployments": [
     { "vaultContractId": "CCMP4JC347P7RW2XFCNBRC52DO47L5LI4N3GWRLDNN553FL5YPOH6UP7", "note": "non-upgradable v0, superseded" }
   ]

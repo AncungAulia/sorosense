@@ -10,7 +10,7 @@
  *    store so two ticks never double-act (idempotency; a pending freeze-exit blocks re-action).
  */
 
-import type { Currency, PoolId } from '@sorosense/vault-client';
+import type { Address, Currency, PoolId } from '@sorosense/vault-client';
 import { exceedsRebalanceThreshold, riskAdjustedYield } from '../sentinel/score.js';
 
 export type Decision =
@@ -91,7 +91,8 @@ export function classifyBucket(input: ClassifyInput): Decision {
 
 /** Side effects the tick drives. Injected so the decision logic stays testable. */
 export interface AllocatorEffects {
-  compound(currency: Currency, pool: PoolId): Promise<void>;
+  /** Reinvest accrued rewards. `depositor` is the auto-compound-ON depositor when gating is wired. */
+  compound(currency: Currency, pool: PoolId, depositor?: Address): Promise<void>;
   rebalance(currency: Currency, from: PoolId, to: PoolId): Promise<void>;
   freezeExit(currency: Currency, pool: PoolId, toPool: PoolId | null): Promise<void>;
 }
@@ -131,6 +132,33 @@ export interface TickContext {
   thresholdPct: number;
   store: BucketStore;
   effects: AllocatorEffects;
+  /** Bucket depositors to gate compound against (STE-40). Omit → compound runs ungated (legacy). */
+  depositors?: Address[];
+  /** Auto-compound preference reader (seam `autoCompoundEnabled`). Omit → ungated. */
+  autoCompoundEnabled?: (depositor: Address) => Promise<boolean>;
+}
+
+/**
+ * Drive the compound effect, honoring each depositor's auto-compound preference (STE-40). When
+ * `depositors` + `autoCompoundEnabled` are wired, compound fires only for depositors who are ON;
+ * a preference that cannot be read is treated as OFF — **fail-closed**, never compound an
+ * unverifiable preference. Without them, compound runs ungated (legacy pool-level behavior).
+ * Allocate / rebalance / freeze-exit never pass through here — they are unaffected by the preference.
+ */
+async function gateCompound(ctx: TickContext, currency: Currency, pool: PoolId): Promise<void> {
+  if (!ctx.depositors || !ctx.autoCompoundEnabled) {
+    await ctx.effects.compound(currency, pool);
+    return;
+  }
+  for (const depositor of ctx.depositors) {
+    let enabled = false;
+    try {
+      enabled = await ctx.autoCompoundEnabled(depositor);
+    } catch {
+      enabled = false; // fail-closed: unreadable preference → skip, never reinvest
+    }
+    if (enabled) await ctx.effects.compound(currency, pool, depositor);
+  }
 }
 
 /**
@@ -151,7 +179,7 @@ export async function runAllocatorTick(ctx: TickContext): Promise<Decision> {
 
   switch (decision.kind) {
     case 'compound':
-      await ctx.effects.compound(decision.currency, decision.pool);
+      await gateCompound(ctx, decision.currency, decision.pool);
       break;
     case 'rebalance':
       await ctx.effects.rebalance(decision.currency, decision.from, decision.to);

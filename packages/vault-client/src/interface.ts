@@ -28,6 +28,16 @@ export type Amount = bigint;
 /** Vault share units, tracked per depositor per currency. */
 export type Shares = bigint;
 
+/**
+ * NAV per share as fixed-point, scaled by {@link SHARE_PRICE_SCALE}. A bucket with no accrued yield
+ * has a price of exactly `SHARE_PRICE_SCALE` (1 asset per share). Consumers divide by the scale to
+ * get an asset value: `assetValue = shares * sharePrice / SHARE_PRICE_SCALE`.
+ */
+export type PriceRay = bigint;
+
+/** Fixed-point scale for {@link PriceRay}: a share price equal to this means 1 asset per share. */
+export const SHARE_PRICE_SCALE = 1_000_000_000n;
+
 /** A pool is either accepting flows or frozen by the keeper (Sentinel). */
 export type PoolStatus = 'active' | 'frozen';
 
@@ -85,6 +95,12 @@ export interface VaultClient {
    * Sentinel-vetted Safe set, in the bucket's own currency, supply/vault/hold-to-earn only.
    */
   setPolicyConsent(depositor: Address): PreparedTx;
+  /**
+   * Toggle the depositor's auto-compound (reinvest-rewards) preference. Separate from the safety
+   * mandate — `setPolicyConsent` is untouched (KTD3); this is a freely-revocable economic preference,
+   * not a risk/pool choice (STE-38 Opsi 2). Signer: depositor. Default (unset) is enabled.
+   */
+  setAutoCompound(depositor: Address, enabled: boolean): PreparedTx;
   /** Approve an agent-proposed safe exit after a freeze, moving funds to the target pool. Signer: depositor. */
   approveExit(depositor: Address, exitId: string): PreparedTx;
 
@@ -103,10 +119,20 @@ export interface VaultClient {
   // ── Reads ──────────────────────────────────────────────────────────────
   /** Shares the user holds in a given currency bucket. */
   balanceOf(user: Address, currency: Currency): Promise<Shares>;
+  /**
+   * NAV per share for a currency bucket, scaled by {@link SHARE_PRICE_SCALE}. A bucket with no accrued
+   * yield returns exactly `SHARE_PRICE_SCALE`. The backend earnings surfaces read this to convert
+   * shares → asset value (the contract exposes only shares via {@link balanceOf}).
+   */
+  sharePrice(currency: Currency): Promise<PriceRay>;
+  /** Current asset value of a user's bucket, derived from NAV: `balanceOf × sharePrice / SHARE_PRICE_SCALE`. */
+  assetValueOf(user: Address, currency: Currency): Promise<Amount>;
   /** Current status of a pool (active or frozen). */
   poolStatus(pool: PoolId): Promise<PoolStatus>;
   /** Whether the depositor has signed the one-time safety-mandate consent. */
   hasConsent(depositor: Address): Promise<boolean>;
+  /** Whether the depositor wants rewards auto-compounded. Default true (unset = enabled). */
+  autoCompoundEnabled(depositor: Address): Promise<boolean>;
   /** The pool currently holding a currency bucket's funds, if allocated. */
   activePool(currency: Currency): Promise<PoolId | null>;
   /** A pending safe-exit proposal for a currency bucket, if any. */

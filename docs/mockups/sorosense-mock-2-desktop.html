@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SoroSense — Desktop shell (STE-48)</title>
+<!--
+  DESKTOP DESIGN REFERENCE for STE-48 — v8.
+  Add over v7: ONE sub-stat in the hero's LEFT column — "Earned this month"
+  (+$38.34), the live momentum number that pairs with the all-time-earned green
+  pill beside the big value (all-time + this-month = the growth story). It
+  matches the Growth card's in-progress "this month" bar. A three-row version
+  was tried and rejected — it grew the hero taller than the chart and pushed the
+  bottom cards off-screen on laptop. Deliberately NOT a freeze/safe-exit status:
+  that would break the invisible-safety invariant (no risk/tier/score on a user
+  surface) and it's episodic, so the always-present hero slot would be empty when
+  safe or alarming when not; safe-exit lives calmly in the Agent activity card
+  instead. One short row keeps the hero height ≈ the chart height, so laptop is
+  unaffected. Updates per selected bucket in native currency; the all-buckets
+  view is blended and labelled "≈ USD" so it never implies a cross-currency fund
+  conversion. No risk/tier/score (invisible safety).
+  v8+ (2026-07-13): added Move-to-wallet drawer, Activity drawer, and Account
+  dropdown — all mirroring the REAL frontend components (Switch / flat Segmented /
+  ActivityRow / WithdrawKeypad / account page), and FLATTENED the hero segmented
+  pills to match the real Segmented (bg-pill, not a white raised pill). Activity
+  icons map from the data's `kind` field. "Connected via Freighter" has NO date
+  (seam has no connect-timestamp). Auto-reinvest switch is READ-ONLY (scope).
+  ── everything below is v7 ──
+  Fix over v6: the layout was tuned at laptop width (~1400px) where the 1200px
+  max-width column nearly fills the screen. On a true desktop monitor (≥1600px)
+  that same column stranded the content as a narrow band with huge grey gutters
+  and a big empty bottom. v7 lets the container WIDEN and the hero scale up on
+  large screens, so desktop feels full & intentional; laptop (<1600px) is left
+  byte-identical to v6.
+  ── everything below is v6 ──
+  DESKTOP DESIGN REFERENCE for STE-48 — v6.
+  Same components as mock-2 (solid .card, Switzer, monochrome + green accent).
+  Fixes over v5, from Ancung's feedback + his own "Overview" reference:
+    · FLAT background (no gradient).
+    · Cards HUG their content — never stretched to fill the viewport. A short
+      card stays short; the page is as tall as its content.
+    · Prominent, organic value-over-time chart (green accent line + soft fill,
+      hover crosshair + value tooltip) — the hero moment.
+    · Bucket switch is a bare control: dot + name + up/down chevrons (no pill).
+  Kept invisible-safety: NO risk/tier/score anywhere (the reference's "RISK"
+  tile is deliberately NOT copied). Per-currency buckets never blended as funds.
+-->
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#111316; --ink-2:#2b3033; --ink-3:#3f4448;
+    --muted:#808080; --faint:#a6a6a6;
+    --bg:#F1F1F2; --card:#F9F9FA; --pill:#ECECEE; --pill-ink:#505050;
+    --line:#E6E6E8; --line-2:#DEDEE0;
+    --pos:#16a34a; --pos-2:#22c55e; --neg:#c0453b; --warn:#b45309;
+    --r-card:22px; --r-pill:999px;
+    --sh-card:0 1px 2px rgba(17,19,22,.03), 0 14px 34px -22px rgba(17,19,22,.16);
+    --sh-soft:0 1px 2px rgba(17,19,22,.04), 0 8px 18px -10px rgba(17,19,22,.18);
+    --sh-float:0 -1px 0 rgba(0,0,0,.04), 0 24px 60px -26px rgba(17,19,22,.28);
+    --ease:cubic-bezier(.16,1,.3,1);
+    --sans:'Switzer',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{color-scheme:light}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);background:var(--bg);min-height:100dvh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+  .num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .c{color:var(--faint)}
+  .muted{color:var(--muted)} .faint{color:var(--faint)}
+  .tiny{font-size:12px} .sm{font-size:13.5px}
+  .row{display:flex;align-items:center;gap:12px}
+  .grow{flex:1;min-width:0}
+  .apy{font-weight:600;color:var(--pos)}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  :focus-visible{outline:none;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--ink)}
+  svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  svg.i.sm{width:18px;height:18px}
+
+  .card{position:relative;border-radius:var(--r-card);border:1px solid #fff;background:var(--card);box-shadow:var(--sh-card)}
+  .pill-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;height:44px;padding:0 20px;border-radius:var(--r-pill);font-size:14.5px;font-weight:600;transition:transform .16s var(--ease),filter .16s,box-shadow .16s}
+  .pill-btn:active{transform:scale(.985)}
+  .b-ink{background:linear-gradient(180deg,#3d3d40,#171719);color:#f8f8f8;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -9px 16px -9px rgba(0,0,0,.6),0 10px 22px -12px rgba(0,0,0,.42)}
+  .b-glass{background:#fff;color:var(--ink-2);border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 8px 18px -10px rgba(0,0,0,.18)}
+
+  .coin{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:11px;flex:0 0 auto;background:var(--pill);color:var(--pill-ink)}
+  h2{font-size:13px;font-weight:600;color:var(--muted);margin:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+
+  /* FLAT segmented = frontend Segmented.tsx / activity filter: bg-pill pressed, NO track, NO white raised pill */
+  .seg{display:inline-flex;gap:4px}
+  .seg.full{display:flex;gap:6px;width:100%}
+  .seg button{height:30px;padding:0 14px;border-radius:var(--r-pill);font-weight:500;font-size:12.5px;color:#8a8a8a;background:none;transition:color .16s,background .16s}
+  .seg.full button{flex:1;height:36px;font-size:13.5px}
+  .seg button[aria-pressed="true"]{background:var(--pill);color:var(--pill-ink)}
+
+  .appwin{max-width:1200px;margin:0 auto;padding:22px clamp(16px,3vw,36px) 44px}
+
+  .topbar{position:relative;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:16px;height:46px;margin-bottom:18px}
+  .brand{display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .brandmark{width:32px;height:32px;border-radius:10px;background:linear-gradient(180deg,#34383a,#131617);display:grid;place-items:center;box-shadow:0 10px 24px -12px rgba(17,19,22,.6),inset 0 1px 0 rgba(255,255,255,.18)}
+  .brandmark svg{width:19px;height:19px;stroke:var(--pos-2);fill:none;stroke-width:2.2}
+  .avatar{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(120% 120% at 30% 20%,#f6f6f4,#dcdcda);box-shadow:var(--sh-soft);display:grid;place-items:center;color:var(--pill-ink);cursor:pointer}
+  .avatar svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* HERO */
+  .hero{display:grid;grid-template-columns:minmax(290px,.78fr) 1.3fr;overflow:hidden;margin-bottom:16px}
+  .heroL{padding:24px 28px;display:flex;flex-direction:column;min-width:0}
+  .heroR{padding:20px 26px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .hhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  /* value + bucket chevrons on one line; the bucket label lives in the subline */
+  .valrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .valnum{font-size:clamp(38px,3.4vw,50px);font-weight:600;letter-spacing:-.025em;line-height:1}
+  .delta{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:var(--r-pill);background:rgba(22,163,74,.12);color:var(--pos);font-size:12.5px;font-weight:600}
+  .bkbtn{display:grid;place-items:center;width:30px;height:30px;color:var(--faint);border-radius:9px;transition:color .14s,background .14s}
+  .bkbtn:hover{color:var(--ink);background:var(--pill)}
+  .bkbtn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .valsub{margin-top:12px;font-size:13.5px}
+
+  /* sub-stats fill the hero's left-column gap: cost-basis / earned / forward look */
+  .substats{margin-top:22px;display:flex;flex-direction:column}
+  .ss{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:10px 0;border-top:1px solid var(--line)}
+  .ss:first-child{border-top:none}
+  .ssk{font-size:13px;color:var(--muted)}
+  .ssv{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+  .ssv.pos{color:var(--pos)}
+  .ssusd{font-size:12px;font-weight:500;margin-left:2px}
+  .ssnote{margin-top:9px;color:var(--faint)}
+
+  .herobtns{display:flex;gap:10px;margin-top:auto;padding-top:24px}
+  .herobtns .pill-btn{flex:1}
+
+  .rangeseg{align-self:flex-end}
+  .chartwrap{position:relative;flex:1;min-height:210px}
+  .chartwrap svg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible}
+  .ln{fill:none;stroke:var(--pos);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+  .dot{fill:var(--pos);stroke:#fff;stroke-width:2.5}
+  .cross{stroke:rgba(17,19,22,.20);stroke-width:1;stroke-dasharray:3 3}
+  .charttip{position:absolute;transform:translate(-50%,-135%);pointer-events:none;opacity:0;transition:opacity .1s;background:#fff;border:1px solid var(--line);border-radius:11px;padding:5px 11px;box-shadow:var(--sh-soft);white-space:nowrap}
+  .charttip .tv{font-size:14px;font-weight:600;letter-spacing:-.01em}
+
+  /* BOTTOM: three cards, each hugs its content (row height = tallest card) */
+  .bottom{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .mod{padding:18px 20px;display:flex;flex-direction:column}
+  .modhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .viewall{color:var(--muted);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:3px}
+
+  .brow2{display:flex;align-items:center;gap:11px;padding:12px 0;border-top:1px solid var(--line)}
+  .brow2:first-child{border-top:none}
+  .brow2 .nm{font-weight:600;font-size:14px}
+  .brow2 .vn{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .brow2 .rt{text-align:right;flex:0 0 auto}
+  .brow2 .bal{font-weight:600;font-size:14px}
+  .brow2 .ap{font-size:12px;color:var(--pos);font-weight:600;margin-top:2px}
+
+  /* growth = monthly earnings bar chart (latest bar = green accent) */
+  .gchart{position:relative;margin-top:8px}
+  .gbars{display:flex;align-items:flex-end;gap:5px;height:132px}
+  /* alternating green: light / dark; last bar (this month) = bright accent */
+  .gb{flex:1;border-radius:4px 4px 2px 2px;min-height:6px;transition:opacity .12s;background:linear-gradient(180deg,#93e6b1,#63cf8c)}
+  .gb:hover{opacity:.82}
+  .gb.dk{background:linear-gradient(180deg,#1f9f4d,#127636)}
+  .gb.acc{background:linear-gradient(180deg,#22c55e,#16a34a)}
+  .gaxis{display:flex;gap:5px;margin-top:8px}
+  .gaxis span{flex:1;text-align:center;font-size:10px;color:var(--faint);font-weight:500}
+  .gtip{position:absolute;transform:translate(-50%,-125%);pointer-events:none;opacity:0;transition:opacity .1s;background:#fff;border:1px solid var(--line);border-radius:10px;padding:5px 10px;box-shadow:var(--sh-soft);white-space:nowrap;font-size:12.5px;font-weight:600}
+
+  .arow{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+  .arow:first-child{border-top:none}
+  .actico{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--pill);color:var(--pill-ink);flex:0 0 auto}
+
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .appwin>*{animation:rise .5s var(--ease) both}
+  .appwin>*:nth-child(2){animation-delay:.04s}
+  .appwin>*:nth-child(3){animation-delay:.1s}
+
+  /* ── ADD-FUNDS DRAWER ─────────────────────────────────────────────────── */
+  .scrim{position:fixed;inset:0;z-index:60;background:rgba(17,19,22,.28);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);opacity:0;visibility:hidden;transition:opacity .2s var(--ease),visibility .2s}
+  .scrim.open{opacity:1;visibility:visible}
+  .drawer{position:fixed;top:0;right:0;z-index:61;height:100dvh;width:min(420px,100vw);background:var(--card);border-left:1px solid #fff;box-shadow:var(--sh-float);transform:translateX(100%);transition:transform .2s var(--ease);display:flex;flex-direction:column}
+  .drawer.open{transform:none}
+  .dwhead{display:flex;align-items:center;justify-content:space-between;padding:20px 22px 14px;border-bottom:1px solid var(--line)}
+  .dwhead .t{font-size:17px;font-weight:600}
+  .dwclose{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--pill);color:var(--ink-2)}
+  .dwbody{flex:1;overflow:auto;padding:20px 22px}
+  .dwlabel{font-size:12.5px;color:var(--muted);font-weight:500;margin:0 0 8px}
+  .amtwrap{display:flex;align-items:center;gap:6px;padding:14px 16px;border-radius:16px;background:#fff;border:1px solid var(--line-2);box-shadow:var(--sh-soft)}
+  .amtwrap .cur{font-size:26px;font-weight:600;color:var(--ink-3)}
+  .amtwrap input{flex:1;min-width:0;border:none;outline:none;background:none;font-family:inherit;font-size:30px;font-weight:600;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .chipseg{display:flex;gap:8px}
+  .chip{flex:1;height:44px;border-radius:13px;background:var(--pill);border:1px solid #fff;font-weight:600;font-size:14px;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:box-shadow .14s,background .14s,color .14s}
+  .chip[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+  .field{margin-top:22px}
+  .srcrow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--pill);border:1px solid #fff}
+  .revrow{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-top:1px solid var(--line)}
+  .revrow:first-child{border-top:none}
+  .revrow .rk{color:var(--muted);font-size:13.5px}
+  .revrow .rv{font-weight:600;font-size:14px}
+  .projnote{margin-top:16px;padding:14px 16px;border-radius:14px;background:var(--pill);border:1px solid #fff;font-size:13px;color:var(--ink-2);line-height:1.5}
+  .projnote b{color:var(--ink)}
+  .dwfoot{padding:16px 22px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .dwfoot .pill-btn{flex:1;height:48px}
+  .done{display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:44px 10px}
+  .donecircle{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:rgba(22,163,74,.12);color:var(--pos)}
+  .donecircle svg{width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .spin{width:44px;height:44px;border-radius:50%;border:3px solid rgba(17,19,22,.12);border-top-color:var(--ink);animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hidden{display:none!important}
+
+  /* ── NEW DESKTOP SURFACES — mirror the REAL frontend components ──────────── */
+  /* switch = frontend Switch.tsx (46×28, 22px knob, bg-ink on; readOnly=dimmed) */
+  .switch{position:relative;width:46px;height:28px;border-radius:999px;background:rgba(17,19,22,.16);transition:background .2s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+  .switch[aria-checked="true"]{background:var(--ink)}
+  .switch[aria-checked="true"]::after{transform:translateX(18px)}
+  .switch[aria-disabled="true"]{opacity:.6;cursor:default}
+  /* account dropdown anchored to the top-right avatar */
+  .acctwrap{position:relative}
+  /* topbar avatar = blockies identicon (frontend Identicon.tsx), not a generic person */
+  .avatar.ident{overflow:hidden;padding:0;background:#e8e8e6}
+  .avatar.ident svg{width:100%;height:100%;stroke:none}
+  .dropdown{position:absolute;top:calc(100% + 10px);right:0;width:300px;z-index:45;background:var(--card);border:1px solid #fff;border-radius:18px;box-shadow:var(--sh-float);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .16s var(--ease),transform .16s var(--ease),visibility .16s}
+  .dropdown.open{opacity:1;visibility:visible;transform:none}
+  .ddtop{display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;padding:16px 14px 12px}
+  .ddident{width:40px;height:40px;border-radius:50%;overflow:hidden;display:block}
+  .ddcopy{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:999px;background:#EAEAEA;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:500;color:var(--ink-2)}
+  .ddcopy svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ddconn{font-size:12.5px;color:var(--muted)}
+  .dddiv{height:1px;background:var(--line);margin:6px 8px}
+  .ddrow{display:flex;align-items:center;gap:13px;width:100%;padding:11px 12px;border-radius:12px;text-align:left;transition:background .12s}
+  button.ddrow{cursor:pointer}
+  button.ddrow:hover{background:var(--pill)}
+  .ddrow>svg.lead{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--ink-2);flex:0 0 auto}
+  .ddrow .grow .t2{font-weight:600;font-size:14px;display:block}
+  .ddrow .grow .s2{font-size:12px;color:var(--muted);margin-top:1px;display:block}
+  .ddrow .chev{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;color:var(--muted);flex:0 0 auto}
+  .ddrow.logout{color:var(--neg);font-weight:600;font-size:14px}
+  .ddrow.logout svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  /* move-to-wallet drawer (mirror WithdrawKeypad: bucket cycler + available + quick %) */
+  .wcycwrap{display:flex;justify-content:center;margin-bottom:8px}
+  .wcyc{display:inline-flex;align-items:center;gap:9px;height:40px;padding:0 16px 0 10px;border-radius:999px;background:#ECECEC;font-weight:600;font-size:15px;color:var(--ink)}
+  .wcyc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .coin.sm22{width:22px;height:22px;font-size:9px;background:#fff}
+  .wdavail{text-align:center;font-size:12.5px;color:var(--muted);margin:0 0 14px}
+  .qpills{display:flex;gap:10px;margin-top:12px}
+  .qpill{flex:1;height:46px;border-radius:14px;background:var(--pill);color:var(--ink);font-size:14px;font-weight:600;transition:background .12s}
+  .qpill:hover{background:var(--line)}
+  .wdhint{color:var(--neg);text-align:center;margin-top:10px;display:none}
+  /* activity drawer rows reuse .arow/.actico; Review pill = frontend bg-#1a1a1a */
+  .reviewbtn{height:30px;padding:0 14px;border-radius:999px;background:#1a1a1a;color:#f8f8f8;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;flex:0 0 auto}
+  /* activity DRAWER rows breathe more than the compact Overview card */
+  #actAll .arow{padding:15px 0}
+  /* safe-exit: Overview banner (mirror FreezeBanner) + centered approval dialog */
+  .freezebar{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-bottom:16px;padding:13px 16px;border-radius:var(--r-card);border:1px solid #fff;background:var(--card);box-shadow:var(--sh-card)}
+  .fzic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(180,83,9,.12);color:var(--warn);flex:0 0 auto}
+  .fzic svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .fzchev{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;color:var(--faint);flex:0 0 auto}
+  .modalwrap{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:20px;opacity:0;visibility:hidden;transition:opacity .18s var(--ease),visibility .18s}
+  .modalwrap.open{opacity:1;visibility:visible}
+  .modalwrap::before{content:"";position:absolute;inset:0;background:rgba(17,19,22,.32);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+  .modal{position:relative;width:min(480px,100%);background:var(--card);border:1px solid #fff;border-radius:22px;box-shadow:var(--sh-float);padding:24px;transform:translateY(8px) scale(.985);transition:transform .18s var(--ease)}
+  .modalwrap.open .modal{transform:none}
+  .modal h2{font-size:20px;font-weight:600;margin:0 0 6px;color:var(--ink)}
+  .exbtns{display:flex;gap:10px;margin-top:18px}
+  .noscroll{overflow:hidden}
+  .exrow{display:flex;align-items:center;gap:12px}
+  .exic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+  .exic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round}
+  .exic.warn{background:rgba(180,83,9,.12);color:var(--warn)}
+  .exic.pos{background:#e8f5ee;color:var(--pos)}
+  .exarrow{display:grid;place-items:center;color:var(--faint);margin:3px 0}
+  .exarrow svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  /* add-funds step 1 = pick asset (mirror mobile AddFunds list) */
+  .pickrow{display:flex;align-items:center;gap:12px;width:100%;padding:13px 0;border-top:1px solid var(--line);text-align:left;cursor:pointer;background:none}
+  .pickrow:first-child{border-top:none}
+  .pickrow .nm{font-weight:600;font-size:14px}
+  .pickrow .chips{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+  .dchip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--pill);color:var(--muted);font-size:11.5px;font-weight:500}
+  .pickrow .chev{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;color:var(--faint);flex:0 0 auto}
+  .pickback{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:13px;font-weight:500;margin-bottom:14px}
+  .assethead{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--pill);border:1px solid #fff;margin-bottom:18px}
+  .assethead .nm{font-weight:600;font-size:14.5px}
+  .assethead .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  /* drawer header with a back chevron (Deposit USDC ‹→ Add funds) */
+  .dwheadL{display:flex;align-items:center;gap:6px;min-width:0}
+  .dwback{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;color:var(--ink-2);margin-left:-4px}
+  .dwback:hover{background:var(--pill)}
+  .dwback svg{width:20px}
+  /* inputs: no thick focus ring, subtle focus-within on the field instead */
+  .amtwrap:focus-within{border-color:var(--ink-3)}
+  .amtwrap input:focus-visible{box-shadow:none}
+
+  /* ── large desktop monitors: widen + scale the hero so it fills the screen ──
+     laptop (<1600px) stays byte-identical to v6; only true-desktop widths grow */
+  @media (min-width:1600px){
+    .appwin{max-width:1440px;padding-top:30px}
+    .hero{grid-template-columns:minmax(340px,.72fr) 1.42fr}
+    .heroL{padding:30px 34px}
+    .heroR{padding:24px 30px 22px}
+    .chartwrap{min-height:262px}
+    .valnum{font-size:56px}
+    .bottom{gap:20px}
+    .mod{padding:22px 24px}
+    .gbars{height:150px}
+    /* desktop only: group "Earned this month" as the third line of the value
+       cluster (value → APY → this month) — larger type, NOT a card, NOT floated;
+       the leftover space falls below as CTA breathing room */
+    .substats{margin:16px 0 0}
+    .ss{flex-direction:column;align-items:flex-start;gap:9px;padding:0;border-top:none}
+    .ssk{font-size:13px}
+    .ssv{font-size:28px;line-height:1}
+    .ssusd{font-size:14px;font-weight:500}
+  }
+  @media (min-width:1900px){
+    .appwin{max-width:1560px;padding-top:36px}
+    .chartwrap{min-height:300px}
+    .valnum{font-size:62px}
+    .gbars{height:168px}
+  }
+
+  @media (max-width:920px){
+    .hero{grid-template-columns:1fr}
+    .heroR{border-left:none;border-top:1px solid var(--line)}
+    .bottom{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+  <div class="appwin">
+
+    <header class="topbar">
+      <span class="brand"><span class="brandmark"><svg viewBox="0 0 24 24"><path d="M20 4C9 4 4 11 4 20c9 0 16-5 16-16Z"/></svg></span>SoroSense</span>
+      <div class="acctwrap">
+        <button class="avatar ident" aria-label="Account" onclick="toggleAccount(event)"><svg viewBox="0 0 5 5" shape-rendering="crispEdges" aria-hidden="true">
+          <rect x="0" y="0" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="0" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="0" width="1" height="1" fill="#1a1a1a"/>
+          <rect x="1" y="1" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="1" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="1" width="1" height="1" fill="#1a1a1a"/>
+          <rect x="0" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="1" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="2" width="1" height="1" fill="#1a1a1a"/>
+          <rect x="1" y="3" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="3" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="3" width="1" height="1" fill="#1a1a1a"/>
+          <rect x="0" y="4" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="4" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="4" width="1" height="1" fill="#1a1a1a"/>
+        </svg></button>
+        <div class="dropdown" id="acctDrop" role="menu" aria-label="Account">
+          <div class="ddtop">
+            <span class="ddident"><svg width="40" height="40" viewBox="0 0 5 5" shape-rendering="crispEdges" aria-hidden="true" style="background:#e8e8e6">
+              <rect x="0" y="0" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="0" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="0" width="1" height="1" fill="#1a1a1a"/>
+              <rect x="1" y="1" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="1" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="1" width="1" height="1" fill="#1a1a1a"/>
+              <rect x="0" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="1" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="2" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="2" width="1" height="1" fill="#1a1a1a"/>
+              <rect x="1" y="3" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="3" width="1" height="1" fill="#1a1a1a"/><rect x="3" y="3" width="1" height="1" fill="#1a1a1a"/>
+              <rect x="0" y="4" width="1" height="1" fill="#1a1a1a"/><rect x="2" y="4" width="1" height="1" fill="#1a1a1a"/><rect x="4" y="4" width="1" height="1" fill="#1a1a1a"/>
+            </svg></span>
+            <button class="ddcopy" onclick="copyAddr(event)"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span id="ddAddr">GABC…K3X9</span></button>
+            <span class="ddconn">Connected via Freighter</span>
+          </div>
+          <div class="dddiv"></div>
+          <button class="ddrow" onclick="fromDropOpenActivity(event)" role="menuitem">
+            <svg class="lead" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            <span class="grow"><span class="t2">Activity</span><span class="s2">All agent and account actions</span></span>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <div class="ddrow">
+            <svg class="lead" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>
+            <span class="grow"><span class="t2">Auto reinvest rewards</span><span class="s2">Yield rewards flow back into your pool</span></span>
+            <button class="switch" role="switch" aria-checked="true" aria-disabled="true" aria-label="Auto reinvest rewards"></button>
+          </div>
+          <div class="dddiv"></div>
+          <button class="ddrow logout" onclick="closeAccount()" role="menuitem"><svg viewBox="0 0 24 24"><path d="M14 3H5v18h9M10 8l4 4-4 4M14 12H6"/></svg>Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- SAFE-EXIT NUDGE (only shown while a pool is paused / exit pending) -->
+    <div class="freezebar" id="freezeBar">
+      <span class="fzic"><svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+      <div class="grow"><div style="font-weight:600">Your earning is paused</div><div class="tiny muted">Review and approve the move</div></div>
+      <button class="reviewbtn" onclick="openExit()">Review</button>
+    </div>
+
+    <!-- HERO -->
+    <section class="card hero" aria-label="Your value">
+      <div class="heroL">
+        <div class="hhead">
+          <span class="eyebrow">Your value</span>
+          <div class="seg" role="group" aria-label="Value or earned">
+            <button id="tTotal" aria-pressed="true" onclick="setMode('total')">Total</button>
+            <button id="tEarned" aria-pressed="false" onclick="setMode('earned')">Earned</button>
+          </div>
+        </div>
+        <div class="valrow">
+          <span class="valnum num" id="valHero">$2,048<span class="c">.62</span></span>
+          <span class="delta num" id="valDelta"><svg class="i sm" viewBox="0 0 24 24" style="width:13px"><path d="M7 17 17 7M9 7h8v8"/></svg>+$176.56</span>
+          <button class="bkbtn" onclick="stepBucket(1)" aria-label="Switch bucket"><svg viewBox="0 0 24 24"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></button>
+        </div>
+        <div class="valsub"><span class="apy num" id="valApy">7.10% APY</span><span class="muted num" id="valSubRest"> · across 3 buckets</span></div>
+
+        <div class="substats" aria-label="Breakdown">
+          <div class="ss"><span class="ssk">Earned this month</span><span class="ssv num pos" id="ssDep">~$38.34<span class="ssusd faint"> USD</span></span></div>
+        </div>
+
+        <div class="herobtns">
+          <button class="pill-btn b-ink" onclick="openDrawer()">Add funds</button>
+          <button class="pill-btn b-glass" onclick="openWd()">Move to wallet</button>
+        </div>
+      </div>
+
+      <div class="heroR">
+        <div class="seg rangeseg" role="group" aria-label="Range">
+          <button onclick="setRange('D',this)" aria-pressed="false">Day</button>
+          <button onclick="setRange('W',this)" aria-pressed="true">Week</button>
+          <button onclick="setRange('M',this)" aria-pressed="false">Month</button>
+          <button onclick="setRange('Y',this)" aria-pressed="false">Year</button>
+        </div>
+        <div class="chartwrap" id="chartwrap">
+          <svg id="chart" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="charttip" id="charttip"><div class="tv num" id="tipV">$0</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOTTOM -->
+    <div class="bottom">
+      <section class="card mod" aria-label="Buckets">
+        <div class="modhead"><h2>Buckets</h2></div>
+        <div id="buckList"></div>
+      </section>
+
+      <section class="card mod" aria-label="Growth">
+        <div class="modhead"><h2>Growth</h2><span class="tiny muted num" id="growMeta">This year</span></div>
+        <div class="gchart">
+          <div class="gbars" id="gbars"></div>
+          <div class="gaxis" id="gaxis"></div>
+          <div class="gtip" id="gtip"></div>
+        </div>
+      </section>
+
+      <section class="card mod" aria-label="Agent activity">
+        <div class="modhead"><h2>Agent activity</h2><button class="viewall">View all<svg class="i sm" viewBox="0 0 24 24" style="width:14px"><path d="M9 6l6 6-6 6"/></svg></button></div>
+        <div id="actList"></div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- ADD-FUNDS DRAWER -->
+  <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Add funds">
+    <div class="dwhead">
+      <div class="dwheadL"><button class="dwback hidden" id="dwBack" onclick="backToPick()" aria-label="Back to assets"><svg class="i sm" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><span class="t" id="dwTitle">Add funds</span></div>
+      <button class="dwclose" onclick="closeDrawer()" aria-label="Close"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <!-- STEP 1: pick asset (FX) — mirrors mobile AddFunds list -->
+    <div class="dwbody" id="stepPick">
+      <p class="dwlabel">Stablecoins</p>
+      <div id="pickList"></div>
+    </div>
+    <!-- STEP 2: amount (header shows "Deposit {SYM}" + back chevron) -->
+    <div class="dwbody hidden" id="stepForm">
+      <div class="assethead" id="assetHead"></div>
+      <p class="dwlabel">Amount</p>
+      <div class="amtwrap"><span class="cur" id="amtCur">$</span><input id="amtIn" inputmode="decimal" value="0" oninput="onAmt()" aria-label="Amount" /></div>
+      <div class="qpills">
+        <button class="qpill" onclick="addPct(.1)">10%</button>
+        <button class="qpill" onclick="addPct(.5)">50%</button>
+        <button class="qpill" onclick="addPct(1)">Max</button>
+      </div>
+    </div>
+    <div class="dwbody hidden" id="stepDone"><div class="done" id="doneInner"></div></div>
+    <div class="dwfoot hidden" id="dwFoot"></div>
+  </aside>
+
+  <!-- MOVE TO WALLET DRAWER (mirror WithdrawKeypad: 1 screen, cycler + quick %, no numpad) -->
+  <div class="scrim" id="scrimWd" onclick="closeWd()"></div>
+  <aside class="drawer" id="drawerWd" role="dialog" aria-modal="true" aria-label="Move to wallet">
+    <div class="dwhead">
+      <span class="t">Move to wallet</span>
+      <button class="dwclose" onclick="closeWd()" aria-label="Close"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="dwbody" id="wdForm">
+      <div class="wcycwrap">
+        <button class="wcyc" onclick="cycleWd()" aria-label="Choose bucket"><span class="coin sm22" id="wdCoin">USD</span><span id="wdName">USD bucket</span><svg id="wdChev" viewBox="0 0 24 24"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></button>
+      </div>
+      <p class="wdavail"><span class="num" id="wdAvail">$1,024.30</span> available</p>
+      <p class="dwlabel">Amount</p>
+      <div class="amtwrap"><span class="cur" id="wdCur">$</span><input id="wdAmtIn" inputmode="decimal" value="0" oninput="onWdAmt()" aria-label="Amount" /></div>
+      <div class="qpills">
+        <button class="qpill" onclick="wdPct(.1)">10%</button>
+        <button class="qpill" onclick="wdPct(.5)">50%</button>
+        <button class="qpill" onclick="wdPct(1)">Max</button>
+      </div>
+      <p class="tiny wdhint" id="wdHint">Not enough balance</p>
+    </div>
+    <div class="dwbody hidden" id="wdDone"><div class="done" id="wdDoneInner"></div></div>
+    <div class="dwfoot" id="wdFoot">
+      <button class="pill-btn b-ink" style="flex:1" onclick="confirmWd()">Move to wallet</button>
+    </div>
+  </aside>
+
+  <!-- ACTIVITY DRAWER (mirror mobile Activity: All/Yours/Automated + list) -->
+  <div class="scrim" id="scrimAct" onclick="closeActivity()"></div>
+  <aside class="drawer" id="drawerAct" role="dialog" aria-modal="true" aria-label="Activity">
+    <div class="dwhead">
+      <span class="t">Activity</span>
+      <button class="dwclose" onclick="closeActivity()" aria-label="Close"><svg class="i sm" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="dwbody">
+      <div class="seg full" id="actFilter" role="group" aria-label="Filter">
+        <button data-f="all" aria-pressed="true" onclick="setActFilter('all',this)">All</button>
+        <button data-f="you" aria-pressed="false" onclick="setActFilter('you',this)">Yours</button>
+        <button data-f="auto" aria-pressed="false" onclick="setActFilter('auto',this)">Automated</button>
+      </div>
+      <div id="actAll" style="margin-top:8px"></div>
+    </div>
+  </aside>
+
+  <!-- SAFE-EXIT APPROVAL (centered dialog — single focused decision, not a drawer) -->
+  <div class="modalwrap" id="exitModal" onclick="if(event.target===this)closeExit()">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Approve safe exit">
+      <div id="exitForm">
+        <h2>Approve safe exit</h2>
+        <p class="sm muted" style="margin:0 0 18px;line-height:1.5">We paused your EUR pool after we detected unusual activity in the pool. Approve moving your funds to another EUR pool.</p>
+        <div class="card" style="background:#fff;padding:14px">
+          <div class="exrow">
+            <span class="exic warn"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></span>
+            <div class="grow"><div class="tiny muted">From</div><div style="font-weight:600">Blend · EUR pool (paused)</div></div>
+            <div class="num" style="font-weight:600">€920.10</div>
+          </div>
+          <div class="exarrow"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+          <div class="exrow">
+            <span class="exic pos"><svg viewBox="0 0 24 24"><path d="M23 6 13.5 16.5 8.5 11.5 1 19"/><path d="M17 6h6v6"/></svg></span>
+            <div class="grow"><div class="tiny muted">To</div><div style="font-weight:600">DeFindex EURC</div></div>
+            <div class="num" style="font-weight:600;color:var(--pos)">5.90% APY</div>
+          </div>
+        </div>
+        <div class="exbtns">
+          <button class="pill-btn b-glass" style="flex:1" onclick="closeExit()">Keep paused</button>
+          <button class="pill-btn b-ink" style="flex:1" onclick="approveExit()">Approve</button>
+        </div>
+      </div>
+      <div id="exitDone" class="hidden"><div class="done" style="padding:32px 10px" id="exitDoneInner"></div></div>
+    </div>
+  </div>
+
+<script>
+  /* ── buckets (real model) ──────────────────────────────────────────────── */
+  const BUCK=[
+    {cur:'USD', name:'USD bucket', venue:'DeFindex · Vault',   bal:'$1,024.30', apy:'8.59%'},
+    {cur:'EUR', name:'EUR bucket', venue:'Blend · Fixed pool', bal:'€920.10',   apy:'5.10%'},
+    {cur:'MXN', name:'MXN bucket', venue:'Etherfuse · CETES',  bal:'$545.00',   apy:'5.57%'},
+  ];
+  document.getElementById('buckList').innerHTML=BUCK.map(b=>`
+    <div class="brow2"><span class="coin">${b.cur}</span>
+      <div class="grow"><div class="nm">${b.name}</div><div class="vn">${b.venue}</div></div>
+      <div class="rt"><div class="bal num">${b.bal}</div><div class="ap num">${b.apy} APY</div></div></div>`).join('');
+
+  /* ── growth = monthly earnings bar chart (last bar = this month, in progress) ── */
+  const GROW=[
+    {m:'Aug',f:'August',v:42.10},{m:'Sep',f:'September',v:58.40},{m:'Oct',f:'October',v:71.30},
+    {m:'Nov',f:'November',v:66.20},{m:'Dec',f:'December',v:84.90},{m:'Jan',f:'January',v:93.10},
+    {m:'Feb',f:'February',v:101.40},{m:'Mar',f:'March',v:96.70},{m:'Apr',f:'April',v:98.20},
+    {m:'May',f:'May',v:113.54},{m:'Jun',f:'June',v:122.14},{m:'Jul',f:'This month',v:38.34},
+  ];
+  (function(){
+    const max=Math.max(...GROW.map(g=>g.v));
+    document.getElementById('gbars').innerHTML=GROW.map((g,i)=>`<div class="gb ${i===GROW.length-1?'acc':(i%2?'dk':'')}" data-i="${i}" style="height:${(g.v/max*100).toFixed(1)}%"></div>`).join('');
+    document.getElementById('gaxis').innerHTML=GROW.map((g,i)=>`<span>${(i%3===0||i===GROW.length-1)?g.m:''}</span>`).join('');
+    const gbars=document.getElementById('gbars'), gtip=document.getElementById('gtip');
+    gbars.addEventListener('mousemove',e=>{const b=e.target.closest('.gb');if(!b){gtip.style.opacity=0;return}
+      const g=GROW[+b.dataset.i], r=gbars.getBoundingClientRect(), br=b.getBoundingClientRect();
+      gtip.innerHTML=`${g.f} · <span style="color:var(--pos)">+$${g.v.toFixed(2)}</span>`;
+      gtip.style.left=(br.left-r.left+br.width/2)+'px';gtip.style.top=(br.top-r.top)+'px';gtip.style.opacity=1;});
+    gbars.addEventListener('mouseleave',()=>gtip.style.opacity=0);
+  })();
+
+  /* ── agent activity (real strings) ─────────────────────────────────────── */
+  const ICO={up:'<path d="M12 19V5M5 12l7-7 7 7"/>',exit:'<path d="M14 3H5v18h9M10 8l4 4-4 4M14 12H6"/>',plus:'<path d="M12 5v14M5 12h14"/>'};
+  const ACT=[
+    {i:'up',   t:'Switched to DeFindex · 8.59% APY', s:'3h ago'},
+    {i:'exit', t:'Proposed safe exit from EURC pool', s:'6h ago'},
+    {i:'plus', t:'Allocated to Blend USDC', s:'2d ago'},
+  ];
+  document.getElementById('actList').innerHTML=ACT.map(a=>`<div class="arow"><span class="actico"><svg class="i sm" viewBox="0 0 24 24" style="width:16px">${ICO[a.i]}</svg></span><div class="grow"><div class="sm" style="font-weight:600">${a.t}</div><div class="tiny muted">${a.s}</div></div></div>`).join('');
+
+  /* ── value chart (organic series, green accent) ────────────────────────── */
+  function genSeries(n,lo,hi,vol){const out=[];for(let i=0;i<n;i++){const t=i/(n-1);const base=lo+(hi-lo)*t;const w=(Math.sin(i*0.7)*0.5+Math.sin(i*1.9+1)*0.3+Math.sin(i*3.3)*0.2)*vol+(Math.random()-0.5)*vol*0.9;out.push(base+w)}out[n-1]=hi;out[0]=lo;return out}
+  const SERIES={
+    D:genSeries(48,2044.0,2048.62,0.9),
+    W:genSeries(60,2033.0,2048.62,1.8),
+    M:genSeries(40,2010.0,2048.62,3.2),
+    Y:genSeries(52,1872.0,2048.62,7.0),
+  };
+  let curRange='W', chartPts=[];
+  const svg=document.getElementById('chart'), wrap=document.getElementById('chartwrap'), tip=document.getElementById('charttip');
+  function smooth(p){let d=`M ${p[0].x} ${p[0].y}`;for(let i=0;i<p.length-1;i++){const p0=p[i-1]||p[i],p1=p[i],p2=p[i+1],p3=p[i+2]||p2;const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;d+=` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`}return d}
+  const money=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function drawChart(){
+    const data=SERIES[curRange];
+    const W=wrap.clientWidth||600, H=wrap.clientHeight||210;
+    const padT=14, padB=10, padR=4, padL=4;
+    const min=Math.min(...data), max=Math.max(...data), span=(max-min)||1;
+    const x=i=>padL+(i/(data.length-1))*(W-padL-padR);
+    const y=v=>padT+(1-(v-min)/span)*(H-padT-padB);
+    chartPts=data.map((v,i)=>({x:x(i),y:y(v),v}));
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    const line=smooth(chartPts);
+    const area=line+` L ${chartPts[chartPts.length-1].x.toFixed(1)} ${H} L ${chartPts[0].x.toFixed(1)} ${H} Z`;
+    const last=chartPts[chartPts.length-1];
+    svg.innerHTML=`
+      <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#16a34a" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#16a34a" stop-opacity="0"/></linearGradient></defs>
+      <path fill="url(#area)" stroke="none" d="${area}"/>
+      <path class="ln" d="${line}"/>
+      <g id="crossG" style="opacity:0"><line class="cross" id="crossL" x1="0" y1="${padT}" x2="0" y2="${H-padB}"/><circle class="dot" id="crossD" r="4.5"/></g>
+      <circle class="dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4.5"/>`;
+  }
+  function moveTip(e){
+    if(!chartPts.length)return;
+    const r=wrap.getBoundingClientRect(), mx=e.clientX-r.left;
+    let idx=0,best=1e9;chartPts.forEach((p,i)=>{const d=Math.abs(p.x-mx);if(d<best){best=d;idx=i}});
+    const p=chartPts[idx], g=document.getElementById('crossG');
+    if(g){g.style.opacity=1;document.getElementById('crossL').setAttribute('x1',p.x);document.getElementById('crossL').setAttribute('x2',p.x);
+      const cd=document.getElementById('crossD');cd.setAttribute('cx',p.x);cd.setAttribute('cy',p.y)}
+    tip.style.left=p.x+'px';tip.style.top=p.y+'px';tip.style.opacity=1;
+    document.getElementById('tipV').textContent=money(p.v);
+  }
+  function hideTip(){tip.style.opacity=0;const g=document.getElementById('crossG');if(g)g.style.opacity=0}
+  wrap.addEventListener('mousemove',moveTip);
+  wrap.addEventListener('mouseleave',hideTip);
+  window.addEventListener('resize',drawChart);
+  drawChart();
+  function setRange(r,btn){curRange=r;btn.parentNode.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false'));btn.setAttribute('aria-pressed','true');hideTip();drawChart()}
+
+  /* ── hero toggles ──────────────────────────────────────────────────────── */
+  /* per-bucket in NATIVE currency; all-buckets is blended (≈USD, labelled).
+     tm = earnings so far THIS MONTH (all-buckets tm matches the Growth card's in-progress bar). */
+  const V=[
+    {b:'All buckets',t:'$2,048<span class="c">.62</span>',e:'$176<span class="c">.56</span>',apy:'7.10% APY',sub:' · across 3 buckets',tm:'$38.34',code:'USD',approx:true},
+    {b:'USD bucket', t:'$1,024<span class="c">.30</span>',e:'$92<span class="c">.10</span>', apy:'8.59% APY',sub:' · USD bucket',tm:'$21.40',code:'USD'},
+    {b:'EUR bucket', t:'€920<span class="c">.10</span>',  e:'€38<span class="c">.20</span>', apy:'5.10% APY',sub:' · EUR bucket',tm:'€9.80',code:'EUR'},
+    {b:'MXN bucket', t:'$545<span class="c">.00</span>',  e:'$18<span class="c">.40</span>', apy:'5.57% APY',sub:' · MXN bucket',tm:'$7.10',code:'MXN'}];
+  let bi=0;
+  function isTotal(){return document.getElementById('tTotal').getAttribute('aria-pressed')==='true'}
+  function paint(){const v=V[bi];
+    document.getElementById('valHero').innerHTML=isTotal()?v.t:v.e;
+    document.getElementById('valApy').textContent=v.apy;
+    document.getElementById('valSubRest').textContent=isTotal()?v.sub:(' earned'+v.sub);
+    document.getElementById('ssDep').innerHTML=(v.approx?'~':'')+v.tm+'<span class="ssusd faint"> '+v.code+'</span>';}
+  function setMode(m){const total=m==='total';
+    document.getElementById('tTotal').setAttribute('aria-pressed',total);
+    document.getElementById('tEarned').setAttribute('aria-pressed',!total);
+    document.getElementById('valDelta').innerHTML='<svg class="i sm" viewBox="0 0 24 24" style="width:13px"><path d="M7 17 17 7M9 7h8v8"/></svg>'+(total?'+$176.56':'all-time');
+    paint();}
+  function stepBucket(dir){bi=(bi+dir+V.length)%V.length;paint();}
+
+  /* ── add-funds drawer: 2 steps (pick asset/FX → amount), mirror mobile ──── */
+  const ASSET={
+    USDC:{cur:'USD', sym:'$', venue:'DeFindex',  kind:'Vault',      apy:0.0859, chains:['Stellar'],         wal:9076},
+    EURC:{cur:'EUR', sym:'€', venue:'Blend',     kind:'Fixed pool', apy:0.0510, chains:['Stellar'],         wal:4200},
+    CETES:{cur:'MXN',sym:'$', venue:'Etherfuse', kind:'CETES',      apy:0.0557, chains:['Stellar','Solana'],wal:15000},
+  };
+  let dwAsset='USDC';
+  const A=()=>ASSET[dwAsset];
+  const af2=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function renderPick(){
+    document.getElementById('pickList').innerHTML=Object.keys(ASSET).map(k=>{const m=ASSET[k];
+      return `<button class="pickrow" onclick="pickAsset('${k}')"><span class="coin">${m.cur}</span>`+
+        `<div class="grow"><div class="nm">${k}</div><div class="chips">${m.chains.map(c=>`<span class="dchip">${c}</span>`).join('')}</div></div>`+
+        `<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>`;
+    }).join('');
+  }
+  function openDrawer(){
+    document.getElementById('stepPick').classList.remove('hidden');
+    document.getElementById('stepForm').classList.add('hidden');
+    document.getElementById('stepDone').classList.add('hidden');
+    document.getElementById('dwFoot').classList.add('hidden');
+    document.getElementById('dwTitle').textContent='Add funds';
+    document.getElementById('dwBack').classList.add('hidden');
+    renderPick();
+    document.getElementById('scrim').classList.add('open');document.getElementById('drawer').classList.add('open');syncScrollLock();
+  }
+  function closeDrawer(){document.getElementById('scrim').classList.remove('open');document.getElementById('drawer').classList.remove('open');syncScrollLock()}
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+  function amtVal(){return parseFloat((document.getElementById('amtIn').value||'0').replace(/[^0-9.]/g,''))||0}
+  /* digits + a single '.'; comma→dot; strip leading zeros ("06"→"6", "065"→"65") but keep "0.5" (all desktop inputs) */
+  function sanitizeNum(el){if(!el)return;
+    let v=el.value.replace(/,/g,'.').replace(/[^0-9.]/g,'');
+    const i=v.indexOf('.');
+    if(i!==-1)v=v.slice(0,i+1)+v.slice(i+1).replace(/\./g,'');
+    v=v.replace(/^0+(?=\d)/,'');
+    if(v.startsWith('.'))v='0'+v;
+    if(v==='')v='0';
+    el.value=v;}
+  function onAmt(){sanitizeNum(document.getElementById('amtIn'));}
+  function addPct(p){document.getElementById('amtIn').value=(A().wal*p).toFixed(0);}
+  function pickAsset(x){dwAsset=x;const m=A();
+    document.getElementById('amtCur').textContent=m.sym;
+    document.getElementById('assetHead').innerHTML=`<span class="coin">${m.cur}</span><div class="grow"><div class="nm num">${af2(m.wal)} ${x}</div></div>`;
+    document.getElementById('amtIn').value='0';
+    document.getElementById('dwTitle').textContent='Deposit '+x;
+    document.getElementById('dwBack').classList.remove('hidden');
+    document.getElementById('stepPick').classList.add('hidden');
+    document.getElementById('stepForm').classList.remove('hidden');
+    const f=document.getElementById('dwFoot');f.classList.remove('hidden');
+    f.innerHTML='<button class="pill-btn b-ink" style="flex:1" onclick="confirmAdd()">Deposit</button>';
+  }
+  function backToPick(){
+    document.getElementById('stepForm').classList.add('hidden');
+    document.getElementById('stepPick').classList.remove('hidden');
+    document.getElementById('dwFoot').classList.add('hidden');
+    document.getElementById('dwTitle').textContent='Add funds';
+    document.getElementById('dwBack').classList.add('hidden');
+  }
+  function confirmAdd(){const a=amtVal(),m=A();
+    document.getElementById('stepForm').classList.add('hidden');
+    document.getElementById('dwFoot').classList.add('hidden');
+    document.getElementById('dwBack').classList.add('hidden');
+    document.getElementById('stepDone').classList.remove('hidden');
+    document.getElementById('dwTitle').textContent='Confirming';
+    document.getElementById('doneInner').innerHTML='<div class="spin"></div><div class="sm muted">Confirming your deposit…</div>';
+    setTimeout(()=>{
+      document.getElementById('dwTitle').textContent='Done';
+      document.getElementById('doneInner').innerHTML=
+        '<div class="donecircle"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></div>'+
+        `<div style="font-size:18px;font-weight:600">${m.sym}${af2(a)} ${dwAsset} added</div>`+
+        `<div class="sm muted" style="max-width:250px;line-height:1.5">Your ${m.cur} bucket is now earning in ${m.venue}. Move to your wallet anytime.</div>`;
+      document.getElementById('dwFoot').classList.remove('hidden');
+      document.getElementById('dwFoot').innerHTML='<button class="pill-btn b-ink" style="flex:1" onclick="closeDrawer()">Done</button>';
+    },1100);
+  }
+
+  /* ── move to wallet drawer (mirror WithdrawKeypad) ─────────────────────── */
+  const WD=[
+    {code:'USD',name:'USD bucket',sym:'$',avail:'$1,024.30',n:1024.30},
+    {code:'EUR',name:'EUR bucket',sym:'€',avail:'€920.10',  n:920.10},
+    {code:'MXN',name:'MXN bucket',sym:'$',avail:'$545.00',  n:545.00},
+  ];
+  let wdi=0;
+  const wf2=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const wdVal=()=>parseFloat((document.getElementById('wdAmtIn').value||'0').replace(/[^0-9.]/g,''))||0;
+  function resetWdSteps(){
+    document.getElementById('wdForm').classList.remove('hidden');
+    document.getElementById('wdDone').classList.add('hidden');
+    document.getElementById('wdFoot').classList.remove('hidden');
+    document.querySelector('#drawerWd .dwhead .t').textContent='Move to wallet';
+    document.getElementById('wdFoot').innerHTML='<button class="pill-btn b-ink" style="flex:1" onclick="confirmWd()">Move to wallet</button>';
+  }
+  function renderWd(){const w=WD[wdi];
+    document.getElementById('wdCoin').textContent=w.code;
+    document.getElementById('wdName').textContent=w.name;
+    document.getElementById('wdAvail').textContent=w.avail;
+    document.getElementById('wdCur').textContent=w.sym;
+    onWdAmt();}
+  function openWd(){resetWdSteps();wdi=0;document.getElementById('wdAmtIn').value='0';renderWd();document.getElementById('scrimWd').classList.add('open');document.getElementById('drawerWd').classList.add('open');syncScrollLock()}
+  function closeWd(){document.getElementById('scrimWd').classList.remove('open');document.getElementById('drawerWd').classList.remove('open');syncScrollLock()}
+  function cycleWd(){wdi=(wdi+1)%WD.length;document.getElementById('wdAmtIn').value='0';renderWd()}
+  function wdPct(p){document.getElementById('wdAmtIn').value=(WD[wdi].n*p).toFixed(2);onWdAmt()}
+  function onWdAmt(){sanitizeNum(document.getElementById('wdAmtIn'));const w=WD[wdi],a=wdVal(),bad=a>w.n,empty=!(a>0);
+    document.getElementById('wdHint').style.display=bad?'block':'none';
+    const b=document.querySelector('#wdFoot .pill-btn');if(b){b.disabled=bad||empty;b.style.opacity=(bad||empty)?'.45':'';}}
+  function confirmWd(){const w=WD[wdi],a=wdVal();
+    document.getElementById('wdForm').classList.add('hidden');
+    document.getElementById('wdFoot').classList.add('hidden');
+    document.getElementById('wdDone').classList.remove('hidden');
+    document.querySelector('#drawerWd .dwhead .t').textContent='Sending';
+    document.getElementById('wdDoneInner').innerHTML='<div class="spin"></div><div class="sm muted">Sending to your wallet…</div>';
+    setTimeout(()=>{
+      document.querySelector('#drawerWd .dwhead .t').textContent='Done';
+      document.getElementById('wdDoneInner').innerHTML=
+        '<div class="donecircle"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></div>'+
+        `<div style="font-size:18px;font-weight:600">${w.sym}${wf2(a)} sent</div>`+
+        `<div class="sm muted" style="max-width:250px;line-height:1.5">Moved from your ${w.code} bucket to your Stellar wallet.</div>`;
+      document.getElementById('wdFoot').classList.remove('hidden');
+      document.getElementById('wdFoot').innerHTML='<button class="pill-btn b-ink" style="flex:1" onclick="closeWd()">Done</button>';
+    },1100);
+  }
+
+  /* ── activity drawer (real getActivity() data + kind→icon) ─────────────── */
+  const ICO2={
+    rebalanced:'<path d="M12 19V5M5 12l7-7 7 7"/>',
+    compounded:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/>',
+    froze:'<path d="M9 5v14M15 5v14"/>',
+    'proposed-exit':'<path d="M14 3H5v18h9M10 8l4 4-4 4M14 12H6"/>',
+    withdrew:'<path d="M3 7h15a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 0 2.5-3H16"/><circle cx="16" cy="12.5" r="1.4"/>',
+    deposited:'<path d="M12 5v14M5 12h14"/>',
+    consented:'<path d="M20 6 9 17l-5-5"/>',
+    allocated:'<path d="M12 5v14M5 12h14"/>',
+  };
+  const ACTF=[
+    {cat:'auto',kind:'rebalanced',   detail:'Switched to DeFindex · 8.59% APY',        when:'3h ago'},
+    {cat:'auto',kind:'compounded',   detail:'Reinvested rewards +$0.31 into USD pool',  when:'5h ago'},
+    {cat:'auto',kind:'froze',        detail:'Paused EURC pool for safety',              when:'6h ago'},
+    {cat:'auto',kind:'proposed-exit',detail:'Proposed safe exit from EURC pool',        when:'6h ago',review:true},
+    {cat:'you', kind:'withdrew',     detail:'Moved $500 to your wallet',                when:'1d ago'},
+    {cat:'you', kind:'deposited',    detail:'Deposited 1,000 USDC to USD bucket',       when:'2d ago'},
+    {cat:'you', kind:'consented',    detail:'Signed auto-optimize mandate',             when:'2d ago'},
+    {cat:'auto',kind:'allocated',    detail:'Allocated to Blend USDC',                  when:'2d ago'},
+  ];
+  let actFilter='all';
+  const actRows=list=>list.map(a=>`<div class="arow"><span class="actico"><svg class="i sm" viewBox="0 0 24 24" style="width:16px">${ICO2[a.kind]||ICO2.deposited}</svg></span><div class="grow"><div class="sm" style="font-weight:600">${a.detail}</div><div class="tiny muted">${a.when}</div></div>${a.review?'<button class="reviewbtn" onclick="openExit()">Review</button>':''}</div>`).join('');
+  function renderActList(){const list=actFilter==='all'?ACTF:ACTF.filter(a=>a.cat===actFilter);document.getElementById('actAll').innerHTML=actRows(list)}
+  function setActFilter(f,btn){actFilter=f;btn.parentNode.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false'));btn.setAttribute('aria-pressed','true');renderActList()}
+  function openActivity(){actFilter='all';document.querySelectorAll('#actFilter button').forEach((b,i)=>b.setAttribute('aria-pressed',i===0?'true':'false'));renderActList();document.getElementById('scrimAct').classList.add('open');document.getElementById('drawerAct').classList.add('open');syncScrollLock()}
+  function closeActivity(){document.getElementById('scrimAct').classList.remove('open');document.getElementById('drawerAct').classList.remove('open');syncScrollLock()}
+
+  /* ── account dropdown ──────────────────────────────────────────────────── */
+  function toggleAccount(e){e.stopPropagation();document.getElementById('acctDrop').classList.toggle('open')}
+  function closeAccount(){document.getElementById('acctDrop').classList.remove('open')}
+  function fromDropOpenActivity(e){e.stopPropagation();closeAccount();openActivity()}
+  function copyAddr(e){e.stopPropagation();const el=document.getElementById('ddAddr'),o=el.textContent;el.textContent='Copied';setTimeout(()=>el.textContent=o,1200)}
+
+  /* lock page scroll while any drawer/dialog is open */
+  function syncScrollLock(){document.documentElement.classList.toggle('noscroll',!!document.querySelector('.scrim.open,.modalwrap.open'))}
+
+  /* ── safe-exit approval (centered dialog) ──────────────────────────────── */
+  function openExit(){closeAccount();closeActivity();
+    document.getElementById('exitForm').classList.remove('hidden');
+    document.getElementById('exitDone').classList.add('hidden');
+    document.getElementById('exitModal').classList.add('open');syncScrollLock();}
+  function closeExit(){document.getElementById('exitModal').classList.remove('open');syncScrollLock()}
+  function approveExit(){
+    document.getElementById('exitForm').classList.add('hidden');
+    document.getElementById('exitDone').classList.remove('hidden');
+    document.getElementById('exitDoneInner').innerHTML='<div class="spin"></div><div class="sm muted">Approving in your wallet…</div>';
+    setTimeout(()=>{closeExit();const fb=document.getElementById('freezeBar');if(fb)fb.style.display='none';},1100);
+  }
+
+  document.addEventListener('click',e=>{if(!e.target.closest('.acctwrap'))closeAccount()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeWd();closeActivity();closeAccount();closeExit()}});
+</script>
+</body>
+</html>

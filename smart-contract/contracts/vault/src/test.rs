@@ -1,5 +1,6 @@
 //! Vault test suite (U6) — deterministic, offline, against the `mock_pool`
-//! Blend test-double. Modules: shares, consent, allocate, guard, integration.
+//! Blend test-double. Modules: shares, consent, auto_compound, allocate, guard,
+//! integration.
 
 #![cfg(test)]
 
@@ -158,10 +159,124 @@ mod shares {
     }
 }
 
+// ── nav: share_price / value_of views ─────────────────────────────────────
+
+mod nav {
+    use super::*;
+    use crate::shares::SHARE_PRICE_SCALE;
+    use crate::storage;
+
+    /// Raise a bucket's NAV without minting shares — the only way to lift its share
+    /// price, standing in for the pool yield this contract does not accrue yet
+    /// (mark-to-market NAV is deferred to a later upgrade). Writes storage directly
+    /// from inside the contract's context; deliberately not a vault entrypoint.
+    fn simulate_yield(ctx: &Ctx, currency: Currency, amount: i128) {
+        ctx.env.as_contract(&ctx.vault.address, || {
+            let total = storage::get_total_assets(&ctx.env, currency);
+            storage::set_total_assets(&ctx.env, currency, total + amount);
+        });
+    }
+
+    #[test]
+    fn empty_bucket_prices_at_base_scale() {
+        let ctx = setup();
+        // Virtual offset cancels rather than dividing by zero.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        let d = Address::generate(&ctx.env);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 0);
+    }
+
+    #[test]
+    fn deposit_alone_does_not_move_price() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        // Shares and assets rise together, so NAV per share stays at the base.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 100_000);
+    }
+
+    #[test]
+    fn share_price_rises_with_accrued_nav() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+
+        // (110_000 + 1_000) * 1e9 / (100_000 + 1_000), floored.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), 1_099_009_900);
+        assert!(ctx.vault.share_price(&Currency::Usd) > SHARE_PRICE_SCALE);
+        // The lone depositor owns the whole bucket, so the yield is all theirs:
+        // 100_000 * 111_000 / 101_000, floored.
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 109_900);
+    }
+
+    #[test]
+    fn value_of_previews_what_withdraw_returns() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // Fund the vault for the accrued portion, as a deallocate would before withdraw.
+        ctx.usd_admin.mint(&ctx.vault.address, &10_000);
+
+        let previewed = ctx.vault.value_of(&d, &Currency::Usd);
+        let owned = ctx.vault.balance_of(&d, &Currency::Usd);
+        ctx.vault.withdraw(&d, &Currency::Usd, &owned);
+        assert_eq!(ctx.usd_token.balance(&d), previewed);
+    }
+
+    #[test]
+    fn yield_splits_by_share_not_by_deposit_order() {
+        let ctx = setup();
+        let a = funded_depositor(&ctx, 100_000);
+        let b = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&a, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // b buys in after the yield, so b's shares cost more and carry none of it.
+        ctx.vault.deposit(&b, &Currency::Usd, &100_000);
+
+        let (a_shares, b_shares) = (
+            ctx.vault.balance_of(&a, &Currency::Usd),
+            ctx.vault.balance_of(&b, &Currency::Usd),
+        );
+        assert!(b_shares < a_shares);
+        assert!(ctx.vault.value_of(&a, &Currency::Usd) > ctx.vault.value_of(&b, &Currency::Usd));
+        // b is made whole on their principal (modulo floor rounding), not diluted.
+        assert!(ctx.vault.value_of(&b, &Currency::Usd) >= 100_000 - 1);
+    }
+
+    #[test]
+    fn unfunded_currency_reads_base_price_and_zero_value() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        simulate_yield(&ctx, Currency::Usd, 10_000);
+        // Buckets never blend: EUR is untouched by USD's NAV.
+        assert_eq!(ctx.vault.share_price(&Currency::Eur), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Eur), 0);
+    }
+
+    #[test]
+    fn views_are_public_reads_not_admin_gated() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+
+        // Drop all mocked auth: an admin-gated call now rejects...
+        ctx.env.set_auths(&[]);
+        assert!(ctx.vault.try_set_pool_allowed(&ctx.pool_a, &true).is_err());
+        // ...while the NAV views still answer anyone, like `pool_allowed`/`active_pool`.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 100_000);
+    }
+}
+
 // ── consent ─────────────────────────────────────────────────────────────
 
 mod consent {
     use super::*;
+    use soroban_sdk::testutils::Events as _;
 
     #[test]
     fn deposit_without_consent_panics() {
@@ -186,6 +301,32 @@ mod consent {
     }
 
     #[test]
+    fn first_consent_emits_event_then_recall_is_silent() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        // `events().all()` returns the most recent invocation's events, so we check
+        // right after each call. First consent (absent→set) emits one ConsentSet.
+        ctx.vault.set_policy_consent(&d);
+        assert_eq!(vault_event_count(&ctx), 1);
+        assert!(ctx.vault.has_consent(&d));
+        // Re-signing is a genuine no-op — its invocation emits nothing, so no
+        // duplicate "Signed mandate" row can appear in the live feed.
+        ctx.vault.set_policy_consent(&d);
+        assert_eq!(vault_event_count(&ctx), 0);
+        assert!(ctx.vault.has_consent(&d));
+    }
+
+    /// Events published by the vault in the most recent invocation.
+    fn vault_event_count(ctx: &Ctx) -> usize {
+        ctx.env
+            .events()
+            .all()
+            .filter_by_contract(&ctx.vault.address)
+            .events()
+            .len()
+    }
+
+    #[test]
     fn below_min_first_deposit_panics() {
         let ctx = setup();
         let d = funded_depositor(&ctx, 100_000);
@@ -193,6 +334,99 @@ mod consent {
             .vault
             .try_deposit(&d, &Currency::Usd, &(MIN_FIRST - 1))
             .is_err());
+    }
+}
+
+// ── auto-compound preference ─────────────────────────────────────────────
+
+mod auto_compound {
+    use super::*;
+    use soroban_sdk::testutils::Events as _;
+    use soroban_sdk::{map, vec, IntoVal, Symbol};
+
+    /// Absent key reads on: depositors who predate the preference keep compounding.
+    #[test]
+    fn default_is_enabled() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        assert!(ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn toggles_off_and_back_on() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        assert!(!ctx.vault.auto_compound_enabled(&d));
+        ctx.vault.set_auto_compound(&d, &true);
+        assert!(ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn set_is_idempotent() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        ctx.vault.set_auto_compound(&d, &false);
+        assert!(!ctx.vault.auto_compound_enabled(&d));
+    }
+
+    #[test]
+    fn set_requires_depositor_auth() {
+        let ctx = setup();
+        let d = Address::generate(&ctx.env);
+        // Drop all mocked auth — nobody may set another depositor's preference.
+        ctx.env.set_auths(&[]);
+        assert!(ctx.vault.try_set_auto_compound(&d, &false).is_err());
+    }
+
+    /// Turning reinvest off must not turn the vault off: principal keeps flowing.
+    #[test]
+    fn deposit_still_works_while_off() {
+        let ctx = setup();
+        let d = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&d, &false);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+    }
+
+    /// The preference is economic, the mandate is safety — toggling one never
+    /// touches the other (KTD3 and KTD-SC2 stay intact).
+    #[test]
+    fn toggling_never_moves_consent() {
+        let ctx = setup();
+        let consented = funded_depositor(&ctx, 100_000);
+        ctx.vault.set_auto_compound(&consented, &false);
+        assert!(ctx.vault.has_consent(&consented));
+
+        // And it cannot be used as a back door into consent.
+        let stranger = Address::generate(&ctx.env);
+        ctx.vault.set_auto_compound(&stranger, &true);
+        assert!(!ctx.vault.has_consent(&stranger));
+    }
+
+    /// The event is the point of the ticket: `set_policy_consent` publishes none, so
+    /// no activity row can be derived from it. This one has to be readable.
+    #[test]
+    fn set_publishes_event() {
+        let ctx = setup();
+        // A raw address (no consent) so this asserts ONLY the auto_compound_set event —
+        // set_policy_consent now emits its own ConsentSet, which funded_depositor triggers.
+        let d = Address::generate(&ctx.env);
+        ctx.vault.set_auto_compound(&d, &false);
+
+        // The depositor is a topic (indexable), `enabled` rides in the data map.
+        assert_eq!(
+            ctx.env.events().all().filter_by_contract(&ctx.vault.address),
+            vec![
+                &ctx.env,
+                (
+                    ctx.vault.address.clone(),
+                    (Symbol::new(&ctx.env, "auto_compound_set"), d.clone()).into_val(&ctx.env),
+                    map![&ctx.env, (Symbol::new(&ctx.env, "enabled"), false)].into_val(&ctx.env),
+                )
+            ]
+        );
     }
 }
 

@@ -20,4 +20,17 @@ describe('ActivityLog', () => {
     expect(log.list('EUR').every((e) => e.currency === 'EUR')).toBe(true);
     expect(log.list().length).toBe(2);
   });
+
+  it('defaults a stored entry to actor "agent" when none is supplied', () => {
+    const log = new ActivityLog();
+    const stored = log.append({ currency: 'USD', kind: 'allocated', detail: 'a' });
+    expect(stored.actor).toBe('agent');
+    expect(log.list()[0]?.actor).toBe('agent');
+  });
+
+  it('honors an explicit actor (a user-action source may pass "you")', () => {
+    const log = new ActivityLog();
+    const stored = log.append({ currency: 'USD', kind: 'allocated', detail: 'a', actor: 'you' });
+    expect(stored.actor).toBe('you');
+  });
 });

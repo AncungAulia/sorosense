@@ -3,12 +3,21 @@
  * the allocator workflow (U9), and the APIs (U11) reuse the same data functions under `../tools`
  * rather than re-fetching (DRY).
  *
- * The LLM only narrates activity — it never decides a freeze or a rebalance (KTD6). The model is an
- * OpenRouter route resolved from env; the agent constructs without a key (the key is read at run
- * time), so importing this module is side-effect free and safe in tests.
+ * The LLM only narrates activity — it never decides a freeze or a rebalance (KTD6). The model is
+ * resolved from env at construction; no key is read as a module-top-level side effect (it is read
+ * inside `resolveModel`), so importing this module is side-effect free and safe in tests.
+ *
+ * Model selection (STE-21 Fase A):
+ * - `JATEVO_API_KEY` set → an OpenAI-compatible provider pointed at Jatevo (`JATEVO_BASE_URL`,
+ *   default `https://2.jatevo.ai/v1`), model `SOROSENSE_MODEL` (default `gpt-5.4-mini`). Mastra
+ *   v1.49 resolves this `OpenAICompatibleConfig` with its bundled `createOpenAICompatible` — no
+ *   extra dependency needed.
+ * - `JATEVO_API_KEY` unset → the legacy string route (`MODEL`), so existing behavior/tests hold.
+ * `JATEVO_API_KEY` is backend-only and is never logged.
  */
 
 import { Agent } from '@mastra/core/agent';
+import type { MastraModelConfig } from '@mastra/core/llm';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
@@ -16,8 +25,34 @@ import { getCatalog, getDefindexVaults } from '../tools/catalog.js';
 import { getPoolData } from '../tools/pool-data.js';
 import { getReflectorPrice } from '../tools/price.js';
 
-/** OpenRouter model route. Confirmed live at U20 boot; a string is enough to typecheck/build. */
+/** Legacy fallback model route (used when no Jatevo key is present). */
 export const MODEL = process.env.SOROSENSE_MODEL ?? 'openrouter/anthropic/claude-sonnet-4.5';
+
+/** Jatevo (OpenAI-compatible) endpoint default. */
+const JATEVO_DEFAULT_BASE_URL = 'https://2.jatevo.ai/v1';
+/** Jatevo default model id when `SOROSENSE_MODEL` is unset. */
+const JATEVO_DEFAULT_MODEL = 'gpt-5.4-mini';
+
+/**
+ * Resolve the agent's model config from env. Pure over its `env` arg (defaults to `process.env`),
+ * so it is unit-testable without touching the network or process globals.
+ *
+ * With a Jatevo key present, returns a Mastra `OpenAICompatibleConfig`; Mastra builds the provider
+ * with its bundled `createOpenAICompatible({ apiKey, baseURL, ... }).chatModel(modelId)`. Without a
+ * key, returns the legacy string route so nothing changes for existing callers/tests.
+ */
+export function resolveModel(env: NodeJS.ProcessEnv = process.env): MastraModelConfig {
+  const apiKey = env.JATEVO_API_KEY;
+  if (!apiKey) {
+    return env.SOROSENSE_MODEL ?? 'openrouter/anthropic/claude-sonnet-4.5';
+  }
+  return {
+    providerId: 'jatevo',
+    modelId: env.SOROSENSE_MODEL ?? JATEVO_DEFAULT_MODEL,
+    url: env.JATEVO_BASE_URL ?? JATEVO_DEFAULT_BASE_URL,
+    apiKey,
+  };
+}
 
 const currencyEnum = z.enum(['USD', 'EUR', 'MXN']);
 
@@ -110,6 +145,6 @@ Rules:
 - Never surface a numeric risk score or a Safe/Watch/Risky label to the user; risk is internal.
 - The agent always seeks the safest-highest yield per currency bucket. There is no user risk tier.
 - Use the tools to ground any figure you mention; never invent APY or liquidity.`,
-  model: MODEL,
+  model: resolveModel(),
   tools: allocatorTools,
 });

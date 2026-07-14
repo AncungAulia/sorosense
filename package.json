@@ -12,6 +12,7 @@
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
+    "e2e": "pnpm -C frontend e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

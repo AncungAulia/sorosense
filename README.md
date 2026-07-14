@@ -8,6 +8,21 @@ pool that turns toxic. No risk-tier picker, no chatbot, no explore-catalog.
 
 > APAC Stellar Hackathon — DeFi & Ecosystem Composability track.
 
+## Smart contract — live on Stellar testnet
+
+The Soroban vault is deployed and verified live on testnet.
+
+| | |
+| --- | --- |
+| **Contract ID** | `CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y` |
+| **Network** | Testnet (`Test SDF Network ; September 2015`) |
+| **Explorer** | **https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y** |
+| **Upgradable** | Yes — admin-governed `upgrade(new_wasm_hash)`, storage preserved |
+
+Non-custodial per-currency vault (Rust / `soroban-sdk` 26): custody + share accounting,
+on-chain consent, keeper/approved allocation, and a protective Sentinel freeze. Full
+docs, contract surface, and the deployment record: [`smart-contract/README.md`](smart-contract/README.md).
+
 ## Monorepo layout
 
 | Path                     | What                                                               | Owner        |
