@@ -1,8 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MockVaultClient } from "@sorosense/vault-client";
+import {
+  MockVaultClient,
+  RealVaultClient,
+  SHARE_PRICE_SCALE,
+  type BindingsVaultClient,
+} from "@sorosense/vault-client";
 import { VaultProvider } from "../../providers/VaultProvider";
 import { seedVault } from "../../lib/vault/seed";
 import { useEarnings } from "../useEarnings";
+import { resetContributions } from "../../lib/vault/contributions";
+import { UNIT } from "../../lib/vault/units";
 
 const useWallet = vi.fn();
 vi.mock("../useWallet", () => ({ useWallet: () => useWallet() }));
@@ -61,4 +68,64 @@ test("hasDeposit is false when nothing is deposited", async () => {
   await waitFor(() => expect(screen.getByTestId("hasDeposit").textContent).toBe("false"));
   expect(screen.getByTestId("earnedUsd").textContent).toBe("0.0000");
   expect(screen.getByTestId("apy").textContent).toBe("0.0000");
+});
+
+/**
+ * KTD6 / R6 — the contributions ledger lives in browser memory and does not survive a reload, so
+ * against the real contract `value − contributions` renders the user's entire principal as profit.
+ * And there is nothing to derive: `share_price` is pinned to the scale until mark-to-market NAV
+ * accrual ships, so native yield is exactly zero. The seam's real adapter is used for real (with an
+ * injected fake bindings client, so the test stays offline) — not a stub of our own seam.
+ */
+function realClient(usdShares: bigint, usdValue: bigint): RealVaultClient {
+  const read = <T,>(result: T) => Promise.resolve({ result });
+  const isUsd = (c: { tag: string }) => c.tag === "Usd";
+  const bindings = {
+    balance_of: ({ currency }: { currency: { tag: string } }) => read(isUsd(currency) ? usdShares : 0n),
+    value_of: ({ currency }: { currency: { tag: string } }) => read(isUsd(currency) ? usdValue : 0n),
+    share_price: () => read(SHARE_PRICE_SCALE),
+    // No keeper allocation yet — the state the live demo actually starts in (A5).
+    active_pool: () => read(undefined),
+    pool_status: () => read({ tag: "Active", values: undefined }),
+    pending_exit: () => read(undefined),
+    has_consent: () => read(true),
+    auto_compound_enabled: () => read(true),
+  };
+  return new RealVaultClient({
+    contractId: "CCONTRACT",
+    rpcUrl: "https://rpc.invalid", // never reached: the bindings client is injected
+    networkPassphrase: "Test SDF Network ; September 2015",
+    client: bindings as unknown as BindingsVaultClient,
+  });
+}
+
+test("real mode — an on-chain balance with an empty ledger reports earned = 0, not the principal", async () => {
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  resetContributions(); // nothing recorded this session — a reload, or a deposit made before it
+  const client = realClient(100n * UNIT, 100n * UNIT);
+
+  render(<VaultProvider client={client}><Probe /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByTestId("hasDeposit").textContent).toBe("true"));
+  // The balance is real and shown; the yield has not accrued, and the screen says so.
+  expect(Number(screen.getByTestId("balanceUsd").textContent)).toBeGreaterThan(0);
+  expect(screen.getByTestId("earnedUsd").textContent).toBe("0.0000");
+  // The fabricated-profit regression: without the guard this is the whole $100 balance.
+  expect(screen.getByTestId("chartLast").textContent).toBe("0.0000");
+  expect(screen.getByTestId("monthlySum").textContent).toBe("0.0000");
+});
+
+test("real mode — a bucket with no active pool still renders (no keeper allocation yet, A5)", async () => {
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  const client = realClient(50n * UNIT, 50n * UNIT);
+
+  render(<VaultProvider client={client}><Probe /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByTestId("hasDeposit").textContent).toBe("true"));
+  expect(screen.getByTestId("apy").textContent).not.toBe("0.0000"); // the advertised catalog rate
+});
+
+test("mock mode still derives earned from value − contributions", async () => {
+  await renderFunded(); // seeded: simulateYield lifted NAV above the recorded contributions
+  expect(Number(screen.getByTestId("earnedUsd").textContent)).toBeGreaterThan(0);
 });

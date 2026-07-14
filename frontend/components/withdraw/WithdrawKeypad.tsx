@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SHARE_PRICE_SCALE, type Currency } from "@sorosense/vault-client";
+import { SHARE_PRICE_SCALE, type Currency, type TxResult } from "@sorosense/vault-client";
 import { Button, Keypad, SubHeader, CoinBadge, TransferStatus } from "../ui";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useVault } from "../../hooks/useVault";
@@ -42,7 +42,7 @@ export function WithdrawKeypad() {
     setAmount(fromAmount(BigInt(Math.floor(Number(active.value) * pct))));
   };
 
-  const doWithdraw = async () => {
+  const doWithdraw = async (): Promise<TxResult | undefined> => {
     if (!address || !active) return;
     const currency: Currency = active.currency;
     const enteredAmount = toAmount(amount);
@@ -56,8 +56,11 @@ export function WithdrawKeypad() {
       ? await client.balanceOf(address, currency)
       : (enteredAmount * SHARE_PRICE_SCALE) / (await client.sharePrice(currency));
     if (shares <= 0n) return;
-    await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
-    recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
+    const result = await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
+    // The shares are still in the bucket if the chain rejected the burn — reducing the cost basis
+    // then would inflate "Total earned" against funds that never left (R5).
+    if (result.success) recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
+    return result;
   };
 
   const onConfirm = () => {

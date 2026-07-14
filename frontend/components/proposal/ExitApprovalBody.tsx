@@ -6,6 +6,7 @@ import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
 import { depositorSigner } from "../../lib/vault/signer";
 import { formatCurrency } from "../../lib/vault/units";
+import { TX_REJECTED_MESSAGE } from "../../lib/vault/tx";
 import { toWalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 /**
@@ -32,7 +33,14 @@ export function useExitApproval(onClose: () => void) {
     inFlight.current = true;
     setBusy(true);
     try {
-      await client.approveExit(address, pend.proposal.id).signAndSubmit(depositorSigner(address, signTransaction));
+      const { success } = await client.approveExit(address, pend.proposal.id).signAndSubmit(depositorSigner(address, signTransaction));
+      // The seam resolves a rejected transaction as `success: false` rather than throwing. Saying
+      // "Exit approved" on that would tell the user their funds moved when they did not — the
+      // proposal is still pending and the pool is still paused (R5, KTD4).
+      if (!success) {
+        setToast(TX_REJECTED_MESSAGE); // sheet stays open: the exit is still there to approve
+        return;
+      }
       bump();
       setToast("Exit approved. Moving your funds now.");
       onClose();
