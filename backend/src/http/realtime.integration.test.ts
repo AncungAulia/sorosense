@@ -306,7 +306,7 @@ describe('Reflector FX symbols are config, not code (KTD6, R12)', () => {
     // `getReflectorPrice` types Option::None as `not_found` — precise for the tool, but HTTP-mapped to
     // 404. As an FX rate it means "unavailable", which is the 503 the read surfaces already promise.
     const source = { simulate: async () => xdr.ScVal.scvVoid() }; // the oracle's Option::None
-    const fx = makeReflectorFx(() => 'NOPE', { source, env: LIVE_FX_ENV });
+    const fx = makeReflectorFx(() => 'NOPE', { source, env: LIVE_FX_ENV, decimals: 14 });
 
     const rate = await fx('EUR');
 
