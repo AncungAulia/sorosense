@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button, Card, Switch, Toast } from "../../../components/ui";
 import { Identicon } from "../../../components/account/Identicon";
 import { LogoutSheet } from "../../../components/account/LogoutSheet";
-import { useConsent } from "../../../hooks/useConsent";
+import { useAutoCompound } from "../../../hooks/useAutoCompound";
 import { useNav } from "../../../hooks/useNav";
 import { useWallet } from "../../../hooks/useWallet";
 import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHome";
@@ -11,16 +11,20 @@ import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHom
 const truncate = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 /**
- * Read-only account screen. The only state-changing action is `disconnect()`, gated behind
- * `LogoutSheet`. Everything else here is a display of facts the wallet/vault seams actually have —
- * see the two inline notes below for what was deliberately left out and why.
+ * Account screen. Two state-changing actions, both explicit: `disconnect()` behind `LogoutSheet`,
+ * and the auto-reinvest switch (a wallet-signed seam write — see the note above the row). Everything
+ * else is a display of facts the wallet/vault seams actually have.
  */
 export default function AccountPage() {
   const nav = useNav();
   const { address, walletName, disconnect } = useWallet();
-  const { enabled } = useConsent();
   const [toast, setToast] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const notify = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(""), 2000);
+  };
+  const { enabled, loading, pending, toggle } = useAutoCompound(notify);
   // Account is a mobile-only surface; on desktop the avatar dropdown replaces it — redirect visitors.
   const redirecting = useRedirectDesktopToHome();
 
@@ -31,12 +35,11 @@ export default function AccountPage() {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(address);
-      setToast("Address copied");
+      notify("Address copied");
     } catch {
       // A non-secure context has no `navigator.clipboard`. Say so rather than silently doing nothing.
-      setToast("Could not copy address");
+      notify("Could not copy address");
     }
-    setTimeout(() => setToast(""), 2000);
   };
 
   const logout = async () => {
@@ -84,11 +87,13 @@ export default function AccountPage() {
       </Card>
 
       {/*
-        The switch is READ-ONLY: it displays consent, it does not grant or revoke it. The seam has
-        only `setPolicyConsent()` (idempotent) and `hasConsent()` (boolean) — there is no revoke, and
-        granting is a write, which STE-26 forbids from this tab ("no execution path from either
-        tab"). Consent is granted once, in the deposit flow. Making this switch live spans the
-        contract and the keeper: STE-38 / STE-39 / STE-40, running in parallel with this unit.
+        A LIVE toggle (STE-38): it reads and writes the depositor's auto-compound preference through
+        the seam, wallet-signed. It is not consent — STE-26 forbade a *consent* write from this tab
+        because the safety mandate is one-time and irrevocable (KTD3), so a switch would promise an
+        "off" the contract cannot deliver. Auto-compound is the opposite: a freely-revocable economic
+        preference that grants no mandate, so that constraint does not transfer. Toggling it never
+        calls `setPolicyConsent` and never changes `hasConsent`; revoking stops reinvest only —
+        allocate, rebalance and freeze-exit are unaffected.
       */}
       <Card className="mt-4 px-5 py-1">
         <div className="flex items-center gap-[13px] py-3.5">
@@ -103,8 +108,15 @@ export default function AccountPage() {
             <span className="block font-semibold">Auto reinvest rewards</span>
             <span className="block text-[12.5px] text-muted">Yield rewards flow back into your pool</span>
           </span>
-          <span data-testid="consent-state" data-state={enabled ? "on" : "off"}>
-            <Switch checked={enabled} label="Auto reinvest rewards" readOnly />
+          <span data-testid="auto-compound-state" data-state={enabled ? "on" : "off"}>
+            {/* Dimmed (and unpressable) until the read lands and while the write is in flight, so a
+                double-press cannot fire two transactions. */}
+            <Switch
+              checked={enabled}
+              label="Auto reinvest rewards"
+              readOnly={loading || pending}
+              onChange={() => void toggle()}
+            />
           </span>
         </div>
       </Card>
