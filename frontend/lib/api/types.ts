@@ -53,6 +53,49 @@ export interface Holding {
 /** `GET /holdings?depositor=…` — funded buckets only (zero-share buckets are omitted). */
 export type HoldingsResponse = Holding[];
 
+/**
+ * Who took the action — mirrors `Actor` in `backend/src/api/activity.ts`. Drives the feed's
+ * All / Yours / Automated tabs; it is not a risk signal.
+ */
+export type Actor = "you" | "agent";
+
+/**
+ * What happened — the union of the agent's `ActivityKind` (`backend/src/api/activity.ts`) and the
+ * user's `UserActionKind` (`backend/src/api/user-activity.ts`), which the backend merges into one feed.
+ */
+export type FeedKind =
+  | "allocated"
+  | "compounded"
+  | "rebalanced"
+  | "froze"
+  | "proposed-exit"
+  | "deposit"
+  | "withdraw"
+  | "sign-mandate"
+  | "approve-exit"
+  | "auto-compound";
+
+/**
+ * One merged feed row — mirrors `FeedEntry` in `backend/src/api/activity-feed.ts`.
+ *
+ * `seq` is the backend's monotonic ordering key (rows arrive most-recent-first); it is the row's
+ * identity, not a timestamp. `ts` is optional because the agent log does not require one, so the
+ * relative "3h ago" a row renders may be absent — a row without a time is still a real row.
+ * `depositor` appears only on user rows (agent rows are pool-level).
+ */
+export interface FeedEntry {
+  seq: number;
+  actor: Actor;
+  currency?: Currency;
+  kind: FeedKind;
+  detail: string;
+  ts?: number;
+  depositor?: string;
+}
+
+/** `GET /activity?depositor=&actor=&currency=&limit=` — the merged feed, most-recent-first. */
+export type ActivityResponse = FeedEntry[];
+
 /** A fundable stablecoin — mirrors `Stablecoin` in `backend/src/api/funding.ts`. */
 export interface Stablecoin {
   sym: "USDC" | "EURC" | "CETES";
