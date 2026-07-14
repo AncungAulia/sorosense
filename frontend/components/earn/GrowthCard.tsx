@@ -64,7 +64,15 @@ export function windowBars(chart: ChartPoint[], period: PeriodName, now: number)
   return out;
 }
 
-/** The funded Earn screen's Growth card: chart + period control + per-month breakdown. */
+/**
+ * The funded Earn screen's Growth card: chart + period control + per-month breakdown.
+ *
+ * **Zero-state (R10).** When nothing has been earned — the honest state of the live vault, whose
+ * `share_price` is pinned to `SHARE_PRICE_SCALE` until mark-to-market NAV accrual ships (U5) — the card
+ * says so in words instead of drawing a row of floor-height bars and a breakdown of nine `+$0.00` rows.
+ * Bars at the 8px floor are not a chart of zero; they are a chart that looks broken. The deposit itself
+ * is real and visible on Home's value chart, which steps on it.
+ */
 export function GrowthCard({
   chart,
   monthly,
@@ -75,20 +83,32 @@ export function GrowthCard({
   now: number;
 }) {
   const [period, setPeriod] = useState<PeriodName>("year");
+  const hasEarnings = monthly.some((m) => m.earnedUsd > 0) || chart.some((p) => p.earnedUsd > 0);
 
   return (
     <Card className="p-5">
       <div className="mb-1 text-[15px] font-medium text-muted">Growth</div>
-      <Bars values={windowBars(chart, period, now)} />
-      <Segmented
-        options={PERIODS}
-        value={period}
-        onChange={setPeriod}
-        label="Period"
-        variant="period"
-        renderLabel={(p) => PERIOD_LABEL[p]}
-      />
-      <MonthlyBreakdown monthly={monthly} now={now} />
+      {hasEarnings ? (
+        <>
+          <Bars values={windowBars(chart, period, now)} />
+          <Segmented
+            options={PERIODS}
+            value={period}
+            onChange={setPeriod}
+            label="Period"
+            variant="period"
+            renderLabel={(p) => PERIOD_LABEL[p]}
+          />
+          <MonthlyBreakdown monthly={monthly} now={now} />
+        </>
+      ) : (
+        <div data-testid="growth-zero" className="flex flex-col items-center gap-2 px-4 py-9 text-center">
+          <span className="text-[15px] font-semibold">No earnings yet</span>
+          <span className="max-w-[260px] text-[13.5px] leading-snug text-muted">
+            Your deposits are allocated and safe. Yield shows up here as it accrues — nothing is hidden.
+          </span>
+        </div>
+      )}
     </Card>
   );
 }

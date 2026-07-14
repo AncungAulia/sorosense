@@ -49,3 +49,24 @@ test("a negative month renders as a loss, not a gain", () => {
   expect(first.textContent).not.toContain("+");
   expect(first.querySelector("span:last-child")).toHaveClass("text-neg");
 });
+
+/**
+ * A month that earned nothing is neither a gain nor a loss, and must not be dressed as one — a green
+ * "+$0.00" claims growth that did not happen, which is the class of lie U3 removes (R10). Zero is the
+ * live vault's honest state until NAV accrual ships.
+ */
+test("a zero month is neutral — no plus sign, no green", () => {
+  const withZero = [...monthly.slice(0, -1), { label: "2026-07", earnedUsd: 0 }];
+  render(<MonthlyBreakdown monthly={withZero} now={NOW} />);
+  const first = screen.getAllByTestId("month-row")[0]!;
+  expect(first.textContent).toContain("$0.00");
+  expect(first.textContent).not.toContain("+");
+  expect(first.querySelector("span:last-child")).toHaveClass("text-muted");
+  expect(first.querySelector("span:last-child")).not.toHaveClass("text-pos");
+});
+
+test("an empty month list renders nothing at all — not an empty rule", () => {
+  const { container } = render(<MonthlyBreakdown monthly={[]} now={NOW} />);
+  expect(container).toBeEmptyDOMElement();
+  expect(screen.queryAllByTestId("month-row")).toHaveLength(0);
+});

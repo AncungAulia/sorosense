@@ -3,6 +3,12 @@
  * the series maximum; the 8px floor keeps a zero bar visible. Decorative: the numbers a user needs
  * are already rendered as text next to it.
  *
+ * The `max > 0` guard is load-bearing, not defensive noise: an all-zero series is a **reachable** state
+ * (the live vault does not accrue yet), and `v / 0` would put `NaN` in a style attribute. It renders a
+ * flat row at the floor — which is why an all-zero series never reaches this component: `GrowthCard`
+ * shows a written zero-state instead, because a flat row of stubs reads as broken rather than as zero
+ * (R10).
+ *
  * Geometry and the green gradient mirror `.bars .bar` in `docs/mockups/sorosense-mock-2.html` —
  * growth reads as positive, so the chart carries the same semantic accent as every other
  * gain figure on these screens.
