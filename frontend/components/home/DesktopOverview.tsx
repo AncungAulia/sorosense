@@ -217,9 +217,8 @@ export function DesktopOverview() {
 
         {/* Growth — monthly earnings bar chart (this year) */}
         <Card className="flex flex-col px-5 py-[18px]" aria-label="Growth">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-6 flex items-center justify-between">
             <h2 className="text-[13px] font-semibold text-muted">Growth</h2>
-            <span className="text-xs text-muted [font-variant-numeric:tabular-nums]">This year</span>
           </div>
           {loading ? (
             <div className="mt-2 flex h-[132px] items-end gap-[5px]">
