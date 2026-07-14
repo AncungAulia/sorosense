@@ -6,10 +6,10 @@ import { ActivityList } from "../activity/ActivityList";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
 
-const TABS = ["All", "Yours", "Automated"] as const;
+const TABS = ["All", "Yours", "Agent"] as const;
 type Tab = (typeof TABS)[number];
 /** Tab → the ActivityItem.cat it filters to (All is the UI-only sentinel). */
-const TAB_CAT: Record<Tab, "you" | "auto" | null> = { All: null, Yours: "you", Automated: "auto" };
+const TAB_CAT: Record<Tab, "you" | "auto" | null> = { All: null, Yours: "you", Agent: "auto" };
 
 /**
  * Desktop activity drawer: mirrors the mobile Activity page (interface-map §8) but the hand-rolled

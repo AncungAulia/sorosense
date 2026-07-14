@@ -6,7 +6,7 @@ import { ExitApproval } from "../../../../components/proposal/ExitApproval";
 import { useActivity } from "../../../../hooks/useActivity";
 import { usePendingExit } from "../../../../hooks/usePendingExit";
 
-const FILTERS = [{ key: "all", label: "All" }, { key: "you", label: "Yours" }, { key: "auto", label: "Automated" }] as const;
+const FILTERS = [{ key: "all", label: "All" }, { key: "you", label: "Yours" }, { key: "auto", label: "Agent" }] as const;
 
 export default function ActivityPage() {
   const { loading, items } = useActivity();
