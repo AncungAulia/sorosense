@@ -1,7 +1,8 @@
 /**
  * Protocol performance fee — a percentage of the **yield** (never the principal), the standard vault
- * model (Yearn ~20%, Beefy ~9.5%). SoroSense takes {@link DEFAULT_PERFORMANCE_FEE_BPS} (10%) by
- * default, so a 10.57% gross pool APY nets the depositor ~9.51%. Configurable via `PERFORMANCE_FEE_BPS`.
+ * model (Yearn ~20%, Beefy ~9.5%). SoroSense takes {@link DEFAULT_PERFORMANCE_FEE_BPS} (1%) by default —
+ * a deliberately light touch — so a 10.57% gross pool APY nets the depositor ~10.46%. Configurable via
+ * `PERFORMANCE_FEE_BPS`.
  *
  * Pure math, no I/O — the single source both read surfaces use so the "net APY" they quote never drifts
  * from the "fee on earnings" they book. **Scope note:** this is the fee *model* the app discloses; the
@@ -9,8 +10,8 @@
  * is intentionally not implied by these numbers being shown — they are the honest net a depositor keeps.
  */
 
-/** Default performance fee: 10% of yield (1000 bps). Must be a share of yield, never of principal. */
-export const DEFAULT_PERFORMANCE_FEE_BPS = 1000;
+/** Default performance fee: 1% of yield (100 bps). Must be a share of yield, never of principal. */
+export const DEFAULT_PERFORMANCE_FEE_BPS = 100;
 
 /** Basis-points denominator (100% = 10_000 bps). */
 const BPS = 10_000;

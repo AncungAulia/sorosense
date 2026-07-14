@@ -34,10 +34,10 @@ describe('getRates', () => {
     }
   });
 
-  it('carries the net APY after the 10% performance fee (10% gross → 9% net, feeBps 1000)', async () => {
+  it('carries the net APY after the 1% performance fee (10% gross → 9.9% net, feeBps 100)', async () => {
     const [usd] = await rates(['USD']);
-    expect(usd?.feeBps).toBe(1000);
-    expect(usd?.netApy).toBe(9); // 10 gross × 0.9
+    expect(usd?.feeBps).toBe(100);
+    expect(usd?.netApy).toBe(9.9); // 10 gross × 0.99
     expect(usd?.netApy).toBeLessThan(usd!.apy); // net always below gross when a fee applies
   });
 
