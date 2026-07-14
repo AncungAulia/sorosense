@@ -141,13 +141,15 @@ describe("reading the trustline", () => {
 
 describe("Horizon's 7-decimal amounts", () => {
   it("parses losslessly past Number.MAX_SAFE_INTEGER (a plain Number() would corrupt it)", async () => {
-    const { toBaseUnits } = await loadBalance(live);
+    // Horizon balances are parsed by the shared `toAmount` (units.ts) — the same base-unit convention
+    // the deposit keypad uses, so this guards that one parser against Horizon's fixed-7-decimal strings.
+    const { toAmount } = await import("../../vault/units");
 
-    expect(toBaseUnits("250.0000000")).toBe(2_500_000_000n);
-    expect(toBaseUnits("0.1234567")).toBe(1_234_567n);
-    expect(toBaseUnits("1")).toBe(10_000_000n);
+    expect(toAmount("250.0000000")).toBe(2_500_000_000n);
+    expect(toAmount("0.1234567")).toBe(1_234_567n);
+    expect(toAmount("1")).toBe(10_000_000n);
     // 922337203685.4775807 is Stellar's max amount: 9223372036854775807 base units.
-    const max = toBaseUnits("922337203685.4775807");
+    const max = toAmount("922337203685.4775807");
     expect(max).toBe(9_223_372_036_854_775_807n);
     // A float round-trip corrupts it — which is exactly why the parser never goes through Number().
     expect(BigInt(Number(max))).not.toBe(max);

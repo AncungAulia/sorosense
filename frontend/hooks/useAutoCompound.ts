@@ -91,6 +91,7 @@ export function useAutoCompound(onError?: (message: string) => void): {
     inFlight.current = true;
     setPending(true);
     gen.current++; // any read still in flight predates this write — retire its answer
+    const mine = gen.current; // this write's generation; a newer read/write (e.g. an account switch) supersedes it
     try {
       const { success } = await client
         .setAutoCompound(address, next)
@@ -102,6 +103,11 @@ export function useAutoCompound(onError?: (message: string) => void): {
         onErrorRef.current?.("Could not save that. Nothing changed.");
         return;
       }
+      // The depositor may have switched accounts while the signature dialog was open. If a newer read
+      // or write has superseded this one (the read effect bumps `gen` on an address change), the switch
+      // now belongs to a different depositor — painting this result would show the old account's value.
+      // The on-chain write still stands; the read re-fetches it when the user returns to this account.
+      if (gen.current !== mine) return;
       known.current = { address, enabled: next };
       // Show the new position immediately, then bump() so the seam re-read is the source of truth.
       setState({ loading: false, enabled: next });

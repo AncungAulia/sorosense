@@ -18,7 +18,7 @@
  */
 
 import type { StablecoinSym } from "../vault/data";
-import { UNIT } from "../vault/units";
+import { toAmount } from "../vault/units";
 
 /**
  * Each var is read as a literal `process.env.NEXT_PUBLIC_*` expression: Next inlines those textually
@@ -80,18 +80,6 @@ export interface WalletBalance {
 export type BalanceResult = { ok: true; value: WalletBalance } | { ok: false; message: string };
 
 /**
- * Horizon renders every amount as a fixed 7-decimal string ("250.0000000"). Parse it to base units
- * without going through `Number`, which would corrupt large balances.
- */
-export function toBaseUnits(horizonAmount: string): bigint {
-  const [whole = "0", frac = ""] = horizonAmount.trim().split(".");
-  const padded = (frac + "0000000").slice(0, 7);
-  const sign = whole.startsWith("-") ? -1n : 1n;
-  const digits = whole.replace(/^[+-]/, "") || "0";
-  return sign * (BigInt(digits) * UNIT + BigInt(padded || "0"));
-}
-
-/**
  * Read `{HORIZON}/accounts/{address}` and pick out the trustline for `sym`'s configured asset.
  *
  * A raw `fetch` rather than `Horizon.Server.loadAccount`: this is one GET whose 404 is *meaningful*
@@ -149,7 +137,9 @@ export async function readWalletBalance(sym: StablecoinSym, address: string): Pr
   }
 
   try {
-    return { ok: true, value: { amount: toBaseUnits(line.balance), trustline: true, unfunded: false } };
+    // Horizon amounts are non-negative, fixed 7-decimal strings — the exact shape `toAmount` parses
+    // (shared with the deposit keypad, so the base-unit convention lives in one place, `units.ts`).
+    return { ok: true, value: { amount: toAmount(line.balance), trustline: true, unfunded: false } };
   } catch {
     // `BigInt()` throws on a non-decimal string. The no-throw contract holds all the way through the
     // decode: a malformed amount is an error the caller falls back from, never an unhandled rejection.
