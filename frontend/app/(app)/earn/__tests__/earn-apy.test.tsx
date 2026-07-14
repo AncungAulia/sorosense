@@ -1,5 +1,13 @@
 /**
- * Earn's APY surfaces with the backend **enabled** (R5 · KTD3).
+ * Earn's APY surfaces with the backend **enabled** (R5 · R13 · KTD3).
+ *
+ * Two routes feed one number, and which one wins is the whole contract:
+ *  - a **funded** bucket's rate is its `GET /holdings` row — the pool the vault is actually in;
+ *  - an **unfunded** bucket's (the empty-state hero, the simulator) is `GET /rates` — the venue the
+ *    agent *would* allocate it to. It used to be `BUCKET_META`, which is the leak U4 closes.
+ *
+ * So the three rates below are deliberately all different (8.20 holdings / 7.75 rates / 8.59 fixture):
+ * whichever renders names its own source, and none can pass for another.
  *
  * The offline half — API unset ⇒ the 8.59%/5.10% fixtures on every surface, zero requests — is what
  * `earn-empty.test.tsx` and the rest of the suite already guard; they all run with the var absent.
@@ -55,6 +63,17 @@ const EUR_ROW = {
 type Row = typeof USD_ROW;
 
 /**
+ * `GET /rates` — the rate card for a bucket with no `/holdings` row. Its figures match neither the
+ * holdings rows (8.20 / 4.90) nor `BUCKET_META` (8.59 / 5.10), so a hero quoting 7.75% can only have
+ * read this route, and one quoting 8.59% can only have fallen back to the fixture.
+ */
+const RATES = [
+  { currency: "USD", name: "DeFindex USDC vault", venue: "DeFindex", kind: "vault", tags: ["DeFindex", "Vault"], apy: 7.75 },
+  { currency: "EUR", name: "Blend EURC", venue: "Blend", kind: "lending", tags: ["Blend", "Fixed pool"], apy: 4.25 },
+  { currency: "MXN", name: "Etherfuse CETES", venue: "Etherfuse", kind: "rwa", tags: ["Etherfuse", "CETES"], apy: 5.57 },
+];
+
+/**
  * `GET /earnings` for the same rows, as the live backend would send it: `earnedUsd` is **0**, because
  * `share_price` is pinned to the scale until NAV accrual ships (R10). The per-bucket rates asserted
  * below therefore have to come from the `/holdings` rows — this response carries none.
@@ -72,17 +91,21 @@ function earningsFor(rows: Row[]) {
   };
 }
 
-/** The Earn page reads two routes now — answer each with its own shape, not with whatever came first. */
+/** The Earn page reads three routes now — answer each with its own shape, not with whatever came first. */
 function routeTo(rows: Row[]) {
   return (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
-    const body = url.includes("/earnings") ? earningsFor(rows) : rows;
+    const body = url.includes("/earnings") ? earningsFor(rows) : url.includes("/rates") ? RATES : rows;
     // A fresh Response per call: a body can only be read once, and the hooks refetch on a vault bump.
     return Promise.resolve(
       new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }),
     );
   };
 }
+
+/** Every path the mock was asked for — so a test can assert which routes were (not) reached. */
+const requestedPaths = (mock: ReturnType<typeof vi.fn>): string[] =>
+  mock.mock.calls.map(([input]) => new URL(String(input)).pathname);
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -112,7 +135,9 @@ test("the funded hero shows the backend's rate for USD, not the fixture", async 
   await user.click(screen.getByRole("button", { name: "Switch bucket" }));
   await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
   expect(screen.getByText(/8\.20% APY/)).toBeInTheDocument();
-  expect(screen.queryByText(/8\.59% APY/)).toBeNull();
+  expect(screen.queryByText(/8\.59% APY/)).toBeNull(); // not the fixture…
+  expect(screen.queryByText(/7\.75% APY/)).toBeNull(); // …and not /rates either: a funded bucket's rate
+                                                       // is the pool it is IN, not the one it would pick.
 });
 
 test("every funded bucket takes its rate from its own /holdings row — no fixture rate leaks (KTD4)", async () => {
@@ -137,9 +162,10 @@ test("every funded bucket takes its rate from its own /holdings row — no fixtu
   expect(subline).not.toMatch(/NaN|0\.00% APY/);
 });
 
-test("the empty-state hero and simulator have no /holdings row either — fixture, never NaN", async () => {
+test("the empty-state hero and simulator have no /holdings row — so they quote /rates, not the fixture", async () => {
   const user = userEvent.setup();
-  // No address ⇒ no depositor to query: the API stays untouched and the fixture rate renders (KTD3).
+  // No address, and none is needed: the rate card is user-independent, so it renders for a visitor who
+  // has not connected a wallet — which is exactly who the empty-state hero is for.
   useWallet.mockReturnValue({ address: null, isConnected: false });
   render(
     <VaultProvider client={new MockVaultClient()}>
@@ -147,18 +173,27 @@ test("the empty-state hero and simulator have no /holdings row either — fixtur
     </VaultProvider>,
   );
 
-  await waitFor(() => expect(screen.getByText("Earn balance")).toBeInTheDocument());
-  expect(screen.getByTestId("hero-apy").textContent).toBe("8.59% APY");
-  expect(screen.getByTestId("projection").textContent).toBe("$85.90");
+  await waitFor(() => expect(screen.getByTestId("hero-apy").textContent).toBe("7.75% APY"));
+  // The simulator projects from the same number — one accessor, so the hero and the projection cannot
+  // disagree: $1,000 at 7.75% is $77.50, not the fixture's $85.90.
+  expect(screen.getByTestId("projection").textContent).toBe("$77.50");
+
   await user.click(screen.getByRole("button", { name: "EUR" }));
-  expect(screen.getByTestId("hero-apy").textContent).toBe("5.10% APY");
-  expect(fetchMock).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByTestId("hero-apy").textContent).toBe("4.25% APY"));
+
+  // No wallet ⇒ nothing per-user is fetched; only the user-independent rate card is.
+  const paths = requestedPaths(fetchMock);
+  expect(paths).toContain("/rates");
+  expect(paths).not.toContain("/holdings");
+  expect(paths).not.toContain("/earnings");
 });
 
-test("a /holdings read that fails degrades the funded hero to the fixture, never a blank", async () => {
+test("a backend that dies mid-demo degrades the funded hero to the fixture, never a blank", async () => {
   const logged = vi.spyOn(console, "error").mockImplementation(() => {});
   const user = userEvent.setup();
-  fetchMock.mockRejectedValue(new TypeError("Failed to fetch")); // backend down mid-demo
+  // Every route is down — /holdings AND /rates. The fixture is the last honest number left, and it is
+  // why R11 keeps it: a rate the backend cannot confirm still beats "NaN% APY" on a demo screen.
+  fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   const client = new MockVaultClient();
   await seedVault(client, "GUSER");

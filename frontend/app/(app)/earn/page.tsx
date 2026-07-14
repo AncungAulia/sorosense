@@ -9,15 +9,16 @@ import { useApyResolver } from "../../../hooks/useApy";
 import { useEarnings } from "../../../hooks/useEarnings";
 import { useNav } from "../../../hooks/useNav";
 import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHome";
-import { getBucketMeta } from "../../../lib/vault/data";
+import { bucketLabel } from "../../../lib/vault/data";
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EarnPage() {
   const nav = useNav();
   const { loading, view } = useEarnings();
-  // The one APY accessor (R5): a funded bucket's rate comes from the backend's /holdings row, an
-  // unfunded one (the empty-state hero, the simulator) from the documented BUCKET_META fallback (KTD3).
+  // The one APY accessor (R5 · R13): a funded bucket's rate comes from the backend's /holdings row, an
+  // unfunded one (the empty-state hero, the simulator) from GET /rates. Both are the vetted catalog; the
+  // fixture is reached only with the API off (KTD3).
   const apyOf = useApyResolver();
   const [currency, setCurrency] = useState<Currency>("USD");
   const [i, setI] = useState(0);
@@ -78,7 +79,7 @@ export default function EarnPage() {
     // them through useApy), so the "All buckets" row and each bucket row agree by construction.
     { name: "All buckets", currency: undefined, earned: view.earnedUsd, balance: view.balanceUsd, apy: view.apy },
     ...view.buckets.map((b) => ({
-      name: getBucketMeta(b.currency).name,
+      name: bucketLabel(b.currency),
       currency: b.currency,
       earned: b.earnedUsd,
       balance: b.usdValue,

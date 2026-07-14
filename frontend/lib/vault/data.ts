@@ -40,11 +40,15 @@ export function stablecoinByCurrency(currency: Currency): Stablecoin | undefined
 /**
  * Venue/name/tags/APY per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
  *
- * **OFFLINE FALLBACK (R5 · R11 · KTD4).** In real mode the whole bucket row — name, venue, tags **and**
- * APY — comes from `GET /holdings` (`useBuckets`), so none of this is read. It renders when
- * `NEXT_PUBLIC_API_URL` is unset or the read failed, and — via `useApy` — for a bucket the user has not
- * funded, which `getHoldings` correctly omits (the Earn empty-state hero, the simulator). Reach it only
- * through `useBuckets` / `useApy`; a surface that reads it directly cannot be corrected by the backend.
+ * **OFFLINE FALLBACK ONLY (R5 · R11 · R13 · KTD4).** With the API on, **nothing reads this**:
+ *  - a **funded** bucket's whole row — name, venue, tags and APY — is `GET /holdings` (`useBuckets`);
+ *  - an **unfunded** bucket's rate (the Earn empty-state hero, the simulator), which `getHoldings`
+ *    correctly omits, is `GET /rates` (`useRates`, reached through `useApy`).
+ *
+ * It renders when `NEXT_PUBLIC_API_URL` is unset (vitest, Playwright, a bare `pnpm dev`) or a read
+ * failed — a backend that dies mid-demo must degrade a screen to fixtures, never to `NaN%`. Reach it
+ * only through `useBuckets` / `useApy`; a surface that reads it directly cannot be corrected by the
+ * backend, which is the whole point of the seam.
  */
 const BUCKET_META: Record<Currency, BucketMeta> = {
   USD: { currency: "USD", name: "USD bucket", venue: "DeFindex", tags: ["DeFindex", "Vault"], apy: 8.59 },
@@ -55,7 +59,26 @@ export function getBucketMeta(currency: Currency): BucketMeta {
   return BUCKET_META[currency];
 }
 
-/** Display data for a safe-exit *target* pool, keyed by pool id. No risk field (invisible safety). */
+/**
+ * The bucket's own label — "USD bucket". **Not a fixture, and not gated:** it names the *currency
+ * bucket*, which is a product concept, not a venue. No backend read carries it (a `/holdings` row's
+ * `name` is the venue — "DeFindex USDC vault" — which is not what the Earn toggle is listing), so there
+ * is nothing for the backend to correct here and it renders identically in both modes.
+ */
+export function bucketLabel(currency: Currency): string {
+  return `${currency} bucket`;
+}
+
+/**
+ * Display data for a safe-exit *target* pool, keyed by pool id. No risk field (invisible safety).
+ *
+ * **OFFLINE FALLBACK ONLY (R11 · R13).** In real mode the exit target is `GET /pools/:id`
+ * (`usePendingExit`) — and it has to be: on-chain, `ExitProposal.toPool` is a seam `PoolId` from the
+ * backend catalog (`blend-eurc`), an id space this map has never carried. Its keys are the **local
+ * seed's** (`pool-defindex-eur`, `lib/vault/seed.ts`), so it can only ever name a pool the browser's
+ * mock proposed to itself. That is exactly what makes it a fixture — and why it stays: the offline demo
+ * and the Playwright freeze flow still have to render the sheet.
+ */
 const POOL_META: Record<string, { name: string; apy: number }> = {
   "pool-defindex-eur": { name: "DeFindex EURC", apy: 5.9 },
 };

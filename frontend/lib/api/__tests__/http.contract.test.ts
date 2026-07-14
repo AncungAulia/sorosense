@@ -25,7 +25,15 @@ import { MockVaultClient, mockSigner } from "@sorosense/vault-client";
 
 import { itemFromEntry } from "../../activity/map";
 import { UNIT } from "../../vault/units";
-import type { EarningsResponse, FeedEntry, FundingOptions, HealthResponse, Holding } from "../types";
+import type {
+  EarningsResponse,
+  FeedEntry,
+  FundingOptions,
+  HealthResponse,
+  Holding,
+  Pool,
+  Rate,
+} from "../types";
 
 // NOTE: `../client` is imported *dynamically*, inside each test. It reads its base URL at module scope
 // (Next inlines the var), so a static import here would freeze it to "" — the API off — before the
@@ -294,6 +302,48 @@ describeContract("the backend read surface, through the real client", () => {
       expect(view).not.toHaveProperty(key);
       expect(usd).not.toHaveProperty(key);
     }
+  });
+
+  it("GET /rates decodes as Rate[] — one card per currency, no depositor needed", async () => {
+    const { apiGet } = await import("../client");
+
+    // No query parameter: the rate card is user-independent, which is what lets the Earn empty-state
+    // hero quote a real rate before a wallet is ever connected.
+    const result = await apiGet<Rate[]>("/rates");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.map((r) => r.currency)).toEqual(["USD", "EUR", "MXN"]);
+    for (const rate of result.value) {
+      expect(typeof rate.name).toBe("string");
+      expect(typeof rate.venue).toBe("string");
+      expect(["lending", "vault", "rwa"]).toContain(rate.kind);
+      expect(Array.isArray(rate.tags)).toBe(true);
+      expect(typeof rate.apy).toBe("number");
+      expect(rate.apy).toBeGreaterThan(0); // never a 0.00% hero
+      // Safety is invisible: the backend exposes no risk/label/score/tier field, and neither do we.
+      for (const key of ["risk", "label", "score", "tier"]) {
+        expect(rate).not.toHaveProperty(key);
+      }
+    }
+  });
+
+  it("GET /pools/:id decodes as Pool; an unknown id is the shaped 404 arm, never a null body", async () => {
+    const { apiGet } = await import("../client");
+
+    const found = await apiGet<Pool>("/pools/blend-eurc");
+    expect(found.ok).toBe(true);
+    if (!found.ok) return;
+    expect(found.value).toEqual({ id: "blend-eurc", name: "Blend EURC", venue: "Blend", apy: 5.1 });
+
+    // The exit sheet must never be asked to render a pool with no name: an unresolvable id comes back
+    // through the client's error arm, not as a 200 the caller would have to null-check.
+    const missing = await apiGet<Pool>("/pools/pool-that-does-not-exist");
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.code).toBe("not_found");
+    expect(missing.status).toBe(404);
   });
 
   it("a missing required parameter comes back as the shaped error arm, not a throw", async () => {
