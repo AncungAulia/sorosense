@@ -4,3 +4,9 @@ packages:
   - landing-page
   - packages/*
 # smart-contract is a Cargo (Rust) project, invoked via scripts — not a pnpm workspace.
+
+# Native deps that need to run install-time build scripts (pnpm 10 blocks these by default).
+# sharp: Next.js production image optimization. unrs-resolver: eslint import resolver.
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver

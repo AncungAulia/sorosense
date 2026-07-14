@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SoroSense — landing mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0b0b0c;
+    --muted: #63636b;
+    --paper: #efefed;   /* grey background */
+    --cloud: #ffffff;   /* white background / cards */
+    --mist: #e6e6e2;    /* soft grey card */
+    --line: #dcdcd7;
+
+    --blue: #9db8f5;        /* accent fill: CTA + graph (shade #3) */
+    --blue-bright: #8aa9f2; /* hover (slightly deeper for feedback) */
+    --blue-deep: #3f5cc0;   /* blue text on white (legible) */
+    --blue-soft: #e7edfb;   /* soft blue chip */
+
+    --red: #dc2626;         /* danger — accent only, never a background */
+    --red-soft: #fdecec;
+
+    --sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+    --step-hero: clamp(2.6rem, 6.2vw, 4.7rem);
+    --step-h2: clamp(2rem, 4vw, 3rem);
+    --step-stat: clamp(3.8rem, 9vw, 6.5rem);
+
+    --wrap: 1120px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--cloud);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  img { max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+  .section { padding: clamp(72px, 11vw, 132px) 0; }
+  .bg-grey { background: var(--paper); }
+  .bg-white { background: var(--cloud); }
+
+  h1, h2, h3 { margin: 0; font-weight: 400; letter-spacing: -0.025em; text-wrap: balance; }
+  .h1 { font-size: var(--step-hero); line-height: 1.04; }
+  .h2 { font-size: var(--step-h2); line-height: 1.08; }
+  .lead { font-size: 1.125rem; color: var(--muted); line-height: 1.6; max-width: 42ch; }
+  .eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: 999px; padding: 0.85rem 1.6rem; font: inherit; font-weight: 600;
+    font-size: 0.95rem; border: 1px solid transparent; cursor: pointer;
+    transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-blue { background: var(--blue); color: var(--ink); }
+  .btn-blue:hover { background: var(--blue-bright); }
+  .btn-ink { background: var(--ink); color: var(--cloud); }
+  .btn-ink:hover { background: #24242a; }
+  .btn-ghost-d { color: var(--cloud); border-color: rgba(255,255,255,0.32); }
+  .btn-ghost-d:hover { background: rgba(255,255,255,0.10); }
+  .btn-ghost-l { color: var(--ink); border-color: rgba(11,11,12,0.16); }
+  .btn-ghost-l:hover { background: rgba(11,11,12,0.04); }
+  .btn:focus-visible { outline: 2px solid var(--blue-deep); outline-offset: 2px; }
+
+  /* glass nav */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 72px; padding: 0 24px;
+    color: var(--cloud);
+    transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+  }
+  .nav.scrolled {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    color: var(--ink);
+    box-shadow: 0 1px 0 rgba(11,11,12,0.08);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 1.05rem; letter-spacing: -0.01em; }
+  .mark { width: 22px; height: 22px; border-radius: 7px; background: conic-gradient(from 210deg, var(--blue), #d99a06, var(--blue-bright), var(--blue)); }
+  .nav-links { display: flex; gap: 30px; font-size: 0.92rem; font-weight: 500; }
+  .nav-links a { opacity: 0.85; }
+  .nav-links a:hover { opacity: 1; }
+  .nav .btn { padding: 0.6rem 1.2rem; }
+  .pill-cta { background: var(--blue); color: var(--ink); }
+
+  /* hero — dark placeholder for the photo you'll provide */
+  .hero {
+    position: relative; overflow: hidden;
+    background: radial-gradient(120% 85% at 50% -10%, #242732 0%, #16181f 46%, #0c0d11 100%);
+    color: var(--cloud);
+    margin-top: -72px; padding-top: 72px;
+    text-align: center;
+  }
+  .hero::after {
+    content: "hero image goes here";
+    position: absolute; top: 84px; left: 50%; transform: translateX(-50%);
+    font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+  }
+  .hero-inner { padding: clamp(48px, 8vw, 96px) 0 0; position: relative; }
+  .hero .lead { margin: 22px auto 0; color: rgba(255,255,255,0.72); }
+  .hero-badge {
+    display: inline-flex; gap: 8px; align-items: center;
+    font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 999px;
+    padding: 6px 14px; margin-bottom: 22px; background: rgba(255,255,255,0.04);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue-bright); }
+  .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
+  .hero-phone-wrap { display: flex; justify-content: center; margin-top: 54px; }
+
+  /* phone */
+  .phone {
+    width: 288px; flex: none;
+    background: #0a0a0a; border-radius: 42px; padding: 9px;
+    box-shadow: 0 40px 80px -30px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .screen { background: var(--paper); border-radius: 34px; overflow: hidden; position: relative; }
+  .screen .notch { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; background: #0a0a0a; border-radius: 12px; }
+  .scr-pad { padding: 40px 18px 20px; }
+  .scr-label { color: var(--muted); font-size: 0.72rem; text-align: center; }
+  .scr-balance { text-align: center; font-size: 2rem; font-weight: 500; margin: 2px 0 3px; }
+  .scr-sub { text-align: center; font-size: 0.72rem; color: var(--muted); }
+  .scr-actions { display: flex; gap: 8px; margin: 16px 0; }
+  .scr-actions .b { flex: 1; text-align: center; padding: 10px; border-radius: 14px; font-size: 0.78rem; font-weight: 600; }
+  .scr-actions .b.dark { background: #0a0a0a; color: #fff; }
+  .scr-actions .b.soft { background: var(--mist); color: var(--ink); }
+  .bucket { display: flex; align-items: center; gap: 10px; background: var(--cloud); border-radius: 16px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .coin { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 0.68rem; font-weight: 700; flex: none; }
+  .coin.usd { background: #eaf2ff; color: #2563eb; }
+  .coin.eur { background: #eef0ff; color: #4f46e5; }
+  .bucket .g { flex: 1; min-width: 0; }
+  .bucket .t { font-size: 0.82rem; font-weight: 600; }
+  .bucket .s { font-size: 0.68rem; color: var(--muted); }
+  .bucket .apy { font-size: 0.82rem; font-weight: 700; color: var(--blue-deep); }
+  .scr-note { display: flex; align-items: center; gap: 7px; font-size: 0.68rem; color: var(--muted); margin-top: 10px; justify-content: center; }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 78px; margin: 14px 0 8px; }
+  .bars i { flex: 1; background: linear-gradient(180deg, var(--blue-bright), var(--blue)); border-radius: 3px 3px 1px 1px; display: block; }
+  .chip-apy { display: inline-flex; gap: 6px; align-items: center; background: var(--blue-soft); color: var(--blue-deep); font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+
+  .fz-card { background: linear-gradient(150deg, #1a1d25, #0d0f14); border-radius: 16px; padding: 14px; color: #fff; }
+  .fz-row { display: flex; justify-content: space-around; text-align: center; margin-top: 12px; }
+  .fz-row .i { font-size: 0.66rem; color: rgba(255,255,255,0.55); }
+  .fz-badge { display: inline-flex; gap: 6px; align-items: center; font-size: 0.66rem; font-weight: 700; color: var(--blue-bright); }
+
+  /* feature (earn) */
+  .feature { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: clamp(24px, 5vw, 72px); }
+  .tabs { display: flex; flex-direction: column; gap: 10px; }
+  .tab { background: var(--mist); color: var(--muted); border-radius: 999px; padding: 0.7rem 1.5rem; font-weight: 600; font-size: 0.92rem; text-align: center; }
+  .tab.active { background: var(--cloud); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.09); }
+  .stat .up { color: var(--muted); font-size: 0.95rem; }
+  .stat-num { font-size: var(--step-stat); font-weight: 400; letter-spacing: -0.04em; line-height: 0.95; }
+  .stat .cap { color: var(--ink); font-size: 1.05rem; max-width: 20ch; margin: 8px 0 22px; }
+  .feature-phone { display: flex; justify-content: center; }
+
+  /* problem — red is an ACCENT here, not the background */
+  .problem { text-align: center; }
+  .problem .figure { font-size: clamp(3.4rem, 9vw, 6rem); font-weight: 400; letter-spacing: -0.04em; color: var(--red); margin-bottom: 4px; }
+  .problem .h2 { max-width: 20ch; margin: 0 auto; }
+  .problem .lead { margin: 20px auto 0; max-width: 54ch; text-align: center; }
+  .problem .flag { display: inline-flex; gap: 7px; align-items: center; background: var(--red-soft); color: var(--red); font-size: 0.78rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; margin-bottom: 22px; }
+
+  /* bento */
+  .bento { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 44px; }
+  .card { background: var(--mist); border-radius: 26px; padding: 30px; }
+  .card h3 { font-size: 1.3rem; font-weight: 500; margin-bottom: 10px; }
+  .card p { color: var(--muted); font-size: 0.98rem; margin: 0; max-width: 42ch; }
+  .card.tall { grid-row: span 2; display: flex; flex-direction: column; }
+  .card .phone { width: 236px; margin: 22px auto 0; }
+  .traps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .trap { font-size: 0.8rem; background: var(--cloud); border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 6px 12px; text-decoration: line-through; }
+
+  /* components strip */
+  .specimen { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .sw { width: 116px; height: 68px; border-radius: 14px; display: flex; align-items: flex-end; padding: 8px; font-size: 0.72rem; font-weight: 600; }
+  .panel-dark { background: #14161d; border-radius: 22px; padding: 26px; }
+
+  /* footer */
+  .footer { background: var(--ink); color: rgba(255,255,255,0.6); }
+  .footer .wrap { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center; padding-top: 42px; padding-bottom: 42px; }
+  .footer .brand { color: #fff; }
+  .foot-links { display: flex; gap: 22px; font-size: 0.9rem; }
+
+  .center { text-align: center; }
+  .mt8 { margin-top: 8px; } .mt24 { margin-top: 24px; }
+
+  @media (max-width: 860px) {
+    .feature { grid-template-columns: 1fr; text-align: center; justify-items: center; }
+    .tabs { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+    .stat .cap { margin-left: auto; margin-right: auto; }
+    .bento { grid-template-columns: 1fr; }
+    .card.tall { grid-row: auto; }
+    .nav-links { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="brand"><span class="mark"></span> SoroSense</div>
+  <div class="nav-links">
+    <a href="#earn">Earn</a>
+    <a href="#risk">The risk</a>
+    <a href="#safety">Safety</a>
+  </div>
+  <button class="btn pill-cta">Launch app</button>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <span class="hero-badge"><span class="dot"></span> Non-custodial · Built on Stellar</span>
+    <h1 class="h1">Stablecoin yield,<br>guarded around the clock</h1>
+    <p class="lead">Deposit the stablecoins you already hold. An agent moves them to the
+      safest-highest yield while a Sentinel watches your funds — day and night.</p>
+    <div class="cta-row">
+      <button class="btn btn-blue">Get started</button>
+      <a href="#earn" class="btn btn-ghost-d">See the yield</a>
+    </div>
+    <div class="hero-phone-wrap">
+      <div class="phone">
+        <div class="screen">
+          <span class="notch"></span>
+          <div class="scr-pad">
+            <div class="scr-label">Total balance</div>
+            <div class="scr-balance num">$12,480.00</div>
+            <div class="scr-sub num">+ $63.90 earning today</div>
+            <div class="scr-actions">
+              <div class="b dark">Add funds</div>
+              <div class="b soft">Withdraw</div>
+            </div>
+            <div class="bucket">
+              <span class="coin usd">USDC</span>
+              <div class="g"><div class="t">US Dollar</div><div class="s">Blend · auto-compounding</div></div>
+              <span class="apy num">6.6%</span>
+            </div>
+            <div class="bucket">
+              <span class="coin eur">EURC</span>
+              <div class="g"><div class="t">Euro</div><div class="s">DeFindex · auto-compounding</div></div>
+              <span class="apy num">6.2%</span>
+            </div>
+            <div class="scr-note">🛡️ Sentinel active · all pools healthy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="section bg-white" id="earn">
+  <div class="wrap feature">
+    <div class="tabs">
+      <div class="tab active">Earn</div>
+      <div class="tab">Protect</div>
+      <div class="tab">Simulate</div>
+    </div>
+    <div class="feature-phone">
+      <div class="phone">
+        <div class="screen">
+          <span class="notch"></span>
+          <div class="scr-pad">
+            <div class="scr-label">Earn balance</div>
+            <div class="scr-balance num">$10,000.01</div>
+            <div class="center mt8"><span class="chip-apy num">▮ 8.59% APY</span></div>
+            <div class="bars">
+              <i style="height:22%"></i><i style="height:30%"></i><i style="height:28%"></i>
+              <i style="height:42%"></i><i style="height:48%"></i><i style="height:44%"></i>
+              <i style="height:62%"></i><i style="height:70%"></i><i style="height:66%"></i>
+              <i style="height:84%"></i><i style="height:96%"></i>
+            </div>
+            <div class="bucket">
+              <div class="g"><div class="t">You're earning</div><div class="s">Auto-reinvested</div></div>
+              <span class="apy num">+$919.37</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="up">up to</div>
+      <div class="stat-num num">8.59%</div>
+      <p class="cap">Risk-adjusted yield on your stablecoins — chosen, not chased.</p>
+      <button class="btn btn-blue">Put your money to work</button>
+    </div>
+  </div>
+</section>
+
+<section class="section bg-grey problem" id="risk">
+  <div class="wrap">
+    <span class="flag">● Exploited · Feb 2026</span>
+    <div class="figure num">$10.8M</div>
+    <h2 class="h2">One bad pool drained millions overnight</h2>
+    <p class="lead">The YieldBlox pool on Stellar was drained of ~$10.8M when its price feed
+      was manipulated in a dead market. It never recovered. Most earn apps leave you exposed
+      to exactly this — SoroSense is built to get you out first.</p>
+  </div>
+</section>
+
+<section class="section bg-white" id="safety">
+  <div class="wrap">
+    <h2 class="h2 center" style="max-width:16ch;margin:0 auto;">Your money stays safe — even while you sleep</h2>
+    <div class="bento">
+      <div class="card tall">
+        <h3>An invisible safety engine</h3>
+        <p>The Sentinel scores every pool for thin liquidity and price manipulation, and
+          freezes anything that turns toxic — automatically, before it can drain.</p>
+        <div class="phone">
+          <div class="screen">
+            <span class="notch"></span>
+            <div class="scr-pad">
+              <div class="scr-label">Pool status</div>
+              <div class="fz-card" style="margin-top:10px;">
+                <span class="fz-badge">🛡️ Sentinel</span>
+                <div style="font-size:0.9rem;font-weight:600;margin-top:6px;">Pool frozen · funds protected</div>
+                <div class="fz-row">
+                  <div><div style="font-size:1rem;">👁</div><div class="i">Reveal</div></div>
+                  <div><div style="font-size:1rem;">❄️</div><div class="i">Frozen</div></div>
+                  <div><div style="font-size:1rem;">↗</div><div class="i">Exit</div></div>
+                </div>
+              </div>
+              <div class="scr-note" style="margin-top:12px;">Approve the safe exit when you're ready.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Non-custodial by design</h3>
+        <p>Funds live in an on-chain vault you control. SoroSense never holds your keys and
+          can never move money outside the rules you signed once.</p>
+      </div>
+      <div class="card">
+        <h3>It avoids the traps</h3>
+        <p>Squatter tokens, dead pools, and issuers that quietly keep your yield never make
+          it into your buckets.</p>
+        <div class="traps">
+          <span class="trap">Squatter USST</span>
+          <span class="trap">MGUSD</span>
+          <span class="trap">$97 ghost pool</span>
+          <span class="trap">KYC walls</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section bg-grey">
+  <div class="wrap">
+    <span class="eyebrow" style="color:var(--muted);">Design system · buttons &amp; tokens</span>
+    <h2 class="h2 mt8" style="max-width:20ch;">The pieces every section is built from</h2>
+
+    <div class="mt24" style="display:grid;grid-template-columns:1fr;gap:16px;max-width:760px;">
+      <div class="panel-dark">
+        <div style="color:rgba(255,255,255,0.6);font-size:0.8rem;margin-bottom:14px;">On the hero (dark image)</div>
+        <div class="specimen">
+          <button class="btn btn-blue">Get started</button>
+          <button class="btn btn-ghost-d">See the yield</button>
+        </div>
+      </div>
+      <div style="background:var(--cloud);border-radius:22px;padding:26px;">
+        <div style="color:var(--muted);font-size:0.8rem;margin-bottom:14px;">On light sections</div>
+        <div class="specimen">
+          <button class="btn btn-blue">Put your money to work</button>
+          <button class="btn btn-ghost-l">Learn more</button>
+          <span class="tab active" style="pointer-events:none;">Earn</span>
+          <span class="tab" style="pointer-events:none;">Protect</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="swatches">
+      <div class="sw" style="background:var(--blue);color:var(--ink);">Blue (CTA)</div>
+      <div class="sw" style="background:var(--blue-soft);color:var(--blue-deep);border:1px solid var(--line);">Blue soft</div>
+      <div class="sw" style="background:var(--red);color:#fff;">Red (danger)</div>
+      <div class="sw" style="background:var(--paper);color:var(--ink);border:1px solid var(--line);">Paper</div>
+      <div class="sw" style="background:var(--cloud);color:var(--ink);border:1px solid var(--line);">White</div>
+      <div class="sw" style="background:var(--ink);color:#fff;">Ink</div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="brand"><span class="mark"></span> SoroSense</div>
+    <div class="foot-links">
+      <a href="#earn">Earn</a>
+      <a href="#risk">The risk</a>
+      <a href="#safety">Safety</a>
+      <a href="#">Launch app</a>
+    </div>
+    <div style="font-size:0.82rem;opacity:0.7;">Built on Stellar · Testnet demo</div>
+  </div>
+</footer>
+
+<script>
+  var nav = document.getElementById('nav');
+  function onScroll() { nav.classList.toggle('scrolled', window.scrollY > 24); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+</script>
+</body>
+</html>
