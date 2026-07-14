@@ -19,12 +19,32 @@ const CHART_H = 132;
  * bars, the last bar (this month, in progress) is the bright accent, sparse axis labels, and a hover
  * tooltip "{month} · +${earned}". Each bar is a focusable button whose aria-label carries the value —
  * the bars themselves are decorative. Replaces the mobile `Bars` reuse on desktop.
+ *
+ * **Zero-state (R10).** With no earnings — the honest state of the live vault, whose `share_price` is
+ * pinned to the scale until NAV accrual ships — this renders an explicit "no earnings yet" panel. It
+ * must not render nine minimum-height bars: a row of stubs reads as a chart that is broken or still
+ * loading, when in fact it is a correct picture of zero. Deposits are safe and earning; the yield has
+ * simply not accrued on-chain yet.
  */
 export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const n = monthly.length;
   const max = monthly.reduce((m, x) => (x.earnedUsd > m ? x.earnedUsd : m), 0) || 1;
   const hv = hover !== null ? monthly[hover] : undefined;
+
+  if (!monthly.some((m) => m.earnedUsd > 0)) {
+    return (
+      <div
+        data-testid="growth-zero"
+        className="flex flex-1 flex-col items-center justify-center gap-1.5 py-6 text-center"
+      >
+        <span className="text-[13.5px] font-semibold">No earnings yet</span>
+        <span className="max-w-[190px] text-[12.5px] leading-snug text-muted">
+          Your buckets are allocated and safe. Yield shows up here as it accrues.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mt-2">

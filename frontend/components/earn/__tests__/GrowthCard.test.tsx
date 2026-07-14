@@ -88,3 +88,49 @@ test("renders the monthly breakdown beneath the chart", () => {
   expect(screen.getByText("Growth")).toBeInTheDocument();
   expect(screen.getAllByTestId("month-row")).toHaveLength(3);
 });
+
+/**
+ * The live vault's honest state (R10): a real deposit, a real balance, and zero earned — `share_price`
+ * is pinned to `SHARE_PRICE_SCALE` until mark-to-market NAV accrual ships. The card must say so.
+ */
+describe("zero-state — no earnings yet", () => {
+  const zeroChart = [
+    { ts: NOW - 86_400_000, valueUsd: 0, earnedUsd: 0 },
+    { ts: NOW, valueUsd: 1000, earnedUsd: 0 }, // the deposit stepped value; earned did not move
+  ];
+  const zeroMonthly = [
+    { label: "2026-06", earnedUsd: 0 },
+    { label: "2026-07", earnedUsd: 0 },
+  ];
+
+  test("an all-zero month list says 'no earnings yet' instead of drawing floor-height bars", () => {
+    render(<GrowthCard chart={zeroChart} monthly={zeroMonthly} now={NOW} />);
+
+    expect(screen.getByTestId("growth-zero")).toBeInTheDocument();
+    expect(screen.getByText("No earnings yet")).toBeInTheDocument();
+    // Bars at the 8px floor are not a chart of zero — they are a chart that looks broken or unloaded.
+    expect(screen.queryAllByTestId("bar")).toHaveLength(0);
+    // And nine rows of "+$0.00" are noise, not a breakdown.
+    expect(screen.queryAllByTestId("month-row")).toHaveLength(0);
+  });
+
+  test("a fresh vault — no chart, no months at all — renders the same zero-state, and does not throw", () => {
+    render(<GrowthCard chart={[]} monthly={[]} now={0} />);
+
+    expect(screen.getByTestId("growth-zero")).toBeInTheDocument();
+    expect(screen.queryAllByTestId("bar")).toHaveLength(0);
+  });
+
+  test("no NaN reaches the DOM — an all-zero series would divide by a zero maximum", () => {
+    const { container } = render(<GrowthCard chart={zeroChart} monthly={zeroMonthly} now={NOW} />);
+    expect(container.innerHTML).not.toContain("NaN");
+  });
+
+  test("one cent of earnings is enough to bring the real chart back", () => {
+    const some = [{ label: "2026-06", earnedUsd: 0 }, { label: "2026-07", earnedUsd: 0.01 }];
+    render(<GrowthCard chart={chart} monthly={some} now={NOW} />);
+
+    expect(screen.queryByTestId("growth-zero")).toBeNull();
+    expect(screen.getAllByTestId("bar").length).toBeGreaterThan(0);
+  });
+});
