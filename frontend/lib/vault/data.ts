@@ -19,7 +19,15 @@ export function stablecoinBySym(sym: string): Stablecoin | undefined {
   return STABLECOINS.find((s) => s.sym === sym.toUpperCase());
 }
 
-/** Venue/APY/tags per bucket — figures mirror backend catalog (getCatalog). No risk field. */
+/**
+ * Venue/APY/tags per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
+ *
+ * **The `apy` here is a documented FALLBACK, not the source of truth (R5 · KTD3).** Read it only
+ * through `useApy` / `useApyResolver`, which prefer the backend's `GET /holdings` row and fall back to
+ * this when the bucket is unfunded (no row — the Earn empty-state hero and the simulator), when
+ * `NEXT_PUBLIC_API_URL` is unset, or when the read failed. It goes away the day a backend rate route
+ * exists (a `GET /rates`, owned by the backend track); the name/venue/tags stay here regardless.
+ */
 const BUCKET_META: Record<Currency, BucketMeta> = {
   USD: { currency: "USD", name: "USD bucket", venue: "DeFindex", tags: ["DeFindex", "Vault"], apy: 8.59 },
   EUR: { currency: "EUR", name: "EUR bucket", venue: "Blend", tags: ["Blend", "Fixed pool"], apy: 5.1 },

@@ -41,24 +41,27 @@ const money = (n: number, currency: Currency) =>
 
 /**
  * The deterministic earnings simulator (R15). The user picks a CURRENCY — never a pool, never a risk
- * tier. `currency` is controlled by the Earn page because the empty-state hero shows the same APY.
+ * tier. `currency` is controlled by the Earn page because the empty-state hero shows the same APY, and
+ * `apy` is resolved there through `useApy` (R5): the math module takes the rate, it never looks it up.
  */
 export function Simulator({
   currency,
+  apy,
   onCurrencyChange,
 }: {
   currency: Currency;
+  apy: number;
   onCurrencyChange: (c: Currency) => void;
 }) {
   const [amount, setAmount] = useState(1000);
   const [period, setPeriod] = useState<PeriodName>("year");
 
   const periodDays = PERIOD_DAYS[period];
-  const { projectedEarnings } = simulate({ currency, amount, periodDays });
+  const { projectedEarnings } = simulate({ currency, amount, periodDays, apy });
   // Samples of the projection's own growth curve, one per bar. <Bars> normalizes against the series
   // maximum, but the curve is not self-similar under time rescaling — a one-year horizon is visibly
   // convex where a one-day horizon is near-linear — so the bars redraw, not just re-count.
-  const curve = simulateCurve({ currency, amount, periodDays }, BAR_COUNT[period]);
+  const curve = simulateCurve({ currency, amount, periodDays, apy }, BAR_COUNT[period]);
   const step = (delta: number) => setAmount((a) => Math.min(MAX, Math.max(MIN, a + delta)));
 
   return (

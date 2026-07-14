@@ -5,6 +5,7 @@ import { Button, Card, Skeleton } from "../../../components/ui";
 import { BucketToggle } from "../../../components/bucket/BucketToggle";
 import { GrowthCard } from "../../../components/earn/GrowthCard";
 import { Simulator } from "../../../components/simulator/Simulator";
+import { useApyResolver } from "../../../hooks/useApy";
 import { useEarnings } from "../../../hooks/useEarnings";
 import { useNav } from "../../../hooks/useNav";
 import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHome";
@@ -15,6 +16,9 @@ const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits
 export default function EarnPage() {
   const nav = useNav();
   const { loading, view } = useEarnings();
+  // The one APY accessor (R5): a funded bucket's rate comes from the backend's /holdings row, an
+  // unfunded one (the empty-state hero, the simulator) from the documented BUCKET_META fallback (KTD3).
+  const apyOf = useApyResolver();
   const [currency, setCurrency] = useState<Currency>("USD");
   const [i, setI] = useState(0);
   // Earn is a mobile-only surface; a desktop visitor is redirected to the Overview (which absorbs it).
@@ -58,25 +62,27 @@ export default function EarnPage() {
               <i className="block h-[14px] w-[4px] rounded-[1px] bg-pos" />
             </span>
             <span data-testid="hero-apy" className="[font-variant-numeric:tabular-nums]">
-              {getBucketMeta(currency).apy.toFixed(2)}% APY
+              {apyOf(currency).toFixed(2)}% APY
             </span>
           </div>
         </div>
         <Button onClick={() => nav.forward("/add-funds")}>Start earning</Button>
         <p className="my-3 text-center text-[13px] text-muted">No lockup, move to your wallet anytime</p>
-        <Simulator currency={currency} onCurrencyChange={setCurrency} />
+        <Simulator currency={currency} apy={apyOf(currency)} onCurrencyChange={setCurrency} />
       </div>
     );
   }
 
   const views = [
+    // `view.apy` is the value-weighted blend of the same per-bucket rates (useBuckets already resolves
+    // them through useApy), so the "All buckets" row and each bucket row agree by construction.
     { name: "All buckets", currency: undefined, earned: view.earnedUsd, balance: view.balanceUsd, apy: view.apy },
     ...view.buckets.map((b) => ({
       name: getBucketMeta(b.currency).name,
       currency: b.currency,
       earned: b.earnedUsd,
       balance: b.usdValue,
-      apy: getBucketMeta(b.currency).apy,
+      apy: apyOf(b.currency),
     })),
   ];
   const index = Math.min(i, views.length - 1);

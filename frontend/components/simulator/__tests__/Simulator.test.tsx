@@ -2,11 +2,19 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
+import { getBucketMeta } from "../../../lib/vault/data";
 import { Simulator } from "../Simulator";
 
+/**
+ * The rate is now the *caller's* to resolve (R5): the Earn page passes `useApy(currency)`, which reads
+ * the backend's `/holdings` row for a funded bucket and this fixture for an unfunded one (KTD3). The
+ * harness stands in for the page with the fixture rate, so the projections below are unchanged.
+ */
 function Harness() {
   const [currency, setCurrency] = useState<Currency>("USD");
-  return <Simulator currency={currency} onCurrencyChange={setCurrency} />;
+  return (
+    <Simulator currency={currency} apy={getBucketMeta(currency).apy} onCurrencyChange={setCurrency} />
+  );
 }
 
 test("projects a year of USD by default", () => {
