@@ -19,6 +19,11 @@ export function stablecoinBySym(sym: string): Stablecoin | undefined {
   return STABLECOINS.find((s) => s.sym === sym.toUpperCase());
 }
 
+/** The stablecoin that funds a bucket — how the faucet's `currency` maps back to a classic asset. */
+export function stablecoinByCurrency(currency: Currency): Stablecoin | undefined {
+  return STABLECOINS.find((s) => s.currency === currency);
+}
+
 /**
  * Venue/APY/tags per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
  *
@@ -66,7 +71,14 @@ export function getFxRateToUsd(currency: Currency): number {
   return { USD: 1, EUR: 1.08, MXN: 0.055 }[currency];
 }
 
-/** Fixture wallet balances (base units) backing the deposit % quick-fill; real read deferred. */
-export function getWalletBalance(sym: StablecoinSym): bigint {
+/**
+ * Fixture wallet balances (base units) backing the deposit % quick-fill — the **mock path only** (R6).
+ *
+ * The real balance is a Horizon trustline read (`lib/wallet/balance.ts`), reached through
+ * `useWalletBalance`. This stays as the offline fallback: with `NEXT_PUBLIC_STELLAR_HORIZON_URL` /
+ * the issuer vars unset (vitest, Playwright, a bare `pnpm dev`) no request is issued and these numbers
+ * render. Nothing outside `useWalletBalance` should call it.
+ */
+export function getFixtureWalletBalance(sym: StablecoinSym): bigint {
   return { USDC: 9076n, EURC: 4200n, CETES: 15000n }[sym] * UNIT;
 }

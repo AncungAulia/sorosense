@@ -10,17 +10,35 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, back: vi.fn() }) }
 const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 
+/** The offline default: no NEXT_PUBLIC_API_URL, no Horizon env — every network branch is dead. */
+const fetchSpy = vi.fn();
+
 function setup(sym: string) {
   const sign = vi.fn(async (xdr: string) => `sig:${xdr}`);
   useWallet.mockReturnValue({ address: "GNEW", isConnected: true, signTransaction: sign });
   const client = new MockVaultClient(); // fresh: hasConsent=false → consent required
+  vi.stubGlobal("fetch", fetchSpy);
   render(<VaultProvider client={client}><ToastProvider><DepositKeypad sym={sym} /></ToastProvider></VaultProvider>);
   return { sign, client };
 }
 
+afterEach(() => {
+  fetchSpy.mockClear();
+  vi.unstubAllGlobals();
+});
+
 test("no risk-tier control is present", () => {
   setup("usdc");
   expect(screen.queryByText(/conservative|balanced|risk|tier/i)).not.toBeInTheDocument();
+});
+
+test("with no Horizon env the fixture balance renders, no faucet button, and nothing is fetched", async () => {
+  setup("usdc");
+  // The offline guarantee: neither the Horizon read nor the faucet exists without their env vars.
+  expect(screen.getByText("$9,076.00")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Deposit fund" })).toBeInTheDocument());
+  expect(fetchSpy).not.toHaveBeenCalled();
 });
 
 test("unknown sym shows a not-found state instead of defaulting to USD", () => {

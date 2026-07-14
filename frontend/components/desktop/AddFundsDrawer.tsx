@@ -4,11 +4,13 @@ import type { Currency } from "@sorosense/vault-client";
 import { Drawer } from "../ui/Drawer";
 import { Dialog } from "../ui/Dialog";
 import { Button, CoinBadge, TransferStatus } from "../ui";
-import { STABLECOINS, stablecoinBySym, getWalletBalance, type StablecoinSym } from "../../lib/vault/data";
+import { FaucetButton } from "../deposit/FaucetButton";
+import { STABLECOINS, stablecoinBySym, type StablecoinSym } from "../../lib/vault/data";
 import { sanitizeAmount } from "../../lib/vault/sanitize";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
+import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { useToast } from "../../hooks/useToast";
 import { useTransferFlow } from "../../hooks/useTransferFlow";
 import { depositorSigner } from "../../lib/vault/signer";
@@ -35,7 +37,9 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
   const coin = sym ? stablecoinBySym(sym) : undefined;
   const currency: Currency = coin?.currency ?? "USD";
   const cur = currency === "EUR" ? "€" : "$";
-  const available = sym ? getWalletBalance(sym) : 0n;
+  // Real trustline balance when Horizon + the issuer are configured; the fixture otherwise (R6).
+  const balance = useWalletBalance(sym);
+  const available = sym ? balance.available : 0n;
   const entered = toAmount(amount);
   const exceeded = entered > available;
   const showStatus = flow.phase !== "idle";
@@ -151,13 +155,14 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-auto px-[22px] py-5">
-          {/* wallet balance line (getWalletBalance fixture; real trustline read = STE-52). */}
+          {/* Wallet balance line — the real Horizon trustline read when configured, the fixture otherwise. */}
           <div className="mb-4 flex items-center gap-3 rounded-2xl bg-pill px-3.5 py-3">
             <CoinBadge token={sym} size={30} />
             <div className="text-[15px] font-semibold [font-variant-numeric:tabular-nums]">{formatCurrency(available, currency)} {sym}</div>
           </div>
-          {/* STE-52 (reserved, NOT implemented): in integration mode with a zero trustline balance,
-              this line is replaced by an env-gated "Get test funds" button (disabled on mainnet). */}
+          {/* STE-52a: the reserved faucet slot, now filled. Absent unless the backend mounts a faucet
+              and the currency is one it mints — so mock runs and mainnet never show it. */}
+          <FaucetButton currency={currency} onMinted={balance.refresh} />
           <p className="mb-2 text-[12.5px] font-medium text-muted">Amount</p>
           <div className="flex items-center gap-1.5 rounded-2xl border border-line-2 bg-white px-4 py-3.5 [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]">
             <span className="text-[26px] font-semibold text-[#3f4448]">{cur}</span>

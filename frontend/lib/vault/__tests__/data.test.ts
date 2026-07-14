@@ -1,4 +1,4 @@
-import { STABLECOINS, stablecoinBySym, getBucketMeta, getActivity, getFxRateToUsd, getWalletBalance } from "../data";
+import { STABLECOINS, stablecoinBySym, stablecoinByCurrency, getBucketMeta, getActivity, getFxRateToUsd, getFixtureWalletBalance } from "../data";
 import { getPoolMeta } from "../data";
 
 test("only fundable stablecoins are listed (R19), one per currency", () => {
@@ -26,8 +26,11 @@ test("activity has you/auto facets and no risk labels", () => {
 test("FX and wallet fixtures are usable", () => {
   expect(getFxRateToUsd("USD")).toBe(1);
   expect(getFxRateToUsd("EUR")).toBeGreaterThan(1);
-  expect(getWalletBalance("USDC")).toBeGreaterThan(0n);
+  expect(getFixtureWalletBalance("USDC")).toBeGreaterThan(0n);
   expect(stablecoinBySym("usdc")?.currency).toBe("USD");
+  // The faucet's `currency` maps back to the classic asset the changeTrust is built for.
+  expect(stablecoinByCurrency("USD")?.sym).toBe("USDC");
+  expect(stablecoinByCurrency("EUR")?.sym).toBe("EURC");
 });
 
 test("getPoolMeta returns display name + apy for a target pool, null otherwise, no risk field", () => {

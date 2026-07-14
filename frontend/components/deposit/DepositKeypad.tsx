@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import type { Currency } from "@sorosense/vault-client";
 import { Button, Keypad, SubHeader, CoinBadge, TransferStatus } from "../ui";
 import { ConsentSheet } from "./ConsentSheet";
+import { FaucetButton } from "./FaucetButton";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
+import { useWalletBalance } from "../../hooks/useWalletBalance";
 import { useTransferFlow } from "../../hooks/useTransferFlow";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
-import { stablecoinBySym, getWalletBalance, type StablecoinSym } from "../../lib/vault/data";
+import { stablecoinBySym } from "../../lib/vault/data";
 import { recordDeposit } from "../../lib/vault/contributions";
 
 export function DepositKeypad({ sym }: { sym: string }) {
@@ -27,6 +29,9 @@ export function DepositKeypad({ sym }: { sym: string }) {
   const [consentOpen, setConsentOpen] = useState(false);
   const [busy, setBusy] = useState(false); // guards the async consent check before the flow starts
   const flow = useTransferFlow();
+  // The real trustline balance when Horizon + the issuer are configured; the fixture otherwise (R6).
+  // `coin` may be undefined for a typo'd deep link — the hook still runs unconditionally.
+  const balance = useWalletBalance(coin?.sym ?? null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +60,7 @@ export function DepositKeypad({ sym }: { sym: string }) {
     );
   }
 
-  const available = getWalletBalance(coin.sym as StablecoinSym);
+  const available = balance.available;
   const entered = toAmount(amount);
   const exceeded = entered > available;
 
@@ -118,6 +123,9 @@ export function DepositKeypad({ sym }: { sym: string }) {
           <CoinBadge token={coin.sym} size={22} />
           {formatCurrency(available, currency)}
         </span>
+        {/* Absent unless the backend mounts a faucet and the currency is one it mints (USD/EUR):
+            a judge's empty wallet gets test funds here instead of hitting "Not enough balance". */}
+        <FaucetButton currency={currency} onMinted={balance.refresh} />
       </div>
       {frozen && (
         <div className="mx-auto mt-0.5 flex max-w-[330px] items-center gap-2 rounded-[14px] bg-warn-soft px-3.5 py-2.5 text-[12.5px] font-medium leading-[1.35] text-warn">
