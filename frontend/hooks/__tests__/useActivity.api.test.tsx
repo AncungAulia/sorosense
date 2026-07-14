@@ -84,7 +84,7 @@ test("the feed is read for this depositor, and an agent row and a user row land 
   const [url] = fetchMock.mock.calls[0] as [string];
   expect(url).toBe("http://localhost:8787/activity?depositor=GUSER");
 
-  // actor 'agent' → the Automated tab; actor 'you' → the Yours tab.
+  // actor 'agent' → the Agent tab; actor 'you' → the Yours tab.
   expect(screen.getByTestId("row-9").textContent).toContain("auto|rebalanced|Switched to DeFindex|3h ago");
   expect(screen.getByTestId("row-6").textContent).toContain("you|deposit|Deposited to USD bucket|1d ago");
 });

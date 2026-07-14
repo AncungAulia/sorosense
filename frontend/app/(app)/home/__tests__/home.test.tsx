@@ -66,7 +66,7 @@ test("desktop hero: eyebrow, flat Total segmented pressed, 'Earned this month' s
   isDesktop.mockReturnValue(false); // reset for any later test
 });
 
-test("desktop bottom row: Buckets, Growth (green bars), Agent activity; banner shows on frozen seed", async () => {
+test("desktop bottom row: Buckets, Growth (green bars), Agent; banner shows on frozen seed", async () => {
   isDesktop.mockReturnValue(true);
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   const client = new MockVaultClient();
@@ -75,7 +75,7 @@ test("desktop bottom row: Buckets, Growth (green bars), Agent activity; banner s
 
   await waitFor(() => expect(screen.getByRole("heading", { name: "Buckets" })).toBeInTheDocument());
   expect(screen.getByRole("heading", { name: "Growth" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Agent activity" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Agent" })).toBeInTheDocument();
   expect(screen.getAllByTestId("bars").length).toBeGreaterThan(0); // green Bars rendered
   expect(screen.getByText(/your earning is paused/i)).toBeInTheDocument(); // frozen → banner
   isDesktop.mockReturnValue(false);

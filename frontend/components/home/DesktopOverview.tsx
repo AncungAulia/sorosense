@@ -250,10 +250,10 @@ export function DesktopOverview() {
           )}
         </Card>
 
-        {/* Agent activity */}
-        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent activity">
+        {/* Agent */}
+        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-muted">Agent activity</h2>
+            <h2 className="text-[13px] font-semibold text-muted">Agent</h2>
             <button
               type="button"
               onClick={() => open("activity")}
