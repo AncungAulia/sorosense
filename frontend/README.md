@@ -50,6 +50,33 @@ decodes them off it, so the two cannot drift silently.
 Every var in `.env.example` is `NEXT_PUBLIC_*` and therefore public. Secrets (`KEEPER_SECRET`,
 `FAUCET_ISSUER_SECRET`) are backend-only and never reach the client.
 
+## Running against testnet
+
+The vault seam is config-selected the same way (`lib/vault/client.ts`, mirroring
+`backend/src/tools/vault.ts`). Unset ⇒ `MockVaultClient`, the default. Set all three contract vars and
+the app talks to the deployed vault through `RealVaultClient`: every write is a real Freighter-signed
+contract invocation, and Home's shares, value and frozen state are read from the chain.
+
+```bash
+pnpm -C packages/vault-client build:bindings   # required — bindings/dist is gitignored
+```
+
+then in `.env.local`:
+
+```bash
+NEXT_PUBLIC_VAULT_CONTRACT_ID=C...             # the deployed vault
+NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+```
+
+Connect **Freighter on Testnet** — the wallet popup must show a *contract invocation*, not a signed
+message; that is the smoke test that the swap took. The first deposit asks for two signatures (the
+one-time safety mandate, then the deposit itself). Two things are honest about real mode and worth
+saying out loud in a demo: with no keeper allocation yet a bucket has no active pool (Home handles it),
+and **total earned is 0** — the balance is real, on-chain yield has simply not accrued yet
+(`share_price` is pinned to the scale until mark-to-market NAV ships). A partial env (say, a contract
+id but no RPC URL) stays on the mock rather than half-building a client that fails in front of a user.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
