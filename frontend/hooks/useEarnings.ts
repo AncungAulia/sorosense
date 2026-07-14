@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import type { Currency } from "@sorosense/vault-client";
+import { MockVaultClient, type Currency } from "@sorosense/vault-client";
 import { useBuckets } from "./useBuckets";
+import { useVault } from "./useVault";
 import { getContributions } from "../lib/vault/contributions";
 import { getFxRateToUsd } from "../lib/vault/data";
 import { UNIT } from "../lib/vault/units";
@@ -53,6 +54,7 @@ const EMPTY: EarningsView = {
  */
 export function useEarnings(): { loading: boolean; view: EarningsView } {
   const { loading, buckets, totalUsd } = useBuckets();
+  const { client } = useVault();
 
   // `Date.now()` after mount only — reading it during render would desync SSR and client (KTD7).
   const [now, setNow] = useState<number | null>(null);
@@ -61,12 +63,20 @@ export function useEarnings(): { loading: boolean; view: EarningsView } {
     setNow(Date.now());
   }, []);
 
+  // Against the real contract the cost-basis ledger below is not a cost basis: it lives in browser
+  // memory and does not survive a reload, so `value − contributions` would render the user's whole
+  // principal as profit. There is also nothing to derive — `share_price` is pinned to the scale until
+  // mark-to-market NAV accrual ships, so native yield is exactly zero. Report zero and let the screen
+  // say what is true; the real figure arrives with `GET /earnings`, which reconstructs cost basis from
+  // chain events (KTD6, R6). The mock *can* accrue (simulateYield), so it keeps today's derivation.
+  const onChain = !(client instanceof MockVaultClient);
+
   const view = useMemo<EarningsView>(() => {
     if (now === null) return EMPTY;
 
     const breakdown: BucketBreakdown[] = buckets.map((b) => {
       const fx = getFxRateToUsd(b.currency);
-      const earnedNative = Number(b.value - getContributions(b.currency)) / Number(UNIT);
+      const earnedNative = onChain ? 0 : Number(b.value - getContributions(b.currency)) / Number(UNIT);
       return {
         currency: b.currency,
         nativeValue: b.value,
@@ -90,7 +100,7 @@ export function useEarnings(): { loading: boolean; view: EarningsView } {
       chart: fixture.chart.map((p) => ({ ts: p.ts, earnedUsd: p.earnedUsd * earnedUsd })),
       monthly: fixture.monthly.map((m) => ({ label: m.label, earnedUsd: m.earnedUsd * earnedUsd })),
     };
-  }, [buckets, totalUsd, now]);
+  }, [buckets, totalUsd, now, onChain]);
 
   return { loading: loading || now === null, view };
 }

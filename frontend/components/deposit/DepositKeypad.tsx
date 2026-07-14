@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Currency } from "@sorosense/vault-client";
+import type { Currency, TxResult } from "@sorosense/vault-client";
 import { Button, Keypad, SubHeader, CoinBadge, TransferStatus } from "../ui";
 import { ConsentSheet } from "./ConsentSheet";
 import { FaucetButton } from "./FaucetButton";
@@ -68,11 +68,14 @@ export function DepositKeypad({ sym }: { sym: string }) {
     setAmount(fromAmount(BigInt(Math.floor(Number(available) * pct))));
   };
 
-  const doDeposit = async () => {
+  const doDeposit = async (): Promise<TxResult | undefined> => {
     if (!address) return;
     const deposited = toAmount(amount);
-    await client.deposit(address, currency, deposited).signAndSubmit(depositorSigner(address, signTransaction));
-    recordDeposit(currency, deposited); // cost-basis for "Total earned" on Earn
+    const result = await client.deposit(address, currency, deposited).signAndSubmit(depositorSigner(address, signTransaction));
+    // A resolved write is not a confirmed one — the seam reports a rejected transaction as
+    // `success: false`. Cost basis is recorded only for a deposit the chain actually took (R5).
+    if (result.success) recordDeposit(currency, deposited); // cost-basis for "Total earned" on Earn
+    return result;
   };
 
   const onConfirm = async () => {
@@ -90,8 +93,11 @@ export function DepositKeypad({ sym }: { sym: string }) {
     if (!address) return;
     setConsentOpen(false);
     void flow.run(async () => {
-      await client.setPolicyConsent(address).signAndSubmit(depositorSigner(address, signTransaction));
-      await doDeposit();
+      const consent = await client.setPolicyConsent(address).signAndSubmit(depositorSigner(address, signTransaction));
+      // Stop if the mandate did not land: depositing without it panics on-chain (NoConsent), and a
+      // failed consent must surface as a failure rather than a second doomed signature request.
+      if (!consent.success) return consent;
+      return doDeposit();
     });
   };
 
