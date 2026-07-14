@@ -12,6 +12,8 @@
 import { serve } from '@hono/node-server';
 
 import { makeReflectorFx, type FxSource } from '../api/earnings.js';
+import { catalogApy } from '../api/venue-meta.js';
+import { makeLiveApySource } from '../api/live-apy.js';
 import { ActivityLog } from '../api/activity.js';
 import { InMemorySnapshotStore } from '../earnings/snapshotter.js';
 import { getVaultClient, isIntegrationEnv } from '../tools/vault.js';
@@ -39,6 +41,9 @@ const stubFx: FxSource = async (currency) => ok(STUB_RATES[currency] ?? 1);
 const deps: HttpAppDeps = {
   vault: getVaultClient(),
   fx: live ? makeReflectorFx() : stubFx,
+  // Live: read each demo pool's real rate_bps() off-chain. Offline: the catalog figure (no RPC), so the
+  // mock server answers /rates and /holdings without a network — byte-identical to today's offline shape.
+  apy: live ? makeLiveApySource() : catalogApy,
   earnings: { events: [], snapshots: new InMemorySnapshotStore() },
   activity: { log: new ActivityLog(), userEvents: [] },
 };
