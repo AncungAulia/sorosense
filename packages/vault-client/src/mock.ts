@@ -44,6 +44,8 @@ export class MockVaultClient implements VaultClient {
   private totalShares = new Map<Currency, Shares>();
   private totalAssets = new Map<Currency, Amount>();
   private seq = 0;
+  /** When on, every submitted write comes back `success: false` with no effect. See simulateFailure. */
+  private failSubmit = false;
 
   /** Shares minted for depositing `amount` into a bucket, per the contract's virtual-offset math. */
   private mintShares(currency: Currency, amount: Amount): Shares {
@@ -67,6 +69,10 @@ export class MockVaultClient implements VaultClient {
         throw new Error(`wrong signer: need ${requiredSigner}, got ${signer.role}`);
       }
       await signer.sign(xdr);
+      // A chain that rejects a *submitted* transaction reports `success: false` — it does not throw
+      // (RealVaultClient.signAndSubmit). So the rejection lands after the signature and leaves state
+      // untouched: no effect runs, exactly as an on-chain failure leaves the ledger unchanged.
+      if (this.failSubmit) return { hash: `mock-tx-${this.seq}`, success: false };
       effect(); // throws on a blocked guard, mirroring a contract panic
       return { hash: `mock-tx-${this.seq}`, success: true };
     };
@@ -200,7 +206,7 @@ export class MockVaultClient implements VaultClient {
     return this.pending.get(currency) ?? null;
   }
 
-  // ── Test-only hook (not part of VaultClient) ──────────────────────────────
+  // ── Test-only hooks (NOT part of VaultClient) ─────────────────────────────
   /**
    * Raise a bucket's NAV by `amount` without minting shares — the only way to lift its share price in
    * tests, standing in for pool yield the real contract accrues. Not a vault operation; test-only.
@@ -208,6 +214,20 @@ export class MockVaultClient implements VaultClient {
   simulateYield(currency: Currency, amount: Amount): void {
     if (amount < 0n) throw new Error('simulateYield amount must be non-negative');
     this.totalAssets.set(currency, (this.totalAssets.get(currency) ?? 0n) + amount);
+  }
+
+  /**
+   * Make every subsequent write submit-but-fail: `signAndSubmit` resolves `{ hash, success: false }`
+   * and applies no effect. Test-only, and explicitly outside {@link VaultClient} — a caller cannot
+   * reach it through the seam type.
+   *
+   * It exists because the honest failure a live vault produces is a *resolved* promise carrying
+   * `success: false` (a rejected transaction is not an exception), and a mock that always reports
+   * success cannot prove any surface guards it. Every write surface's rejection test drives this hook
+   * instead of hand-patching a fake `signAndSubmit` onto the client (KTD4).
+   */
+  simulateFailure(enabled = true): void {
+    this.failSubmit = enabled;
   }
 }
 
