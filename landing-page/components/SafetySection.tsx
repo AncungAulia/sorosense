@@ -10,45 +10,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-function KeyIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="8.5" cy="8.5" r="4.5" />
-      <path d="M11.7 11.7 20 20" />
-      <path d="m17 17 2-2M15 19l2-2" />
-    </svg>
-  );
-}
-
-function SparkleIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3c.4 3.6 1.4 4.6 5 5-3.6.4-4.6 1.4-5 5-.4-3.6-1.4-4.6-5-5 3.6-.4 4.6-1.4 5-5Z" />
-      <path d="M18.5 14c.2 1.6.7 2.1 2.3 2.3-1.6.2-2.1.7-2.3 2.3-.2-1.6-.7-2.1-2.3-2.3 1.6-.2 2.1-.7 2.3-2.3Z" />
-    </svg>
-  );
-}
-
-function ShieldCheckIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
-}
-
-/* Image-ready placeholder — a soft panel with a faint emblem. Swap the inner
-   content for an <img> / render when the artwork lands. */
-function VisualSlot({ icon, className = "" }: { icon: React.ReactNode; className?: string }) {
-  return (
-    <div className={`sfy-visual flex items-center justify-center rounded-md bg-gradient-to-b from-cloud to-[#e6e6e2] ${className}`}>
-      {/* TODO: replace with a Plasma-style image/render */}
-      <span className="text-ink/20">{icon}</span>
-    </div>
-  );
-}
-
 export function SafetySection() {
   const ref = useRef<HTMLElement>(null);
   const [shown, setShown] = useState(false);
@@ -106,13 +67,13 @@ export function SafetySection() {
           {/* Sentinel — the pillar (tall left) */}
           <article className="sfy-card flex flex-col rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08] md:row-span-2 md:p-8">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[17px] font-semibold tracking-tight text-ink">Sentinel watches every pool.</h3>
+              <h3 className="text-[17px] font-semibold tracking-tight text-ink">We watch every pool.</h3>
               <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-semibold text-brand-ink">
                 <span className="sfy-live" /> 24/7
               </span>
             </div>
             <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
-              It checks every pool constantly and moves your funds out the moment one turns unsafe.
+              We check every pool constantly and move your funds out the moment one turns unsafe.
             </p>
             <div className="mt-6 flex flex-1 items-center justify-center rounded-md bg-gradient-to-b from-cloud to-[#e9e9e5] py-14">
               <div className="sfy-radar">
@@ -124,33 +85,44 @@ export function SafetySection() {
             </div>
           </article>
 
-          {/* Non-custodial */}
-          <article className="sfy-card flex flex-col rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08]">
-            <h3 className="text-[17px] font-semibold tracking-tight text-ink">Your funds stay yours.</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              You hold the keys, and nothing moves without your approval.
-            </p>
-            <VisualSlot icon={<KeyIcon className="h-14 w-14" />} className="mt-6 flex-1 py-10" />
+          {/* Non-custodial — key large, tilted 8°, bleeding out of the grey card (masked) */}
+          <article className="sfy-card relative flex min-h-[300px] flex-col overflow-hidden rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08]">
+            <div className="relative z-10">
+              <h3 className="text-[17px] font-semibold tracking-tight text-ink">Your funds stay yours.</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                You hold the keys, and nothing moves without your approval.
+              </p>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/Metalic%20Key.png" alt="A single key you alone hold" className="pointer-events-none absolute left-1/2 top-1/2 max-w-none" style={{ height: 130, transformOrigin: "center", transform: "translate(-50%,-50%) translate(21px,76px) rotate(-22deg) scale(2.44)" }} />
           </article>
 
-          {/* AI agent */}
-          <article className="sfy-card flex flex-col rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08]">
-            <h3 className="text-[17px] font-semibold tracking-tight text-ink">It finds the safest yield for you.</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              An agent keeps looking for the safest, highest yield on Stellar, so you never have to.
-            </p>
-            <VisualSlot icon={<SparkleIcon className="h-14 w-14" />} className="mt-6 flex-1 py-10" />
+          {/* AI agent — robot large on the left (flipped to face right), bleeding out; copy right */}
+          <article className="sfy-card relative flex min-h-[230px] items-center overflow-hidden rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/Agent.png" alt="An agent scanning Stellar for the safest yield" className="pointer-events-none absolute left-1/2 top-1/2 max-w-none" style={{ height: 200, transformOrigin: "center", transform: "translate(-50%,-50%) translate(-130px,50px) rotate(0deg) scale(1.72) scaleX(-1)" }} />
+            <div className="relative z-10 ml-auto max-w-[56%] text-right">
+              <h3 className="text-[17px] font-semibold tracking-tight text-ink">It finds the safest yield for you.</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                An agent keeps looking for the safest, highest yield on Stellar, so you never have to.
+              </p>
+            </div>
           </article>
 
-          {/* Vetted pools — wide */}
-          <article className="sfy-card flex flex-col rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08] md:col-span-2 md:flex-row md:items-center md:gap-8">
-            <div className="md:max-w-md">
+          {/* Vetted pools — wide; shield large on the right, bleeding out of the card (masked) */}
+          <article className="sfy-card relative flex min-h-[210px] flex-col justify-center overflow-hidden rounded-lg bg-paper p-7 ring-1 ring-black/[0.04] transition-shadow duration-300 hover:ring-black/[0.08] md:col-span-2">
+            <div className="relative z-10 max-w-[60%] md:max-w-md">
               <h3 className="text-[17px] font-semibold tracking-tight text-ink">Only pools we trust.</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted">
                 Your money only goes into pools that have been checked and audited, never an untested one.
               </p>
             </div>
-            <VisualSlot icon={<ShieldCheckIcon className="h-14 w-14" />} className="mt-6 h-40 w-full md:mt-0 md:flex-1" />
+            {/* shield — mobile transform (narrower card) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/Shield.png" alt="A shield — only vetted, audited pools" className="pointer-events-none absolute left-1/2 top-1/2 max-w-none md:hidden" style={{ height: 200, transformOrigin: "center", transform: "translate(-50%,-50%) translate(120px,18px) rotate(24deg) scale(1.56)" }} />
+            {/* shield — desktop transform */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/Shield.png" alt="" aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 hidden max-w-none md:block" style={{ height: 200, transformOrigin: "center", transform: "translate(-50%,-50%) translate(240px,18px) rotate(24deg) scale(1.82)" }} />
           </article>
         </div>
       </div>
