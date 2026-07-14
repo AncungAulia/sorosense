@@ -1,28 +1,25 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SHARE_PRICE_SCALE, type Currency } from "@sorosense/vault-client";
-import { Button, Keypad, SubHeader, CoinBadge } from "../ui";
+import { Button, Keypad, SubHeader, CoinBadge, TransferStatus } from "../ui";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
-import { useToast } from "../../hooks/useToast";
+import { useTransferFlow } from "../../hooks/useTransferFlow";
 import { depositorSigner } from "../../lib/vault/signer";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
 import { recordWithdraw } from "../../lib/vault/contributions";
-import { toWalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 export function WithdrawKeypad() {
   const router = useRouter();
   const { buckets } = useBuckets();
   const { client } = useVault();
   const { address, signTransaction } = useWallet();
-  const { show } = useToast();
   const [i, setI] = useState(0);
   const [amount, setAmount] = useState("0");
   const [maxSelected, setMaxSelected] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  const flow = useTransferFlow();
 
   // buckets only include currencies with a positive balance (useBuckets filters shares<=0), so any
   // index here is already a "has a positive balance" bucket.
@@ -45,35 +42,48 @@ export function WithdrawKeypad() {
     setAmount(fromAmount(BigInt(Math.floor(Number(active.value) * pct))));
   };
 
-  const onConfirm = async () => {
-    if (inFlight.current || !address || !active || busy || exceeded) return;
-    inFlight.current = true;
-    setBusy(true);
-    try {
-      const currency: Currency = active.currency;
-      const enteredAmount = toAmount(amount);
-      if (enteredAmount <= 0n) return;
-      const isMax = maxSelected;
-      // The seam's `withdraw` burns SHARES, but the UI is asset-denominated. Convert via the
-      // current NAV: shares = amount * SCALE / sharePrice. For "Max" use the full share balance
-      // directly (balanceOf) rather than converting the displayed asset value back to shares, to
-      // avoid leaving rounding dust behind in the bucket.
-      const shares = isMax
-        ? await client.balanceOf(address, currency)
-        : (enteredAmount * SHARE_PRICE_SCALE) / (await client.sharePrice(currency));
-      if (shares <= 0n) return;
-      await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
-      recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
-      show("Sent to your wallet");
-      router.push("/home");
-    } catch (e) {
-      const w = toWalletError(e);
-      if (w.code !== USER_CLOSED_MODAL) show(w.message); // user closed modal → silent
-    } finally {
-      setBusy(false);
-      inFlight.current = false;
-    }
+  const doWithdraw = async () => {
+    if (!address || !active) return;
+    const currency: Currency = active.currency;
+    const enteredAmount = toAmount(amount);
+    if (enteredAmount <= 0n) return;
+    const isMax = maxSelected;
+    // The seam's `withdraw` burns SHARES, but the UI is asset-denominated. Convert via the current
+    // NAV: shares = amount * SCALE / sharePrice. For "Max" use the full share balance directly
+    // (balanceOf) rather than converting the displayed asset value back to shares, to avoid leaving
+    // rounding dust behind in the bucket.
+    const shares = isMax
+      ? await client.balanceOf(address, currency)
+      : (enteredAmount * SHARE_PRICE_SCALE) / (await client.sharePrice(currency));
+    if (shares <= 0n) return;
+    await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
+    recordWithdraw(currency, isMax ? active.value : enteredAmount); // reduce cost-basis
   };
+
+  const onConfirm = () => {
+    if (flow.phase !== "idle" || !address || !active || exceeded || entered <= 0n) return;
+    void flow.run(doWithdraw);
+  };
+
+  // Sending / success / error status — the flow's screen replaces the form.
+  if (flow.phase !== "idle") {
+    return (
+      <div className="flex min-h-[calc(100dvh-92px)] flex-col">
+        <SubHeader title="Move to wallet" />
+        <TransferStatus
+          phase={flow.phase}
+          sendingLabel="Sending to your wallet…"
+          successTitle="Sent to your wallet"
+          successMessage="Your funds are on the way to your wallet."
+          onDone={() => router.push("/home")}
+          errorMessage={flow.error}
+          onRetry={flow.retry}
+          backLabel="Back to Move to wallet"
+          onBack={flow.reset}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[calc(100dvh-92px)] flex-col">
@@ -120,7 +130,7 @@ export function WithdrawKeypad() {
         invalid={exceeded}
         hint="Not enough balance"
       />
-      <Button onClick={onConfirm} disabled={busy || exceeded || !active || entered <= 0n}>Move to wallet</Button>
+      <Button onClick={onConfirm} disabled={exceeded || !active || entered <= 0n}>Move to wallet</Button>
     </div>
   );
 }

@@ -48,5 +48,8 @@ test("first deposit signs consent then deposit (two signatures)", async () => {
   await user.click(screen.getByRole("button", { name: /agree & sign/i }));
   await waitFor(() => expect(sign).toHaveBeenCalledTimes(2)); // consent + deposit
   await waitFor(async () => expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(0n));
+  // Success is a status screen, not an auto-redirect — the user taps Done to return home.
+  await waitFor(() => expect(screen.getByText("Deposit sent")).toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "Done" }));
   expect(push).toHaveBeenCalledWith("/home");
 });

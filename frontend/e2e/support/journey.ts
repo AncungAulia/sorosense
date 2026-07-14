@@ -50,6 +50,9 @@ export async function depositEurc(page: Page, amount: string): Promise<void> {
   await shot(page, "02-consent-sheet");
   await consent.getByRole("button", { name: "Agree & sign" }).click();
 
+  // Success is a status screen (STE-48), not an auto-redirect — confirm it, then Done returns home.
+  await expect(page.getByText("Deposit sent")).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
   await expect(page).toHaveURL(/\/home$/);
 }
 
