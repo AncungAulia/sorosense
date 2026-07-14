@@ -63,11 +63,7 @@ export function demoPoolFor(currency: Currency): PoolId {
  * unchanged; the real client then passes slugs straight through).
  */
 export function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Address) | undefined {
-  const entries: Array<[PoolId, Address]> = [];
-  const usd = env.YIELD_POOL_USD ?? env.BLEND_POOL_USD;
-  const eur = env.YIELD_POOL_EUR ?? env.BLEND_POOL_EUR;
-  if (usd) entries.push([demoPoolFor('USD'), usd]);
-  if (eur) entries.push([demoPoolFor('EUR'), eur]);
+  const entries = poolRegistryEntries(env);
   if (entries.length === 0) return undefined;
   const registry = new Map<PoolId, Address>(entries);
   return (pool: PoolId): Address => {
@@ -75,6 +71,32 @@ export function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Ad
     if (!address) throw new Error(`unknown pool: ${pool}`);
     return address;
   };
+}
+
+/** The (slug → address) pairs for the configured demo pools — the ONE source both directions build from. */
+function poolRegistryEntries(env: NodeJS.ProcessEnv): Array<[PoolId, Address]> {
+  const entries: Array<[PoolId, Address]> = [];
+  const usd = env.YIELD_POOL_USD ?? env.BLEND_POOL_USD;
+  const eur = env.YIELD_POOL_EUR ?? env.BLEND_POOL_EUR;
+  if (usd) entries.push([demoPoolFor('USD'), usd]);
+  if (eur) entries.push([demoPoolFor('EUR'), eur]);
+  return entries;
+}
+
+/**
+ * The inverse of {@link buildPoolRegistry}: an on-chain pool {@link Address} the contract *returns*
+ * (`active_pool`, `pending_exit`) → its seam {@link PoolId} slug, so the value round-trips straight back
+ * into `poolStatus` and the pool-taking writes. Injected as `RealVaultClient.poolIdFor` — WITHOUT it,
+ * `getHoldings` reads `activePool` (an address), hands it to `poolStatus`, and the forward resolver
+ * rejects the address as an unknown slug (a 500 the instant a bucket is actually allocated). Built from
+ * the SAME entries as the forward registry, so a pool cannot resolve one way and not the other.
+ */
+export function buildPoolIdResolver(env: NodeJS.ProcessEnv): ((address: Address) => PoolId) | undefined {
+  const entries = poolRegistryEntries(env);
+  if (entries.length === 0) return undefined;
+  const inverse = new Map<Address, PoolId>(entries.map(([slug, address]) => [address, slug]));
+  // An address the registry does not know decodes to itself — a display concern, never a failed read.
+  return (address: Address): PoolId => inverse.get(address) ?? address;
 }
 
 /** Build the real client when every integration var is set; otherwise the mock. */
@@ -92,6 +114,7 @@ function create(env: NodeJS.ProcessEnv): VaultClient {
       networkPassphrase,
       signer,
       resolvePool: buildPoolRegistry(env),
+      poolIdFor: buildPoolIdResolver(env),
     });
   }
   return new MockVaultClient();
@@ -131,6 +154,7 @@ export function createDepositorVaultClient(options: DepositorVaultClientOptions)
     networkPassphrase: options.networkPassphrase,
     signer,
     resolvePool: buildPoolRegistry(env),
+    poolIdFor: buildPoolIdResolver(env),
   });
   return { client, signer };
 }
