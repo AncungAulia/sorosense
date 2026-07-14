@@ -15,6 +15,7 @@
 import type { Address, Currency, VaultClient } from '@sorosense/vault-client';
 
 import { ok, type Result } from '../lib/result.js';
+import { netApy as toNetApy, performanceFeeBps } from '../tools/fee.js';
 import { ALL_CURRENCIES, makeReflectorFx, type FxSource } from './earnings.js';
 import { bestSafeVenue, catalogApy, kindLabel, resolveVenue, type ApySource } from './venue-meta.js';
 
@@ -33,7 +34,12 @@ export interface Holding {
   kind: 'lending' | 'vault' | 'rwa';
   /** `[venue, kindLabel(kind, name)]` — matches the frontend's bucket tags. */
   tags: string[];
+  /** Gross APY the venue pays (the pool's on-chain rate). */
   apy: number;
+  /** APY the depositor keeps after the {@link feeBps} performance fee. */
+  netApy: number;
+  /** Performance fee in basis points (a share of yield, not principal). */
+  feeBps: number;
   shares: bigint;
   /** Native base-unit value of the bucket (from `assetValueOf`). */
   value: bigint;
@@ -62,6 +68,7 @@ export interface HoldingsDeps {
 export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promise<Result<Holding[]>> {
   const currencies = deps.currencies ?? ALL_CURRENCIES;
   const apySource = deps.apy ?? catalogApy;
+  const feeBps = performanceFeeBps();
   const holdings: Holding[] = [];
 
   for (const currency of currencies) {
@@ -93,6 +100,8 @@ export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promi
       kind: meta.kind,
       tags: [meta.venue, kindLabel(meta.kind, meta.name)],
       apy: apy.value,
+      netApy: toNetApy(apy.value, feeBps),
+      feeBps,
       shares,
       value,
       valueUsd,

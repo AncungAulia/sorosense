@@ -110,9 +110,11 @@ const ratesResponse = {
         items: { type: 'string' },
         description: 'Display tags `[venue, kindLabel]` — the same pair a funded /holdings row carries.',
       },
-      apy: { type: 'number', description: "The best safe venue's APY — what the agent would allocate to." },
+      apy: { type: 'number', description: "The best safe venue's gross APY — what the agent would allocate to." },
+      netApy: { type: 'number', description: 'APY the depositor keeps after the performance fee (apy × (1 − feeBps/10000)).' },
+      feeBps: { type: 'number', description: 'Performance fee in basis points — a share of yield, never principal (default 1000 = 10%).' },
     },
-    required: ['currency', 'name', 'venue', 'kind', 'tags', 'apy'],
+    required: ['currency', 'name', 'venue', 'kind', 'tags', 'apy', 'netApy', 'feeBps'],
   },
 } as const;
 

@@ -16,6 +16,7 @@
 import type { Currency } from '@sorosense/vault-client';
 
 import { ok, type Result } from '../lib/result.js';
+import { netApy as toNetApy, performanceFeeBps } from '../tools/fee.js';
 import { ALL_CURRENCIES } from './earnings.js';
 import { bestSafeVenue, catalogApy, kindLabel, type ApySource } from './venue-meta.js';
 
@@ -33,7 +34,12 @@ export interface Rate {
   kind: 'lending' | 'vault' | 'rwa';
   /** `[venue, kindLabel(kind, name)]` — the same display tags a funded bucket carries. */
   tags: string[];
+  /** Gross APY the venue pays (the pool's on-chain rate). */
   apy: number;
+  /** APY the depositor keeps after the {@link feeBps} performance fee (`apy × (1 − feeBps/10000)`). */
+  netApy: number;
+  /** Performance fee in basis points (a share of yield, not principal). */
+  feeBps: number;
 }
 
 /**
@@ -48,6 +54,7 @@ export async function getRates(
   apy: ApySource = catalogApy,
 ): Promise<Result<Rate[]>> {
   const rates: Rate[] = [];
+  const feeBps = performanceFeeBps();
 
   for (const currency of currencies) {
     // The agent's default target for an unallocated bucket — the same resolution `getHoldings` applies
@@ -65,6 +72,8 @@ export async function getRates(
       kind: meta.kind,
       tags: [meta.venue, kindLabel(meta.kind, meta.name)],
       apy: rate.value,
+      netApy: toNetApy(rate.value, feeBps),
+      feeBps,
     });
   }
 
