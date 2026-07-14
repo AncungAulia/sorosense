@@ -4,6 +4,7 @@ import { Dropdown } from "../ui/Dropdown";
 import { Switch } from "../ui";
 import { Identicon } from "../account/Identicon";
 import { LogoutSheet } from "../account/LogoutSheet";
+import { FaucetButton } from "../deposit/FaucetButton";
 import { useWallet } from "../../hooks/useWallet";
 import { useAutoCompound } from "../../hooks/useAutoCompound";
 import { useNav } from "../../hooks/useNav";
@@ -64,6 +65,9 @@ export function AccountMenu() {
           </button>
           <span className="text-[12.5px] text-muted">Connected via {walletName ?? "your wallet"}</span>
         </div>
+        {/* Testnet faucet — mint USDC to a fresh wallet, with a per-address cooldown. Renders only in
+            integration mode (apiEnabled + issuer configured); returns null in mock/offline. */}
+        <FaucetButton currency="USD" />
         <div className="mx-2 my-1.5 h-px bg-line" />
         <button role="menuitem" onClick={() => { setOpen(false); openPanel("activity"); }} className="flex w-full items-center gap-[13px] rounded-xl px-3 py-2.5 text-left hover:bg-pill">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-ink-2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>

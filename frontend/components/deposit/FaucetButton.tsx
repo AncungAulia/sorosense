@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
 import { Button } from "../ui";
 import { apiEnabled } from "../../lib/api/config";
@@ -28,11 +28,38 @@ import { useToast } from "../../hooks/useToast";
  * classic asset. We build the `changeTrust`, sign it in the wallet, submit it, and retry the mint
  * **exactly once** — an unbounded retry against a rate-limited endpoint is the failure mode here.
  */
+/** Client-side cooldown after a successful claim (the backend also rate-limits, at 60s; this is longer
+ *  and, unlike the backend limit, shows the user exactly when the next claim unlocks). */
+const FAUCET_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+const cooldownKey = (address: string) => `ss-faucet-until-${address}`;
+
+/** ms → "hh:mm:ss". */
+function formatCountdown(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
+}
+
 export function FaucetButton({ currency, onMinted }: { currency: Currency; onMinted?: () => void }) {
   const { address, signTransaction } = useWallet();
   const { show } = useToast();
   const [busy, setBusy] = useState(false);
   const [unmounted, setUnmounted] = useState(false); // a 404: the route is not mounted on this backend
+  // Cooldown, persisted per address so it survives a reload. `nowTs` ticks each second while counting down.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [nowTs, setNowTs] = useState(0);
+
+  useEffect(() => {
+    if (!address) return setCooldownUntil(0);
+    setCooldownUntil(Number(localStorage.getItem(cooldownKey(address)) ?? 0));
+    setNowTs(Date.now());
+  }, [address]);
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
 
   const coin = stablecoinByCurrency(currency);
   const mintable = currency === "USD" || currency === "EUR";
@@ -45,6 +72,12 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
   const succeed = () => {
     show(`Test ${coin.sym} on the way — your balance updates in a moment.`);
     onMinted?.(); // re-read the balance (it polls: Horizon needs a ledger close to see the payment)
+    if (address) {
+      const until = Date.now() + FAUCET_COOLDOWN_MS;
+      localStorage.setItem(cooldownKey(address), String(until));
+      setCooldownUntil(until);
+      setNowTs(Date.now());
+    }
   };
 
   const onClick = async () => {
@@ -90,12 +123,19 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
     }
   };
 
+  const remaining = cooldownUntil - nowTs;
+  const onCooldown = remaining > 0;
+
   // The primitive is used as-is (primitives-DRY): no size override, which Tailwind's stylesheet order
   // would drop on the floor anyway — the wrapper is what shapes the slot.
   return (
     <div className="mx-auto mb-4 mt-2 w-full max-w-[240px]">
-      <Button variant="glass" onClick={onClick} disabled={busy}>
-        {busy ? "Sending test funds…" : `Get test ${coin.sym}`}
+      <Button variant="glass" onClick={onClick} disabled={busy || onCooldown}>
+        {busy
+          ? "Sending test funds…"
+          : onCooldown
+            ? `Next claim in ${formatCountdown(remaining)}`
+            : `Get test ${coin.sym}`}
       </Button>
     </div>
   );
