@@ -52,15 +52,42 @@ const EUR_ROW = {
   frozen: true,
 };
 
+type Row = typeof USD_ROW;
+
+/**
+ * `GET /earnings` for the same rows, as the live backend would send it: `earnedUsd` is **0**, because
+ * `share_price` is pinned to the scale until NAV accrual ships (R10). The per-bucket rates asserted
+ * below therefore have to come from the `/holdings` rows — this response carries none.
+ */
+function earningsFor(rows: Row[]) {
+  const balanceUsd = rows.reduce((s, r) => s + r.valueUsd, 0);
+  return {
+    hasDeposit: rows.length > 0,
+    balanceUsd,
+    apy: balanceUsd > 0 ? rows.reduce((s, r) => s + r.valueUsd * r.apy, 0) / balanceUsd : 0,
+    earnedUsd: 0,
+    buckets: rows.map((r) => ({ currency: r.currency, nativeValue: r.value, usdValue: r.valueUsd, earnedUsd: 0 })),
+    chart: [],
+    monthly: [],
+  };
+}
+
+/** The Earn page reads two routes now — answer each with its own shape, not with whatever came first. */
+function routeTo(rows: Row[]) {
+  return (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const body = url.includes("/earnings") ? earningsFor(rows) : rows;
+    // A fresh Response per call: a body can only be read once, and the hooks refetch on a vault bump.
+    return Promise.resolve(
+      new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+  };
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  // A fresh Response per call: a body can only be read once, and the hook refetches on a vault bump.
-  fetchMock = vi.fn().mockImplementation(() =>
-    Promise.resolve(
-      new Response(JSON.stringify([USD_ROW]), { status: 200, headers: { "content-type": "application/json" } }),
-    ),
-  );
+  fetchMock = vi.fn().mockImplementation(routeTo([USD_ROW]));
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -90,11 +117,7 @@ test("the funded hero shows the backend's rate for USD, not the fixture", async 
 
 test("every funded bucket takes its rate from its own /holdings row — no fixture rate leaks (KTD4)", async () => {
   const user = userEvent.setup();
-  fetchMock.mockImplementation(() =>
-    Promise.resolve(
-      new Response(JSON.stringify([USD_ROW, EUR_ROW]), { status: 200, headers: { "content-type": "application/json" } }),
-    ),
-  );
+  fetchMock.mockImplementation(routeTo([USD_ROW, EUR_ROW]));
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   const client = new MockVaultClient();
   await seedVault(client, "GUSER");
