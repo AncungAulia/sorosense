@@ -26,7 +26,7 @@ test("the hero shows total earned with a balance-and-APY subline", async () => {
 test("the Growth card renders bars and the monthly breakdown", async () => {
   await renderFunded();
   expect(screen.getByText("Growth")).toBeInTheDocument();
-  expect(screen.getAllByTestId("bar")).toHaveLength(20);
+  expect(screen.getAllByTestId("bar")).toHaveLength(12); // default period: year (12 monthly bars)
   expect(screen.getAllByTestId("month-row")).toHaveLength(3);
 });
 
