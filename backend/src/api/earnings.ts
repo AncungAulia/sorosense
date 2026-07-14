@@ -24,7 +24,7 @@ import { SHARE_PRICE_SCALE } from '@sorosense/vault-client';
 
 import { err, ok, type Result } from '../lib/result.js';
 import { getCatalog } from '../tools/catalog.js';
-import { getReflectorPrice, type ReflectorOptions } from '../tools/price.js';
+import { makeReflectorReader, type ReflectorOptions } from '../tools/price.js';
 import { reconstructCostBasis, type VaultEvent } from '../earnings/cost-basis.js';
 import type { SnapshotStore } from '../earnings/snapshotter.js';
 
@@ -259,13 +259,17 @@ export function makeReflectorFx(
   symbolOf: (currency: Currency) => string | null = defaultFxSymbol,
   options: ReflectorOptions = {},
 ): FxSource {
+  // One reader for the process: it builds the RPC transport once and remembers the feed's scale, instead
+  // of standing up a client per bucket per request.
+  const readPrice = makeReflectorReader(options);
+
   return async (currency) => {
     if (currency === 'USD') return ok(1); // the oracle's base — the numéraire, no read
     const symbol = symbolOf(currency);
     if (symbol === null) {
       return err('unavailable', `no Reflector symbol configured for ${currency} (FX_SYMBOL_${currency})`);
     }
-    const res = await getReflectorPrice(symbol, options);
+    const res = await readPrice(symbol);
     if (res.ok) return ok(res.value.price);
     // A symbol the feed does not carry is `not_found` at the tool boundary (precise, and what the
     // Sentinel wants), but as an FX RATE it is simply unavailable. Left as-is it would map to HTTP 404 —

@@ -12,8 +12,11 @@ import { nativeToScVal, xdr } from '@stellar/stellar-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_REFLECTOR_DECIMALS,
   DEFAULT_REFLECTOR_ORACLE_ID,
   getReflectorPrice,
+  makeReflectorReader,
+  OracleTimeoutError,
   oracleConfigFrom,
   otherAsset,
   reflectorDecimals,
@@ -42,9 +45,18 @@ const somePriceData = (price: bigint, timestamp: bigint): xdr.ScVal =>
 /** `Option::None` — the oracle returns an ScVal void for a symbol it does not carry. */
 const none = (): xdr.ScVal => xdr.ScVal.scvVoid();
 
-const sourceReturning = (retval: xdr.ScVal | undefined): OracleSource => ({
-  simulate: vi.fn(async () => retval),
+/**
+ * A method-aware stub feed: `lastprice` and `decimals` answer separately, exactly as the contract does.
+ * `decimals` defaults to the 14 the deployed oracle reports, so a reader with nothing pinned reads it.
+ */
+const feed = (lastprice: xdr.ScVal | undefined, decimals = 14): OracleSource => ({
+  simulate: vi.fn(async (method: string) =>
+    method === 'decimals' ? nativeToScVal(decimals, { type: 'u32' }) : lastprice,
+  ),
 });
+
+/** Back-compat alias: most cases only care about what `lastprice` returns. */
+const sourceReturning = (retval: xdr.ScVal | undefined): OracleSource => feed(retval);
 
 describe('getReflectorPrice — reads the on-chain SEP-40 oracle', () => {
   it('decodes Some(PriceData) at the feed scale: 114433043263595 / 1e14 = 1.1443… USD/EURC', async () => {
@@ -65,11 +77,31 @@ describe('getReflectorPrice — reads the on-chain SEP-40 oracle', () => {
 
     await getReflectorPrice('USDC', { source, env: LIVE_ENV });
 
-    expect(source.simulate).toHaveBeenCalledTimes(1);
-    const [method, args] = vi.mocked(source.simulate).mock.calls[0] ?? [];
-    expect(method).toBe('lastprice');
+    const call = vi.mocked(source.simulate).mock.calls.find(([method]) => method === 'lastprice');
+    expect(call).toBeDefined();
     // Compare on the XDR, so a change in how the enum is built is caught rather than assumed.
-    expect(args?.[0]?.toXDR('base64')).toBe(otherAsset('USDC').toXDR('base64'));
+    expect(call?.[1]?.[0]?.toXDR('base64')).toBe(otherAsset('USDC').toXDR('base64'));
+  });
+
+  it('reads the scale from the ORACLE when nothing pins it — a repointed feed cannot silently 10,000x a rate', async () => {
+    // Same raw i128, a feed that reports 18 decimals: the rate must follow the feed, not a stale env pin.
+    const source = feed(somePriceData(1_144_330_000_000_000_000n, 1n), 18);
+
+    const r = await getReflectorPrice('EURC', { source, env: LIVE_ENV });
+
+    expect(r.ok && r.value.price).toBeCloseTo(1.14433, 9);
+    expect(vi.mocked(source.simulate).mock.calls.some(([m]) => m === 'decimals')).toBe(true);
+  });
+
+  it('reads decimals() once per feed, not once per price', async () => {
+    const source = feed(somePriceData(114_433_043_263_595n, 1n));
+    const read = makeReflectorReader({ source, env: LIVE_ENV });
+
+    await read('EURC');
+    await read('USDC');
+
+    const decimalsCalls = vi.mocked(source.simulate).mock.calls.filter(([m]) => m === 'decimals');
+    expect(decimalsCalls).toHaveLength(1);
   });
 
   it('honours REFLECTOR_DECIMALS so a feed on a different scale is a config change, not a patch', async () => {
@@ -78,6 +110,8 @@ describe('getReflectorPrice — reads the on-chain SEP-40 oracle', () => {
     const r = await getReflectorPrice('EURC', { source, env: LIVE_ENV, decimals: 6 });
 
     expect(r.ok && r.value.price).toBeCloseTo(1.1433, 9);
+    // A pinned scale is the escape hatch: it must NOT cost an oracle round trip.
+    expect(vi.mocked(source.simulate).mock.calls.some(([m]) => m === 'decimals')).toBe(false);
   });
 
   it('treats Option::None as not_found — the feed carries no MXN (fail-closed, never a rate of 1)', async () => {
@@ -130,6 +164,20 @@ describe('getReflectorPrice — reads the on-chain SEP-40 oracle', () => {
     expect(r.code).toBe('unavailable');
   });
 
+  it('turns a stalled feed into err(timeout), not a hung request', async () => {
+    const stalling: OracleSource = {
+      simulate: async () => {
+        throw new OracleTimeoutError('reflector lastprice timed out after 8000ms');
+      },
+    };
+
+    const r = await getReflectorPrice('EURC', { source: stalling, env: LIVE_ENV, decimals: 14 });
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('timeout'); // → HTTP 504, the code the REST reader used to produce
+  });
+
   it('with no network env configured it fails closed WITHOUT constructing an RPC client', async () => {
     // No `source` injected and no env: the live source would be built here if the guard were missing.
     const r = await getReflectorPrice('EURC', { env: {} as NodeJS.ProcessEnv });
@@ -138,6 +186,19 @@ describe('getReflectorPrice — reads the on-chain SEP-40 oracle', () => {
     if (r.ok) return;
     expect(r.code).toBe('unavailable');
     expect(r.error).toMatch(/not configured/);
+  });
+
+  it('a typo in REFLECTOR_ORACLE_ID is a typed error, not a thrown 500', async () => {
+    // The REAL live source is constructed here (no stub) — `new Contract('COTHER')` throws. Offline: the
+    // RPC client is lazy, so nothing is dialed; the read fails at construction, before any request.
+    const r = await getReflectorPrice('EURC', {
+      env: { ...LIVE_ENV, REFLECTOR_ORACLE_ID: 'COTHER' } as NodeJS.ProcessEnv,
+    });
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('unavailable');
+    expect(r.error).toMatch(/misconfigured/);
   });
 });
 
@@ -152,9 +213,10 @@ describe('oracle config is env-driven (a wrong id is an .env edit, not a patch r
     expect(oracleConfigFrom({ STELLAR_RPC_URL: 'https://rpc.invalid' } as NodeJS.ProcessEnv)).toBeNull();
   });
 
-  it('defaults the fixed-point scale to the oracle-reported 14, and ignores a garbage override', () => {
-    expect(reflectorDecimals({} as NodeJS.ProcessEnv)).toBe(14);
+  it('pins the scale only when REFLECTOR_DECIMALS says so — unset (or garbage) defers to the oracle', () => {
+    expect(reflectorDecimals({} as NodeJS.ProcessEnv)).toBeUndefined(); // ⇒ read decimals() from the feed
     expect(reflectorDecimals({ REFLECTOR_DECIMALS: '7' } as NodeJS.ProcessEnv)).toBe(7);
-    expect(reflectorDecimals({ REFLECTOR_DECIMALS: 'abc' } as NodeJS.ProcessEnv)).toBe(14);
+    expect(reflectorDecimals({ REFLECTOR_DECIMALS: 'abc' } as NodeJS.ProcessEnv)).toBeUndefined();
+    expect(DEFAULT_REFLECTOR_DECIMALS).toBe(14); // what the deployed oracle reports (verified live)
   });
 });
