@@ -4,9 +4,13 @@ import { MockVaultClient } from "@sorosense/vault-client";
 import { VaultProvider } from "../../../providers/VaultProvider";
 import { ToastProvider } from "../../../providers/ToastProvider";
 import { AddFundsDrawer } from "../AddFundsDrawer";
+import { getContributions, resetContributions } from "../../../lib/vault/contributions";
 
 const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
+
+// The cost-basis ledger is a module singleton — keep each test's contributions its own.
+afterEach(() => resetContributions());
 
 function setup() {
   const sign = vi.fn(async (xdr: string) => `sig:${xdr}`);
@@ -53,4 +57,31 @@ test("with no Horizon/API env the fixture balance renders and the faucet slot st
   expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
   expect(fetchSpy).not.toHaveBeenCalled();
   vi.unstubAllGlobals();
+});
+
+/**
+ * R5 / KTD4 — a chain-rejected write resolves `success: false` (it does not throw). On desktop the
+ * success reaction is "close the drawer + toast", so a rejection must do neither, and must leave the
+ * cost basis alone.
+ */
+test("a rejected deposit keeps the drawer open, toasts nothing, and records no cost basis", async () => {
+  const user = userEvent.setup();
+  const { client, onClose, sign } = setup();
+  // Settle the dev seed first so the assertions read this deposit's effect, not the seed's.
+  await waitFor(async () => expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(0n));
+  const shares = await client.balanceOf("GNEW", "USD");
+  const basis = getContributions("USD");
+  client.simulateFailure();
+
+  await user.click(screen.getByRole("button", { name: /USDC/ }));
+  fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "10" } });
+  await user.click(screen.getByRole("button", { name: "Deposit" }));
+  await user.click(screen.getByRole("button", { name: /agree & sign/i }));
+
+  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  expect(onClose).not.toHaveBeenCalled(); // the drawer stays put — nothing was deposited
+  expect(screen.queryByText("Deposited. Agent is allocating.")).toBeNull();
+  expect(await client.balanceOf("GNEW", "USD")).toBe(shares);
+  expect(getContributions("USD")).toBe(basis);
+  expect(sign).toHaveBeenCalledTimes(1); // consent failed → the deposit was never attempted
 });

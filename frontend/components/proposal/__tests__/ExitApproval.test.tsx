@@ -55,3 +55,40 @@ test("decline closes without calling the seam — funds stay put", async () => {
   expect(await client.pendingExit("EUR")).not.toBeNull(); // proposal intact, nothing moved
   expect(await client.activePool("EUR")).toBe("pool-blend-eur"); // still the frozen pool
 });
+
+/**
+ * R5 / KTD4 — approveExit resolves `success: false` when the chain rejects it. Saying "Exit approved.
+ * Moving your funds now." on that would tell the user their funds moved out of a paused pool when
+ * they did not: the proposal is still pending and the pool is still frozen.
+ */
+test("a rejected approval says nothing moved — the proposal stays pending, the pool stays paused", async () => {
+  const { client, onClose } = setup();
+  await seedVault(client, "GUSER");
+  const user = userEvent.setup();
+  client.simulateFailure();
+  render(<VaultProvider client={client}><ExitApproval open onClose={onClose} /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByText("DeFindex EURC")).toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "Approve and sign in wallet" }));
+
+  await waitFor(() => expect(screen.getByText(/didn't accept that/i)).toBeInTheDocument());
+  expect(screen.queryByText(/exit approved/i)).toBeNull();
+  expect(onClose).not.toHaveBeenCalled(); // the exit is still there to approve
+  expect(await client.pendingExit("EUR")).not.toBeNull();
+  expect(await client.activePool("EUR")).toBe("pool-blend-eur"); // nothing moved
+});
+
+test("a double-press fires one approval, not two", async () => {
+  const { client, onClose } = setup();
+  await seedVault(client, "GUSER");
+  const user = userEvent.setup();
+  const approveExit = vi.spyOn(client, "approveExit");
+  render(<VaultProvider client={client}><ExitApproval open onClose={onClose} /></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByText("DeFindex EURC")).toBeInTheDocument());
+  const approve = screen.getByRole("button", { name: "Approve and sign in wallet" });
+  await Promise.all([user.click(approve), user.click(approve)]);
+
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  expect(approveExit).toHaveBeenCalledTimes(1); // the in-flight guard holds
+});

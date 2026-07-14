@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Currency } from "@sorosense/vault-client";
+import type { Currency, TxResult } from "@sorosense/vault-client";
 import { Drawer } from "../ui/Drawer";
 import { Dialog } from "../ui/Dialog";
 import { Button, CoinBadge, TransferStatus } from "../ui";
@@ -77,11 +77,14 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
   };
   const quick = (pct: number) => setAmount(fromAmount(BigInt(Math.floor(Number(available) * pct))));
 
-  const doDeposit = async () => {
+  const doDeposit = async (): Promise<TxResult | undefined> => {
     if (!address) return;
     const deposited = toAmount(amount);
-    await client.deposit(address, currency, deposited).signAndSubmit(depositorSigner(address, signTransaction));
-    recordDeposit(currency, deposited); // cost-basis for "Total earned"
+    const result = await client.deposit(address, currency, deposited).signAndSubmit(depositorSigner(address, signTransaction));
+    // Only a confirmed deposit updates the cost basis; a rejected one leaves the ledger untouched and
+    // the flow lands in `error`, so the success toast below never fires (R5).
+    if (result.success) recordDeposit(currency, deposited); // cost-basis for "Total earned"
+    return result;
   };
 
   const onConfirm = async () => {
@@ -99,8 +102,10 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
     if (!address) return;
     setConsentOpen(false);
     void flow.run(async () => {
-      await client.setPolicyConsent(address).signAndSubmit(depositorSigner(address, signTransaction));
-      await doDeposit();
+      const consent = await client.setPolicyConsent(address).signAndSubmit(depositorSigner(address, signTransaction));
+      // A failed mandate stops the chain here — the deposit that follows would panic (NoConsent).
+      if (!consent.success) return consent;
+      return doDeposit();
     });
   };
 
