@@ -8,7 +8,14 @@ export interface ActivityItem {
   id: number; cat: "you" | "auto"; kind: string; detail: string; when: string; flag?: boolean; review?: boolean;
 }
 
-/** Fundable stablecoins only — no explore/RWA catalog (R19). */
+/**
+ * Fundable stablecoins only — no explore/RWA catalog (R19).
+ *
+ * **OFFLINE FALLBACK (R7 · R11).** The source of truth is the backend's `GET /funding`, reached through
+ * `useFunding`, which every Add-funds surface reads. This list renders when `NEXT_PUBLIC_API_URL` is
+ * unset (vitest, Playwright, a bare `pnpm dev`) or the read failed. Do not import it into a component —
+ * a surface that reads it directly is one the backend can no longer correct.
+ */
 export const STABLECOINS: readonly Stablecoin[] = [
   { sym: "USDC", currency: "USD", chains: ["Stellar"] },
   { sym: "EURC", currency: "EUR", chains: ["Stellar"] },
@@ -19,19 +26,25 @@ export function stablecoinBySym(sym: string): Stablecoin | undefined {
   return STABLECOINS.find((s) => s.sym === sym.toUpperCase());
 }
 
-/** The stablecoin that funds a bucket — how the faucet's `currency` maps back to a classic asset. */
+/**
+ * The stablecoin that funds a bucket — how the faucet's `currency` maps back to a classic asset.
+ *
+ * Stays a local map in **both** modes on purpose: it is what `FaucetButton` needs to decide whether a
+ * currency is mintable at all, before any read has landed, and the faucet is testnet-only plumbing
+ * rather than a user-facing list.
+ */
 export function stablecoinByCurrency(currency: Currency): Stablecoin | undefined {
   return STABLECOINS.find((s) => s.currency === currency);
 }
 
 /**
- * Venue/APY/tags per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
+ * Venue/name/tags/APY per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
  *
- * **The `apy` here is a documented FALLBACK, not the source of truth (R5 · KTD3).** Read it only
- * through `useApy` / `useApyResolver`, which prefer the backend's `GET /holdings` row and fall back to
- * this when the bucket is unfunded (no row — the Earn empty-state hero and the simulator), when
- * `NEXT_PUBLIC_API_URL` is unset, or when the read failed. It goes away the day a backend rate route
- * exists (a `GET /rates`, owned by the backend track); the name/venue/tags stay here regardless.
+ * **OFFLINE FALLBACK (R5 · R11 · KTD4).** In real mode the whole bucket row — name, venue, tags **and**
+ * APY — comes from `GET /holdings` (`useBuckets`), so none of this is read. It renders when
+ * `NEXT_PUBLIC_API_URL` is unset or the read failed, and — via `useApy` — for a bucket the user has not
+ * funded, which `getHoldings` correctly omits (the Earn empty-state hero, the simulator). Reach it only
+ * through `useBuckets` / `useApy`; a surface that reads it directly cannot be corrected by the backend.
  */
 const BUCKET_META: Record<Currency, BucketMeta> = {
   USD: { currency: "USD", name: "USD bucket", venue: "DeFindex", tags: ["DeFindex", "Vault"], apy: 8.59 },
@@ -52,7 +65,14 @@ export function getPoolMeta(poolId: string): { name: string; apy: number } | nul
   return POOL_META[poolId] ?? null;
 }
 
-/** Agent + user activity feed — detail strings mirror ActivityEntry.detail (no risk label). */
+/**
+ * Agent + user activity feed — detail strings mirror ActivityEntry.detail (no risk label).
+ *
+ * **OFFLINE FALLBACK (R6 · R11).** The source of truth is `GET /activity`, reached through
+ * `useActivity`, which merges the agent's log with the user's decoded on-chain actions. These eight
+ * rows render when `NEXT_PUBLIC_API_URL` is unset, when no wallet is connected, or when the read
+ * failed — the Playwright baseline and the offline demo depend on them, which is why they survive.
+ */
 export function getActivity(): ActivityItem[] {
   return [
     { id: 8, cat: "auto", kind: "rebalanced", detail: "Switched to DeFindex · 8.59% APY", when: "3h ago" },
@@ -66,7 +86,15 @@ export function getActivity(): ActivityItem[] {
   ];
 }
 
-/** Display-only FX to USD for the blended "All buckets" total (never a fund conversion). */
+/**
+ * Display-only FX to USD for the blended "All buckets" total (never a fund conversion).
+ *
+ * **OFFLINE FALLBACK (R5 · R11 · KTD5).** These are constants, and a constant is not an exchange rate.
+ * In real mode the blended USD arrives pre-computed on `GET /holdings` (`valueUsd`) and `GET /earnings`,
+ * where the backend blended it with a **live Reflector oracle read** — that is the number the user sees.
+ * This renders only when the API is off or the read failed, and the day the seam is offline-only it
+ * goes away with it.
+ */
 export function getFxRateToUsd(currency: Currency): number {
   return { USD: 1, EUR: 1.08, MXN: 0.055 }[currency];
 }

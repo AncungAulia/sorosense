@@ -1,17 +1,19 @@
 "use client";
 import { Card, CoinBadge } from "../ui";
 import { SubHeader } from "../ui/SubHeader";
-import { STABLECOINS } from "../../lib/vault/data";
+import { useFunding } from "../../hooks/useFunding";
 import { useNav } from "../../hooks/useNav";
 
 export function AddFunds() {
   const nav = useNav();
+  // `GET /funding` when the backend is configured, the local fixture otherwise (R7).
+  const { options } = useFunding();
   return (
     <div>
       <SubHeader title="Add funds" />
       <h2 className="ml-1 mb-2.5 text-sm font-medium text-muted">Stablecoins</h2>
       <Card className="px-5 py-1">
-        {STABLECOINS.map((s, i) => (
+        {options.stablecoins.map((s, i) => (
           <button key={s.sym} onClick={() => nav.forward(`/deposit/${s.sym.toLowerCase()}`)}
             className={`flex w-full items-center gap-[13px] py-3.5 text-left ${i === 0 ? "" : "border-t border-line"}`}>
             <CoinBadge token={s.sym} size={40} />

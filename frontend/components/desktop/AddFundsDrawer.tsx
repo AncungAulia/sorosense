@@ -5,9 +5,10 @@ import { Drawer } from "../ui/Drawer";
 import { Dialog } from "../ui/Dialog";
 import { Button, CoinBadge, TransferStatus } from "../ui";
 import { FaucetButton } from "../deposit/FaucetButton";
-import { STABLECOINS, stablecoinBySym, type StablecoinSym } from "../../lib/vault/data";
+import { type StablecoinSym } from "../../lib/vault/data";
 import { sanitizeAmount } from "../../lib/vault/sanitize";
 import { toAmount, fromAmount, formatCurrency } from "../../lib/vault/units";
+import { useFunding } from "../../hooks/useFunding";
 import { useVault } from "../../hooks/useVault";
 import { useWallet } from "../../hooks/useWallet";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
@@ -28,13 +29,17 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
   const { client, bump } = useVault();
   const { address, signTransaction } = useWallet();
   const { show } = useToast();
+  // `GET /funding` when the backend is configured, the local fixture otherwise (R7).
+  const { options } = useFunding();
   const [sym, setSym] = useState<StablecoinSym | null>(null);
   const [amount, setAmount] = useState("0");
   const [consentOpen, setConsentOpen] = useState(false);
   const [busy, setBusy] = useState(false); // guards the async consent check before the flow starts
   const flow = useTransferFlow();
 
-  const coin = sym ? stablecoinBySym(sym) : undefined;
+  // The picked coin's currency comes from the same list the user picked it out of, so a backend that
+  // funds a bucket from a different asset needs no second mapping table here.
+  const coin = sym ? options.stablecoins.find((s) => s.sym === sym) : undefined;
   const currency: Currency = coin?.currency ?? "USD";
   const cur = currency === "EUR" ? "€" : "$";
   // Real trustline balance when Horizon + the issuer are configured; the fixture otherwise (R6).
@@ -139,7 +144,7 @@ export function AddFundsDrawer({ open, onClose }: { open: boolean; onClose: () =
       ) : !sym ? (
         <div className="flex-1 overflow-auto px-[22px] py-5">
           <p className="mb-2 text-[12.5px] font-medium text-muted">Stablecoins</p>
-          {STABLECOINS.map((s, i) => (
+          {options.stablecoins.map((s, i) => (
             <button
               key={s.sym}
               onClick={() => pick(s.sym)}
