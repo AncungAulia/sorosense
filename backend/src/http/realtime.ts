@@ -160,9 +160,10 @@ export async function startRealtime(
     store,
     onError,
     // KTD2: the routes read these two fields per request, so reassigning them IS the refresh.
-    onUpdate: ({ vaultEvents, userEvents }) => {
+    onUpdate: ({ vaultEvents, userEvents, agentEvents }) => {
       deps.earnings.events = vaultEvents;
       deps.activity.userEvents = userEvents;
+      deps.activity.agentEvents = agentEvents;
     },
   });
 

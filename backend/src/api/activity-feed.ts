@@ -12,11 +12,14 @@
 import type { Address, Currency } from '@sorosense/vault-client';
 import { type ActivityKind, type ActivityLog, type Actor } from './activity.js';
 import { deriveUserActivity, type UserActionEvent, type UserActionKind } from './user-activity.js';
+import { deriveAgentActivity, type AgentActionEvent } from './agent-activity.js';
 
-/** Injected sources: the agent log and the user-action event stream. */
+/** Injected sources: the agent log, the user-action event stream, and the agent-action event stream. */
 export interface ActivityFeedDeps {
   log: ActivityLog;
   userEvents: readonly UserActionEvent[];
+  /** Keeper actions decoded from chain (allocate/freeze/…) → 'agent' rows. Empty in mock/offline. */
+  agentEvents?: readonly AgentActionEvent[];
 }
 
 /**
@@ -70,6 +73,11 @@ export function getActivity(query: ActivityQuery, deps: ActivityFeedDeps): FeedE
     ts: e.ts,
   }));
 
+  // Chain-decoded keeper actions (real mode). Empty offline, where the in-memory `log` carries them.
+  const chainAgentRows: FeedEntry[] = deriveAgentActivity(deps.agentEvents ?? [])
+    .filter((r) => currency === undefined || r.currency === undefined || r.currency === currency)
+    .map((r) => ({ seq: r.seq, actor: r.actor, currency: r.currency, kind: r.kind, detail: r.detail, ts: r.ts }));
+
   const userRows: FeedEntry[] = deriveUserActivity(deps.userEvents)
     .filter((r) => (depositor === undefined || r.depositor === depositor))
     .filter((r) => (currency === undefined || r.currency === currency))
@@ -83,7 +91,7 @@ export function getActivity(query: ActivityQuery, deps: ActivityFeedDeps): FeedE
       depositor: r.depositor,
     }));
 
-  const merged = [...agentRows, ...userRows]
+  const merged = [...agentRows, ...chainAgentRows, ...userRows]
     .filter((r) => (actor === undefined || r.actor === actor))
     .sort(compareRows);
 
