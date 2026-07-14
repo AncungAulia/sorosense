@@ -34,6 +34,13 @@ describe('getRates', () => {
     }
   });
 
+  it('carries the net APY after the 10% performance fee (10% gross → 9% net, feeBps 1000)', async () => {
+    const [usd] = await rates(['USD']);
+    expect(usd?.feeBps).toBe(1000);
+    expect(usd?.netApy).toBe(9); // 10 gross × 0.9
+    expect(usd?.netApy).toBeLessThan(usd!.apy); // net always below gross when a fee applies
+  });
+
   it('quotes the highest-APY safe venue — the SoroSense pool the keeper actually allocates to', async () => {
     const [usd] = await rates(['USD']);
     const candidates = getCatalog('USD');
