@@ -25,12 +25,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
   // 4. Deposit EURC through the consent sheet — the one-time auto-optimize mandate.
   await page.getByRole("button", { name: "Start earning" }).click();
   await expect(page).toHaveURL(/\/add-funds$/);
-  await depositEurc(page, "500");
-  // The toast is asserted before the bucket row because it is the only assertion with a deadline:
-  // ToastProvider dismisses it after TOAST_MS. It outlives the push to /home now (STE-44) because
-  // the provider lives at the root layout, above both route groups.
-  await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();
-  await shot(page, "03a-deposit-toast");
+  await depositEurc(page, "500"); // ends on /home after the "Deposit sent" status screen (STE-48)
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
   await shot(page, "03-home-funded");
@@ -199,7 +194,9 @@ test("a completed withdrawal confirms itself on /home", async ({ page }) => {
   await expect(page.getByTestId("keypad-value")).toHaveText("100");
   await page.getByRole("button", { name: "Move to wallet" }).click();
 
-  await expect(page).toHaveURL(/\/home$/);
+  // Success status screen (STE-48), then Done returns home.
   await expect(page.getByText("Sent to your wallet")).toBeVisible();
-  await shot(page, "09-withdraw-toast");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await shot(page, "09-withdraw-done");
 });

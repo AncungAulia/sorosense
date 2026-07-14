@@ -6,6 +6,7 @@ import { LogoutSheet } from "../../../components/account/LogoutSheet";
 import { useConsent } from "../../../hooks/useConsent";
 import { useNav } from "../../../hooks/useNav";
 import { useWallet } from "../../../hooks/useWallet";
+import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHome";
 
 const truncate = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
@@ -20,10 +21,12 @@ export default function AccountPage() {
   const { enabled } = useConsent();
   const [toast, setToast] = useState("");
   const [confirming, setConfirming] = useState(false);
+  // Account is a mobile-only surface; on desktop the avatar dropdown replaces it — redirect visitors.
+  const redirecting = useRedirectDesktopToHome();
 
   // Hydration (KTD7): wallet/vault reads resolve after mount, so bail out cleanly until an
   // address exists rather than rendering with an undefined identity.
-  if (!address) return null;
+  if (redirecting || !address) return null;
 
   const copy = async () => {
     try {

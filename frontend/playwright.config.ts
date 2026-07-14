@@ -26,7 +26,21 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "mobile-chromium", use: { ...devices["Pixel 5"] } }],
+  projects: [
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 5"] },
+      // Anchored to a path separator: matched against the full absolute file path, so an
+      // unanchored /desktop-.../ would also false-positive on this worktree's own directory
+      // name (…-ui-polish-desktop-layout-…) and silently drop every spec from this project.
+      testIgnore: /[\\/]desktop-.*\.spec\.ts$/, // desktop specs run only in the desktop project
+    },
+    {
+      name: "desktop-chromium",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+      testMatch: /[\\/]desktop-.*\.spec\.ts$/, // only the desktop-*.spec.ts files
+    },
+  ],
   webServer: {
     command: `pnpm dev --port ${PORT}`,
     url: BASE_URL,
