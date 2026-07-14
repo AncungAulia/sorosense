@@ -22,6 +22,7 @@ function MobileHome() {
 
   return (
     <div>
+      <div className="stagger">
       {loading ? (
         <div className="py-[30px] text-center">
           <Skeleton className="mx-auto h-4 w-28" />
@@ -51,7 +52,7 @@ function MobileHome() {
         ) : buckets.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
         ) : (
-          buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)
+          <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)}</div>
         )}
       </Card>
 
@@ -64,6 +65,7 @@ function MobileHome() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
         </button>
       </Card>
+      </div>
 
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
     </div>

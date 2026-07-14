@@ -10,4 +10,5 @@ export { SubHeader } from "./SubHeader";
 export { CoinBadge } from "./CoinBadge";
 export { Segmented } from "./Segmented";
 export { Skeleton } from "./Skeleton";
+export { CountUp } from "./CountUp";
 export { Switch } from "./Switch";

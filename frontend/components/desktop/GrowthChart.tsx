@@ -44,8 +44,8 @@ export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
               onMouseEnter={() => setHover(i)}
               onFocus={() => setHover(i)}
               onBlur={() => setHover(null)}
-              style={{ height: `${Math.max(6, (m.earnedUsd / max) * CHART_H)}px` }}
-              className={`min-h-[6px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
+              style={{ height: `${Math.max(6, (m.earnedUsd / max) * CHART_H)}px`, animationDelay: `${i * 40}ms` }}
+              className={`grow-bar min-h-[6px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
             />
           );
         })}

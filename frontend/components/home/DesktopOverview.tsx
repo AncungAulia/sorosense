@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { useBuckets } from "../../hooks/useBuckets";
 import { useEarnings } from "../../hooks/useEarnings";
 import { usePanel } from "../../hooks/usePanel";
-import { formatCurrency } from "../../lib/vault/units";
-import { Button, Card, Segmented, Skeleton } from "../ui";
+import { formatCurrency, UNIT } from "../../lib/vault/units";
+import { Button, Card, CountUp, Segmented, Skeleton } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
 import { BucketRow } from "../bucket/BucketRow";
@@ -65,16 +65,21 @@ export function DesktopOverview() {
       name: "All buckets",
       isAll: true as const,
       valueText: money(totalUsd),
+      valueNum: totalUsd,
+      fmt: money,
       earnedUsd: view.earnedUsd,
       apy: view.apy,
       sub: ` · across ${buckets.length} bucket${buckets.length === 1 ? "" : "s"}`,
     };
     const perBucket = buckets.map((b) => {
       const earned = view.buckets.find((x) => x.currency === b.currency)?.earnedUsd ?? 0;
+      const sym = b.currency === "EUR" ? "€" : "$";
       return {
         name: b.name,
         isAll: false as const,
         valueText: formatCurrency(b.value, b.currency),
+        valueNum: Number(b.value) / Number(UNIT),
+        fmt: (n: number) => `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         earnedUsd: earned,
         apy: b.apy,
         sub: ` · ${b.name}`,
@@ -97,10 +102,12 @@ export function DesktopOverview() {
     return organicSeries(shape.n, lo, hi, shape.vol);
   }, [totalUsd, range]);
 
-  const headline = mode === "Total" ? sel.valueText : money(sel.earnedUsd);
+  const headlineNum = mode === "Total" ? sel.valueNum : sel.earnedUsd;
+  const headlineFmt = mode === "Total" ? sel.fmt : money;
 
   return (
     <>
+      <div className="stagger">
       {pend && <FreezeBar onReview={() => open("safe-exit")} />}
 
       <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)]" aria-label="Your value">
@@ -131,7 +138,7 @@ export function DesktopOverview() {
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-[clamp(38px,3.4vw,50px)] font-semibold leading-none tracking-[-.025em] [font-variant-numeric:tabular-nums]">{headline}</span>
+              <CountUp value={headlineNum} format={headlineFmt} className="text-[clamp(38px,3.4vw,50px)] font-semibold leading-none tracking-[-.025em] [font-variant-numeric:tabular-nums]" />
               {mode === "Total" && (
                 <span className="inline-flex h-6 items-center gap-1 rounded-full bg-[rgba(22,163,74,.12)] px-[9px] text-[12.5px] font-semibold text-pos [font-variant-numeric:tabular-nums]">
                   <svg viewBox="0 0 24 24" className="w-[13px] fill-none stroke-current [stroke-width:2]" aria-hidden><path d="M7 17 17 7M9 7h8v8" /></svg>
@@ -211,7 +218,7 @@ export function DesktopOverview() {
           ) : buckets.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
           ) : (
-            buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} divider={false} />)
+            <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} divider={false} />)}</div>
           )}
         </Card>
 
@@ -245,6 +252,7 @@ export function DesktopOverview() {
           </div>
           <ActivityList items={activity.slice(0, 3)} loading={activityLoading} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />
         </Card>
+      </div>
       </div>
 
       <SafeExitDialog open={panel === "safe-exit"} onClose={close} />

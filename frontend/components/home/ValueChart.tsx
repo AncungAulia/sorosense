@@ -113,8 +113,19 @@ export function ValueChart({ data }: { data: number[] }) {
             <stop offset="1" stopColor="#16a34a" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path fill="url(#valArea)" stroke="none" d={area} />
-        <path ref={lineRef} fill="none" stroke="#16a34a" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" d={line} />
+        <path className="fade-in" fill="url(#valArea)" stroke="none" d={area} />
+        <path
+          key={`${data.length}:${(data[data.length - 1] ?? 0).toFixed(2)}`}
+          ref={lineRef}
+          className="chart-line"
+          pathLength={1}
+          fill="none"
+          stroke="#16a34a"
+          strokeWidth={2.2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          d={line}
+        />
         {hover && (
           <>
             <line x1={hover.x} y1={padT} x2={hover.x} y2={h - padB} stroke="rgba(17,19,22,.2)" strokeWidth={1} strokeDasharray="3 3" />

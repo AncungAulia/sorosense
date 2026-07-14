@@ -35,7 +35,7 @@ export function ActivityList({
   }
 
   return (
-    <div className={wrap}>
+    <div className={`${wrap} fade-in`}>
       {items.map((item, i) => <ActivityRow key={item.id} item={item} first={i === 0} onReview={onReview} reviewed={reviewed} divider={divider} />)}
     </div>
   );

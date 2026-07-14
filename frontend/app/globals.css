@@ -59,6 +59,30 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   .skeleton::after { animation: none; }
 }
 
+/* ── Thin motion (STE-48 Fase 3) — all calm, all stilled under reduced-motion ──
+   `.stagger > *` rise+fade the direct children on mount with a small cascade (the
+   portaled overlays live outside this wrapper, so U14 is untouched). `.fade-in`
+   crossfades loaded content in over its skeleton. `.chart-line` draws the value
+   line via stroke-dashoffset (needs pathLength="1"). `.grow-bar` grows a bar from
+   its base. Delays are set inline per element where a cascade is wanted. */
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes grow-bar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+.stagger > * { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(2) { animation-delay: 0.05s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.fade-in { animation: fade-in 0.3s ease both; }
+.chart-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chart-draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.grow-bar { transform-origin: bottom; animation: grow-bar 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > *, .fade-in, .grow-bar { animation: none; }
+  .chart-line { animation: none; stroke-dashoffset: 0; }
+}
+
 /* ── Page enter transition ───────────────────────────────────────────────────
    Sub-screens (the (flow) route group) mount inside a template that carries the
    .page-enter class, so navigating into them slides the new page in from the
