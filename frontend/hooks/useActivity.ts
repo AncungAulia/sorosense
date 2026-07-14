@@ -3,9 +3,13 @@ import { useEffect, useState } from "react";
 import { apiEnabled } from "../lib/api/config";
 import { apiGet } from "../lib/api/client";
 import type { FeedEntry } from "../lib/api/types";
+import { itemFromEntry } from "../lib/activity/map";
 import { getActivity, type ActivityItem } from "../lib/vault/data";
 import { useWallet } from "./useWallet";
 import { useVault } from "./useVault";
+
+/** The wire→row mapping is pure and lives in `lib/activity/map.ts`; re-exported for consumers. */
+export { itemFromEntry, relativeTime } from "../lib/activity/map";
 
 /**
  * The Activity feed — Home, `/account/activity`, and the desktop drawer (R6 · STE-42).
@@ -21,39 +25,6 @@ import { useVault } from "./useVault";
 
 /** How often a mounted feed re-reads the backend. Mirrors `HOLDINGS_POLL_MS`. */
 export const ACTIVITY_POLL_MS = 15_000;
-
-/**
- * "3h ago", from a timestamp the backend sent and a clock read **after mount**. Rendering a relative
- * time during SSR would bake the server's clock into the HTML and desync the first client paint (KTD7).
- * A row whose `ts` the source never carried gets no time rather than a fabricated one.
- */
-export function relativeTime(ts: number | undefined, now: number): string {
-  if (ts === undefined) return "";
-  const minutes = Math.floor(Math.max(0, now - ts) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-/**
- * A backend feed row becomes a rendered row. `actor` is the tab filter — `'you'` is the user's own
- * action, everything else is the agent — and `kind` drives the two affordances the list has: a freeze
- * is flagged, a proposed exit is reviewable. No risk, label, score or tier crosses this boundary,
- * because the backend carries none.
- */
-export function itemFromEntry(entry: FeedEntry, now: number): ActivityItem {
-  return {
-    id: entry.seq,
-    cat: entry.actor === "you" ? "you" : "auto",
-    kind: entry.kind,
-    detail: entry.detail,
-    when: relativeTime(entry.ts, now),
-    ...(entry.kind === "froze" ? { flag: true } : {}),
-    ...(entry.kind === "proposed-exit" ? { review: true } : {}),
-  };
-}
 
 export function useActivity(): { loading: boolean; items: ActivityItem[] } {
   const { address } = useWallet();
