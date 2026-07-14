@@ -3,6 +3,7 @@ import { Hero } from "@/components/Hero";
 import { RiskSection } from "@/components/RiskSection";
 import { SafetySection } from "@/components/SafetySection";
 import { CtaSection } from "@/components/CtaSection";
+import { Footer } from "@/components/Footer";
 import { SmoothScroll } from "@/components/SmoothScroll";
 
 export default function Home() {
@@ -16,6 +17,7 @@ export default function Home() {
         <SafetySection />
         <CtaSection />
       </main>
+      <Footer />
     </>
   );
 }
