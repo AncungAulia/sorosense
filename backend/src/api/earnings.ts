@@ -12,6 +12,11 @@
  * (R3). "Earned" is native yield per bucket summed to USD; FX movement is never counted as earnings
  * (R6, R7), which falls out of `earned = value − contributions` where both are in native units. A
  * failed FX read surfaces as a typed `Result` error, never a silent $0.
+ *
+ * The timeline (`chart`) carries BOTH `valueUsd` and `earnedUsd` per point, from one replay (`stateAt`).
+ * While the contract does not accrue yield, `earnedUsd` is honestly zero and `valueUsd` is a step
+ * function that steps on each real deposit/withdrawal — a real chart of real money, flat by fact, never
+ * fabricated upward.
  */
 
 import type { Address, Currency, VaultClient } from '@sorosense/vault-client';
@@ -36,11 +41,19 @@ export interface BucketBreakdown {
   nativeValue: bigint;
   /** Display-only USD conversion of `nativeValue`. */
   usdValue: number;
+  /** Native yield of this bucket blended to USD (`nativeValue − contributed`); FX movement is never earnings (R7). */
+  earnedUsd: number;
 }
 
-/** One point on the cumulative-earned timeline (USD), stamped with a snapshot timestamp. */
+/**
+ * One point on the value/earned timeline (USD). Sampled at the union of snapshot and event timestamps,
+ * so a deposit is visible before the next snapshot tick (R8, R10).
+ */
 export interface ChartPoint {
   ts: number;
+  /** Blended-USD asset value at `ts`. A step function: it steps on every deposit/withdrawal. */
+  valueUsd: number;
+  /** Cumulative earned (USD) at `ts`. Zero while the vault does not accrue — honestly flat, not fabricated. */
   earnedUsd: number;
 }
 
@@ -58,11 +71,11 @@ export interface EarningsView {
   balanceUsd: number;
   /** Blended APY, value-weighted across buckets (R5). */
   apy: number;
-  /** Total earned to date, blended to USD (R6). */
+  /** Total earned to date, blended to USD (R6). Sums the buckets' `earnedUsd`. */
   earnedUsd: number;
-  /** Per-bucket drill-down; `usdValue` sums to `balanceUsd` (R4). */
+  /** Per-bucket drill-down; `usdValue` sums to `balanceUsd`, `earnedUsd` to the headline `earnedUsd` (R4). */
   buckets: BucketBreakdown[];
-  /** Cumulative earned over time; the frontend buckets it by Day/Week/Month/Year (R8). */
+  /** Value + cumulative earned over time; the frontend buckets it by Day/Week/Month/Year (R8, R10). */
   chart: ChartPoint[];
   /** Per-month earned breakdown, oldest→newest; last entry is the current month (R9). */
   monthly: MonthlyEarned[];
@@ -90,7 +103,15 @@ function bestApy(currency: Currency): number {
   return safe.reduce((max, v) => (v.apy > max ? v.apy : max), 0);
 }
 
-/** Latest snapshot price for a currency at or before `ts`; base price if none yet. */
+/**
+ * Latest snapshot price for a currency at or before `ts`; base price (`SHARE_PRICE_SCALE`) if none yet.
+ *
+ * KTD3: a `ts` older than the first snapshot resolving to the base price is not an approximation today —
+ * the contract does not accrue (`total_assets` moves only on deposit/withdraw), so `share_price` *is* the
+ * scale for the whole of that history. It is what lets the value chart show a real step at a deposit that
+ * happened before the server booted. The day mark-to-market NAV accrual ships, this assumption expires
+ * and the snapshot series becomes load-bearing for pre-boot history.
+ */
 function priceAt(snapshots: SnapshotStore, currency: Currency, ts: number): bigint {
   let price = SHARE_PRICE_SCALE;
   for (const s of snapshots.series(currency)) {
@@ -106,29 +127,42 @@ const monthKey = (ts: number): string => {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
+/** Normalize the 7-dp base unit to whole currency units, then apply the display-only FX rate. */
+const toUsd = (native: bigint, rate: number): number => (Number(native) / Number(UNIT)) * rate;
+
+/** The blended-USD state of a user's buckets at one instant — both timeline fields, one replay. */
+interface UsdStateAt {
+  valueUsd: number;
+  earnedUsd: number;
+}
+
 /**
- * Cumulative earned (USD) across all buckets at time `t`: replay events up to `t` for shares +
- * contributions, value them at the snapshot price at `t`, and convert with the current FX rates. Since
- * `earned = value − contributions` and a deposit raises both equally, deposits never inflate earned.
+ * Blended-USD value AND cumulative earned across all buckets at time `t`, from a single replay: events up
+ * to `t` give shares + contributions, `priceAt(t)` values the shares, and the current FX rates convert for
+ * display. Both timeline fields fall out of the same state — the chart never replays twice.
+ *
+ * Since `earned = value − contributions` and a deposit raises both equally, a deposit steps `valueUsd` but
+ * leaves `earnedUsd` unmoved: a deposit is never profit.
  */
-function earnedCumulativeUsdAt(
+function stateAt(
   user: Address,
   t: number,
   events: readonly VaultEvent[],
   snapshots: SnapshotStore,
   currencies: readonly Currency[],
   rates: Map<Currency, number>,
-): number {
+): UsdStateAt {
   const basesAtT = reconstructCostBasis(events.filter((e) => (e.ts ?? 0) <= t));
-  let total = 0;
+  let valueUsd = 0;
+  let earnedUsd = 0;
   for (const c of currencies) {
     const basis = basesAtT.get(bucketKey(user, c)) ?? { shares: 0n, contributed: 0n };
     const valueNative = (basis.shares * priceAt(snapshots, c, t)) / SHARE_PRICE_SCALE;
-    const earnedNative = valueNative - basis.contributed;
-    // Normalize the 7-dp base unit to whole currency units before applying the display FX rate.
-    total += (Number(earnedNative) / Number(UNIT)) * (rates.get(c) ?? 0);
+    const rate = rates.get(c) ?? 0;
+    valueUsd += toUsd(valueNative, rate);
+    earnedUsd += toUsd(valueNative - basis.contributed, rate);
   }
-  return total;
+  return { valueUsd, earnedUsd };
 }
 
 /**
@@ -155,28 +189,33 @@ export async function getEarnings(user: Address, deps: EarningsDeps): Promise<Re
   for (const c of currencies) {
     const nativeValue = await deps.vault.assetValueOf(user, c);
     const rate = rates.get(c) ?? 0;
-    // Normalize the 7-dp base unit to whole currency units before applying the display FX rate.
-    const usdValue = (Number(nativeValue) / Number(UNIT)) * rate;
-    buckets.push({ currency: c, nativeValue, usdValue });
-    balanceUsd += usdValue;
-
+    const usdValue = toUsd(nativeValue, rate);
     const contributed = allBases.get(bucketKey(user, c))?.contributed ?? 0n;
     // Native yield only (value − contributions); FX is not part of earned (R7).
-    earnedUsd += (Number(nativeValue - contributed) / Number(UNIT)) * rate;
+    const bucketEarnedUsd = toUsd(nativeValue - contributed, rate);
+
+    buckets.push({ currency: c, nativeValue, usdValue, earnedUsd: bucketEarnedUsd });
+    balanceUsd += usdValue;
+    earnedUsd += bucketEarnedUsd; // headline earned is the sum of the buckets', by construction
     apyWeighted += bestApy(c) * usdValue;
   }
 
   const apy = balanceUsd > 0 ? apyWeighted / balanceUsd : 0;
   const hasDeposit = buckets.some((b) => b.nativeValue > 0n);
 
-  // Earned timeline sampled at every snapshot timestamp (union across buckets).
-  const times = [
-    ...new Set(currencies.flatMap((c) => deps.snapshots.series(c).map((s) => s.ts))),
-  ].sort((a, b) => a - b);
+  // Timeline sampled at the UNION of snapshot timestamps and this user's event timestamps: the event
+  // times are what make a deposit step the value chart before the next snapshot tick (and what give a
+  // freshly-booted server a non-empty chart at all — KTD3). Events outside the view (another depositor,
+  // or a bucket the caller narrowed away) move no number here, so they add no sample; an event with no
+  // `ts` is not a sample either (it still replays into every state, as `ts ?? 0`).
+  const inView = (e: VaultEvent): boolean => e.depositor === user && currencies.includes(e.currency);
+  const eventTimes = deps.events.flatMap((e) => (inView(e) && e.ts !== undefined ? [e.ts] : []));
+  const snapshotTimes = currencies.flatMap((c) => deps.snapshots.series(c).map((s) => s.ts));
+  const times = [...new Set([...snapshotTimes, ...eventTimes])].sort((a, b) => a - b);
 
   const chart: ChartPoint[] = times.map((t) => ({
     ts: t,
-    earnedUsd: earnedCumulativeUsdAt(user, t, deps.events, deps.snapshots, currencies, rates),
+    ...stateAt(user, t, deps.events, deps.snapshots, currencies, rates),
   }));
 
   // Per-month deltas of the cumulative earned (last sample in each month wins).
