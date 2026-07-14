@@ -211,7 +211,7 @@ export function DesktopOverview() {
           ) : buckets.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
           ) : (
-            buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)
+            buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} divider={false} />)
           )}
         </Card>
 
@@ -244,7 +244,7 @@ export function DesktopOverview() {
               <svg viewBox="0 0 24 24" className="w-3.5 fill-none stroke-current [stroke-width:2] [stroke-linecap:round] [stroke-linejoin:round]" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
             </button>
           </div>
-          <ActivityList items={activity.slice(0, 3)} onReview={() => open("safe-exit")} reviewed={!pend} />
+          <ActivityList items={activity.slice(0, 3)} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />
         </Card>
       </div>
 

@@ -1,8 +1,8 @@
 import type { ActivityItem } from "../../lib/vault/data";
 
-export function ActivityRow({ item, first, onReview, reviewed }: { item: ActivityItem; first: boolean; onReview?: () => void; reviewed?: boolean }) {
+export function ActivityRow({ item, first, onReview, reviewed, divider = true }: { item: ActivityItem; first: boolean; onReview?: () => void; reviewed?: boolean; divider?: boolean }) {
   return (
-    <div className={`flex items-center gap-[13px] py-3.5 ${first ? "" : "border-t border-line"}`}>
+    <div className={`flex items-center gap-[13px] py-3.5 ${first || !divider ? "" : "border-t border-line"}`}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-pill text-pill-ink">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
       </span>
