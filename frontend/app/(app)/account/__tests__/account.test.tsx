@@ -11,10 +11,11 @@ const useWallet = vi.fn();
 vi.mock("../../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 
 const ADDRESS = "GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUVWK3X9";
+const signTransaction = vi.fn(async (xdr: string) => xdr);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useWallet.mockReturnValue({ address: ADDRESS, walletName: "Freighter", isConnected: true, disconnect });
+  useWallet.mockReturnValue({ address: ADDRESS, walletName: "Freighter", isConnected: true, disconnect, signTransaction });
 });
 
 function renderAccount(client = new MockVaultClient()) {
@@ -30,9 +31,9 @@ test("shows the identicon, a truncated address, and the connected wallet", async
 
 test("does not claim a connection date it has no source for", async () => {
   renderAccount();
-  // useConsent() resolves on a later microtask; wait for it to land before asserting, so the
+  // useAutoCompound() resolves on a later microtask; wait for it to land before asserting, so the
   // state update commits inside act() rather than after the test body returns.
-  await screen.findByTestId("consent-state");
+  await screen.findByTestId("auto-compound-state");
   expect(document.body.textContent).not.toMatch(/since/i);
 });
 
@@ -55,31 +56,71 @@ test("Activity routes to the central activity page", async () => {
   expect(push).toHaveBeenCalledWith("/account/activity");
 });
 
-test("auto-reinvest reads checked once the mandate is signed", async () => {
-  const client = new MockVaultClient();
-  await client.setPolicyConsent(ADDRESS).signAndSubmit(mockSigner("depositor", ADDRESS));
-  renderAccount(client);
-  await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
+test("auto-reinvest reads ON for a fresh user — the seam's default is enabled (unset = on)", async () => {
+  renderAccount();
+  const control = await screen.findByRole("switch");
+  // Wait for the seam read to land *first* (the switch is disabled while loading) — asserting
+  // aria-checked alone would pass on the hook's initial state even if the read never fired.
+  await waitFor(() => expect(control).toBeEnabled());
+  expect(control).toHaveAttribute("aria-checked", "true");
 });
 
-test("auto-reinvest reads unchecked for a user who has not consented", async () => {
-  renderAccount();
+test("auto-reinvest reads OFF for a depositor who revoked it", async () => {
+  const client = new MockVaultClient();
+  await client.setAutoCompound(ADDRESS, false).signAndSubmit(mockSigner("depositor", ADDRESS));
+  renderAccount(client);
   await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false"));
 });
 
-test("the switch displays consent — it cannot grant or revoke it (no execution path from Account)", async () => {
+test("R1/R2 — the switch is live and revocable: OFF, then ON again, both wallet-signed", async () => {
   const user = userEvent.setup();
-  renderAccount();
+  const client = new MockVaultClient();
+  renderAccount(client);
   const control = await screen.findByRole("switch");
-
-  // The seam has no revoke, and granting is a write — which STE-26 forbids from this tab. So the
-  // control is inert by construction, not merely unwired: clicking it must not flip the state, and
-  // assistive tech must announce it as disabled rather than inviting the press.
-  expect(control).toBeDisabled();
-  expect(control).toHaveAttribute("aria-disabled", "true");
+  await waitFor(() => expect(control).toBeEnabled());
 
   await user.click(control);
-  expect(control).toHaveAttribute("aria-checked", "false");
+  await waitFor(() => expect(control).toHaveAttribute("aria-checked", "false"));
+  await expect(client.autoCompoundEnabled(ADDRESS)).resolves.toBe(false);
+  expect(signTransaction).toHaveBeenCalledTimes(1);
+
+  await user.click(control);
+  await waitFor(() => expect(control).toHaveAttribute("aria-checked", "true"));
+  await expect(client.autoCompoundEnabled(ADDRESS)).resolves.toBe(true);
+  expect(signTransaction).toHaveBeenCalledTimes(2);
+});
+
+test("R1 — toggling never touches the safety mandate (KTD3): hasConsent is unchanged", async () => {
+  const user = userEvent.setup();
+  const client = new MockVaultClient();
+  await client.setPolicyConsent(ADDRESS).signAndSubmit(mockSigner("depositor", ADDRESS));
+  const setPolicyConsent = vi.spyOn(client, "setPolicyConsent");
+  renderAccount(client);
+  const control = await screen.findByRole("switch");
+  await waitFor(() => expect(control).toBeEnabled());
+
+  await user.click(control);
+  await waitFor(() => expect(control).toHaveAttribute("aria-checked", "false"));
+
+  // This is the invariant the whole ticket rests on: the economic preference and the irrevocable
+  // safety mandate are separate grants, and this switch writes only the former.
+  await expect(client.hasConsent(ADDRESS)).resolves.toBe(true);
+  expect(setPolicyConsent).not.toHaveBeenCalled();
+});
+
+test("a declined signature leaves the switch where it was and says so", async () => {
+  const user = userEvent.setup();
+  signTransaction.mockRejectedValueOnce({ code: -1, message: "The user closed the modal." });
+  const client = new MockVaultClient();
+  renderAccount(client);
+  const control = await screen.findByRole("switch");
+  await waitFor(() => expect(control).toBeEnabled());
+
+  await user.click(control);
+
+  expect(await screen.findByText("Signature cancelled. Nothing changed.")).toBeInTheDocument();
+  expect(control).toHaveAttribute("aria-checked", "true"); // never moved
+  await expect(client.autoCompoundEnabled(ADDRESS)).resolves.toBe(true); // nothing written
 });
 
 test("Log out confirms before disconnecting", async () => {
