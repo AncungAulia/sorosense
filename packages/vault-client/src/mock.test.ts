@@ -180,3 +180,71 @@ describe('MockVaultClient — auto-compound preference', () => {
     expect(await v.hasConsent('alice')).toBe(true); // consent survives an auto-compound toggle
   });
 });
+
+describe('MockVaultClient — simulateFailure (test-only submit rejection)', () => {
+  it('a rejected deposit resolves success:false and mints no shares', async () => {
+    const v = new MockVaultClient();
+    v.simulateFailure();
+
+    const result = await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+
+    // The seam reports a submitted-but-rejected transaction; it does NOT throw. Awaiting a write is
+    // therefore not proof it landed — which is exactly what every write surface must guard.
+    expect(result.success).toBe(false);
+    expect(result.hash).toMatch(/^mock-tx-/);
+    expect(await v.balanceOf('alice', 'USD')).toBe(0n);
+    expect(await v.sharePrice('USD')).toBe(SHARE_PRICE_SCALE); // NAV untouched
+  });
+
+  it('the signature still happens — the chain, not the wallet, is what rejected', async () => {
+    const v = new MockVaultClient();
+    v.simulateFailure();
+    const signed: string[] = [];
+    const signer = { ...depositor, sign: async (xdr: string) => (signed.push(xdr), `sig:${xdr}`) };
+
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(signer);
+
+    expect(signed).toHaveLength(1);
+  });
+
+  it('rejects every write kind with no effect (withdraw / consent / auto-compound / approve-exit)', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    await v.proposeExit('USD', 'pool-frozen', 'pool-safe').signAndSubmit(keeper);
+    const exit = await v.pendingExit('USD');
+    v.simulateFailure();
+
+    expect((await v.withdraw('alice', 'USD', 400n).signAndSubmit(depositor)).success).toBe(false);
+    expect((await v.setPolicyConsent('alice').signAndSubmit(depositor)).success).toBe(false);
+    expect((await v.setAutoCompound('alice', false).signAndSubmit(depositor)).success).toBe(false);
+    expect((await v.approveExit('alice', exit!.id).signAndSubmit(depositor)).success).toBe(false);
+    expect((await v.freeze('pool-usd').signAndSubmit(keeper)).success).toBe(false);
+
+    expect(await v.balanceOf('alice', 'USD')).toBe(1_000n); // withdraw never burned
+    expect(await v.hasConsent('alice')).toBe(false); // mandate never granted
+    expect(await v.autoCompoundEnabled('alice')).toBe(true); // preference untouched (default ON)
+    expect(await v.pendingExit('USD')).not.toBeNull(); // exit still pending
+    expect(await v.poolStatus('pool-usd')).toBe('active'); // freeze never applied
+  });
+
+  it('still rejects a wrong-role signer before it can report a failure', async () => {
+    const v = new MockVaultClient();
+    v.simulateFailure();
+    // The role guard is not a submit outcome — it must still throw, not decay into success:false.
+    await expect(v.deposit('alice', 'USD', 1_000n).signAndSubmit(keeper)).rejects.toThrow(
+      /wrong signer/,
+    );
+  });
+
+  it('simulateFailure(false) restores the happy path', async () => {
+    const v = new MockVaultClient();
+    v.simulateFailure(true);
+    await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+    v.simulateFailure(false);
+
+    const result = await v.deposit('alice', 'USD', 1_000n).signAndSubmit(depositor);
+
+    expect(result.success).toBe(true);
+    expect(await v.balanceOf('alice', 'USD')).toBe(1_000n); // only the second deposit landed
+  });
+});
