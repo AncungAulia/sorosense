@@ -112,7 +112,7 @@ const ratesResponse = {
       },
       apy: { type: 'number', description: "The best safe venue's gross APY — what the agent would allocate to." },
       netApy: { type: 'number', description: 'APY the depositor keeps after the performance fee (apy × (1 − feeBps/10000)).' },
-      feeBps: { type: 'number', description: 'Performance fee in basis points — a share of yield, never principal (default 1000 = 10%).' },
+      feeBps: { type: 'number', description: 'Performance fee in basis points — a share of yield, never principal (default 100 = 1%).' },
     },
     required: ['currency', 'name', 'venue', 'kind', 'tags', 'apy', 'netApy', 'feeBps'],
   },

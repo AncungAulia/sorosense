@@ -13,9 +13,9 @@ import {
 } from './fee.js';
 
 describe('performanceFeeBps', () => {
-  it('defaults to 10% (1000 bps)', () => {
-    expect(DEFAULT_PERFORMANCE_FEE_BPS).toBe(1000);
-    expect(performanceFeeBps({})).toBe(1000);
+  it('defaults to 1% (100 bps)', () => {
+    expect(DEFAULT_PERFORMANCE_FEE_BPS).toBe(100);
+    expect(performanceFeeBps({})).toBe(100);
   });
 
   it('honours PERFORMANCE_FEE_BPS', () => {
@@ -23,14 +23,18 @@ describe('performanceFeeBps', () => {
   });
 
   it('clamps garbage or an above-100% fee back to the default', () => {
-    expect(performanceFeeBps({ PERFORMANCE_FEE_BPS: 'abc' })).toBe(1000);
-    expect(performanceFeeBps({ PERFORMANCE_FEE_BPS: '10001' })).toBe(1000); // > 100% of yield
+    expect(performanceFeeBps({ PERFORMANCE_FEE_BPS: 'abc' })).toBe(100);
+    expect(performanceFeeBps({ PERFORMANCE_FEE_BPS: '10001' })).toBe(100); // > 100% of yield
     expect(performanceFeeBps({ PERFORMANCE_FEE_BPS: '0' })).toBe(0); // 0% is a valid policy
   });
 });
 
 describe('netApy', () => {
-  it('takes 10% of the yield: 10.57% gross → 9.51% net', () => {
+  it('takes 1% of the yield: 10.57% gross → 10.46% net (the default fee)', () => {
+    expect(netApy(10.57, 100)).toBe(10.46);
+  });
+
+  it('takes 10% of the yield when configured so: 10.57% gross → 9.51% net', () => {
     expect(netApy(10.57, 1000)).toBe(9.51);
   });
 
