@@ -49,12 +49,16 @@ export interface EventSource {
   getEvents(cursor?: string): Promise<EventPage>;
 }
 
-/** The reader's output: both decoded streams, plus the paging watermarks for a follow-up poll. */
-export interface DecodedVaultEvents {
+/** Both decoded streams over one ledger-ordered event set. The shape the poller hands to the holder. */
+export interface DecodedEvents {
   /** Deposit/withdraw rows for cost-basis reconstruction, seq-ordered. */
   vaultEvents: VaultEvent[];
   /** Deposit/withdraw/sign-mandate/auto-compound rows for activity, seq-ordered. */
   userEvents: UserActionEvent[];
+}
+
+/** The reader's output: both decoded streams, plus the paging watermarks for a follow-up poll. */
+export interface DecodedVaultEvents extends DecodedEvents {
   /** RPC latest-ledger watermark from the final page. */
   latestLedger: number;
   /** Cursor after the last drained page — a follow-up poll resumes here. */
@@ -108,9 +112,24 @@ export async function readVaultEvents(source: EventSource): Promise<DecodedVault
     cursor = result.cursor;
   }
 
-  // Stable sort by ledger so events keep their within-ledger arrival order; then assign seq.
+  // Stable sort by ledger so events keep their within-ledger arrival order; then decode.
   const ordered = [...raw].sort((a, b) => a.ledger - b.ledger);
 
+  return { ...decodeEvents(ordered), latestLedger, cursor };
+}
+
+/**
+ * Decode a ledger-ordered event set into the two derivation streams. Pure: same input, same output —
+ * no network, no clock. `seq` is the 0-based position in `ordered`, so it is monotonic across the
+ * WHOLE set, not per page. That is why the poller re-decodes its accumulated store on every tick
+ * rather than decoding each page and concatenating: a per-page seq would restart at 0 each poll and
+ * scramble the feed's ordering.
+ *
+ * Precondition: `ordered` is ledger-ascending (the poller's store guarantees it via
+ * `EventStore.raw()`; `readVaultEvents` sorts before calling). Unknown topics are ignored, never
+ * mis-decoded.
+ */
+export function decodeEvents(ordered: readonly RawEvent[]): DecodedEvents {
   const vaultEvents: VaultEvent[] = [];
   const userEvents: UserActionEvent[] = [];
 
@@ -120,7 +139,7 @@ export async function readVaultEvents(source: EventSource): Promise<DecodedVault
     if (decoded.user) userEvents.push(decoded.user);
   });
 
-  return { vaultEvents, userEvents, latestLedger, cursor };
+  return { vaultEvents, userEvents };
 }
 
 /** Decode one raw event into the row(s) it maps to. Returns `{}` for unknown/unattributable events. */
