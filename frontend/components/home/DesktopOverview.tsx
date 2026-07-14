@@ -56,7 +56,7 @@ export function DesktopOverview() {
   const [mode, setMode] = useState<Mode>("Total");
   const [range, setRange] = useState<Range>("Week");
   const [bucketIndex, setBucketIndex] = useState(0); // 0 = All buckets (blended); 1..n = each bucket
-  const activity = useActivity();
+  const { loading: activityLoading, items: activity } = useActivity();
   const pend = usePendingExit();
 
   // Selectable views: All (blended ≈USD) then one per bucket (native).
@@ -243,7 +243,7 @@ export function DesktopOverview() {
               View all
             </button>
           </div>
-          <ActivityList items={activity.slice(0, 3)} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />
+          <ActivityList items={activity.slice(0, 3)} loading={activityLoading} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />
         </Card>
       </div>
 

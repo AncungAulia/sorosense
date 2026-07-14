@@ -9,7 +9,7 @@ import { usePendingExit } from "../../../../hooks/usePendingExit";
 const FILTERS = [{ key: "all", label: "All" }, { key: "you", label: "Yours" }, { key: "auto", label: "Automated" }] as const;
 
 export default function ActivityPage() {
-  const items = useActivity();
+  const { loading, items } = useActivity();
   const pend = usePendingExit();
   const [filter, setFilter] = useState<"all" | "you" | "auto">("all");
   const [exitOpen, setExitOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function ActivityPage() {
         ))}
       </div>
       <Card className="px-5 py-1">
-        <ActivityList items={shown} onReview={() => setExitOpen(true)} reviewed={reviewed} />
+        <ActivityList items={shown} loading={loading} onReview={() => setExitOpen(true)} reviewed={reviewed} />
       </Card>
 
       <ExitApproval open={exitOpen} onClose={() => setExitOpen(false)} />
