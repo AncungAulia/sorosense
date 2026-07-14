@@ -58,6 +58,19 @@ describe('OpenAPI conformance', () => {
     }
   });
 
+  it('documents the /earnings timeline fields the frontend charts read (U1b)', () => {
+    const earnings = openApiSpec.paths['/earnings'].get.responses['200'].content['application/json'].schema;
+
+    // The chart carries value AND earned per point; the buckets carry their own earned.
+    expect(Object.keys(earnings.properties.chart.items.properties)).toEqual(['ts', 'valueUsd', 'earnedUsd']);
+    expect(Object.keys(earnings.properties.buckets.items.properties)).toEqual([
+      'currency',
+      'nativeValue',
+      'usdValue',
+      'earnedUsd',
+    ]);
+  });
+
   it('leaks no secret in the spec', () => {
     expect(JSON.stringify(openApiSpec)).not.toMatch(/secret|seed|S[A-Z2-7]{55}/i);
   });

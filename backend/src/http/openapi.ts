@@ -36,6 +36,61 @@ const errorResponse = {
 const jsonObject = { type: 'object', additionalProperties: true } as const;
 const jsonArray = { type: 'array', items: { type: 'object', additionalProperties: true } } as const;
 
+/**
+ * The Earn view (`getEarnings`), documented field-by-field because the frontend charts read it directly.
+ * `chart` carries BOTH `valueUsd` (a step function on real deposits/withdrawals) and `earnedUsd`
+ * (cumulative native yield, blended to USD). While the vault does not accrue, `earnedUsd` is honestly 0.
+ * No risk/label/score field exists here by design.
+ */
+const earningsResponse = {
+  type: 'object',
+  properties: {
+    hasDeposit: { type: 'boolean', description: 'Any bucket holds value — drives the 2-state Earn screen.' },
+    balanceUsd: { type: 'number', description: 'Blended-USD Earn balance (display-only conversion).' },
+    apy: { type: 'number', description: 'Blended APY, value-weighted across buckets.' },
+    earnedUsd: { type: 'number', description: "Total earned to date (USD) — the sum of the buckets' earnedUsd." },
+    buckets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          currency: { type: 'string', enum: [...CURRENCIES] },
+          nativeValue: { type: 'string', description: 'bigint as a decimal string — 7-dp base units, never converted.' },
+          usdValue: { type: 'number', description: 'Display-only USD conversion of nativeValue.' },
+          earnedUsd: { type: 'number', description: 'Native yield of this bucket blended to USD; FX movement is never earnings.' },
+        },
+        required: ['currency', 'nativeValue', 'usdValue', 'earnedUsd'],
+      },
+    },
+    chart: {
+      type: 'array',
+      description: 'Value + cumulative-earned timeline, sampled at the union of snapshot and event timestamps.',
+      items: {
+        type: 'object',
+        properties: {
+          ts: { type: 'integer', description: 'Sample timestamp (ms since epoch).' },
+          valueUsd: { type: 'number', description: 'Blended-USD asset value at ts — steps on each deposit/withdrawal.' },
+          earnedUsd: { type: 'number', description: 'Cumulative earned (USD) at ts.' },
+        },
+        required: ['ts', 'valueUsd', 'earnedUsd'],
+      },
+    },
+    monthly: {
+      type: 'array',
+      description: 'Per-month earned breakdown, oldest→newest.',
+      items: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'YYYY-MM (UTC).' },
+          earnedUsd: { type: 'number' },
+        },
+        required: ['label', 'earnedUsd'],
+      },
+    },
+  },
+  required: ['hasDeposit', 'balanceUsd', 'apy', 'earnedUsd', 'buckets', 'chart', 'monthly'],
+} as const;
+
 /** The OpenAPI 3.1 document. `/faucet` is documented but env-gated (present only when faucet env is set). */
 export const openApiSpec = {
   openapi: '3.1.0',
@@ -99,12 +154,12 @@ export const openApiSpec = {
     '/earnings': {
       get: {
         operationId: 'getEarnings',
-        summary: 'Blended-USD Earn view for a depositor.',
+        summary: 'Blended-USD Earn view for a depositor: balance, APY, earned, per-bucket drill-down, value/earned timeline.',
         parameters: [
           { name: 'depositor', in: 'query', required: true, schema: { type: 'string', minLength: 1 } },
         ],
         responses: {
-          '200': { description: 'earnings', content: { 'application/json': { schema: jsonObject } } },
+          '200': { description: 'earnings', content: { 'application/json': { schema: earningsResponse } } },
           '400': errorResponse,
           '502': errorResponse,
           '503': errorResponse,
