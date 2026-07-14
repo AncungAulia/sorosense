@@ -117,7 +117,8 @@ test("offline fallback — an on-chain balance with an empty ledger reports earn
   render(<VaultProvider client={client}><Probe /></VaultProvider>);
 
   await waitFor(() => expect(screen.getByTestId("hasDeposit").textContent).toBe("true"));
-  // The balance is real and shown; the yield has not accrued, and the screen says so.
+  // The balance is real and shown; this bucket is unallocated so its yield has not accrued (earned 0),
+  // and the screen says so — the honest zero-state, not a fabricated-profit chart.
   expect(Number(screen.getByTestId("balanceUsd").textContent)).toBeGreaterThan(0);
   expect(screen.getByTestId("earnedUsd").textContent).toBe("0.0000");
   // The fabricated-profit regression: without the guard this is the whole $100 balance.

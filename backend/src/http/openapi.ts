@@ -38,9 +38,9 @@ const jsonArray = { type: 'array', items: { type: 'object', additionalProperties
 
 /**
  * The Earn view (`getEarnings`), documented field-by-field because the frontend charts read it directly.
- * `chart` carries BOTH `valueUsd` (a step function on real deposits/withdrawals) and `earnedUsd`
- * (cumulative native yield, blended to USD). While the vault does not accrue, `earnedUsd` is honestly 0.
- * No risk/label/score field exists here by design.
+ * `chart` carries BOTH `valueUsd` (steps on real deposits/withdrawals, curves up with accrual) and
+ * `earnedUsd` (cumulative native yield, blended to USD). `earnedUsd` is 0 until the bucket's pool
+ * accrues, then rises with `share_price`. No risk/label/score field exists here by design.
  */
 const earningsResponse = {
   type: 'object',

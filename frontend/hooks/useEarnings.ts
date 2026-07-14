@@ -99,11 +99,12 @@ function viewFromResponse(res: EarningsResponse): EarningsView {
  *    seam, the timeline shape from `buildEarningsFixture`. A backend that dies mid-demo degrades the
  *    Earn screen to fixtures, never to a blank one.
  *
- * **What the numbers mean in real mode, stated out loud.** Yield does not accrue on-chain yet:
- * `share_price` reads exactly `SHARE_PRICE_SCALE`, so `earnedUsd` is honestly **0** and the growth
- * chart is **flat at zero** — an intentional "no earnings yet" zero-state, not a broken chart. The
- * *value* chart is the one that moves: it is a **step function** on real deposits and withdrawals. We
- * never fabricate growth to fill the gap; a curve that grows requires NAV accrual in the contract (U5).
+ * **What the numbers mean in real mode, stated out loud.** An **unallocated** bucket has not accrued:
+ * `share_price` reads exactly `SHARE_PRICE_SCALE`, so `earnedUsd` is **0** and the growth chart is flat —
+ * an honest "no earnings yet" zero-state, not a broken chart. Once the keeper allocates the bucket into an
+ * accruing `yield_pool` (vault binver 1.3.0, mark-to-market NAV), `share_price` rises with ledger time and
+ * both the growth chart and `earnedUsd` curve up with it. The *value* chart also steps on real deposits and
+ * withdrawals. We never fabricate growth on an unaccrued bucket — and never flatten a real gain back to 0.
  */
 export function useEarnings(): { loading: boolean; view: EarningsView } {
   const { address } = useWallet();

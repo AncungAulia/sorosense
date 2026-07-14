@@ -46,11 +46,11 @@ vi.mock("../../lib/vault/contributions", async (importOriginal) => {
 });
 
 /**
- * `GET /earnings` as the live backend sends it today: a real balance, a real value timeline that
- * **steps** on the deposit — and `earnedUsd` of exactly **0**, at the headline, in every chart point and
- * in every month. The vault does not accrue on-chain yet (`share_price` reads exactly
- * `SHARE_PRICE_SCALE`), so zero is the truth, and any nonzero number here would mean a mock leaked back
- * into the real path.
+ * `GET /earnings` for an **unallocated** bucket: a real balance, a real value timeline that **steps** on
+ * the deposit — and `earnedUsd` of exactly **0**, at the headline, in every chart point and in every
+ * month. With no accruing pool position `share_price` reads exactly `SHARE_PRICE_SCALE`, so zero is the
+ * truth; any nonzero number *for this unaccrued fixture* would mean a mock leaked into the real path.
+ * (An allocated bucket accrues — proven in the backend realtime suite's `accrual lifts earned` twin.)
  */
 const ZERO_YIELD = {
   hasDeposit: true,

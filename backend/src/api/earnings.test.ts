@@ -227,7 +227,7 @@ describe('getEarnings — chart + monthly breakdown (AE3, R8, R9)', () => {
 
 describe('getEarnings — value-over-time + per-bucket earned (U1b, R8, R10)', () => {
   const t0 = Date.UTC(2026, 2, 1); // deposit
-  const t1 = Date.UTC(2026, 2, 2); // snapshot, price pinned at the scale (the contract does not accrue)
+  const t1 = Date.UTC(2026, 2, 2); // snapshot; this bucket has no accruing pool, so price is the scale
   const t2 = Date.UTC(2026, 2, 3); // second deposit / withdrawal
 
   it('a deposit is a real step in value with zero growth (the honest real-mode chart)', async () => {

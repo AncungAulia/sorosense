@@ -3,11 +3,14 @@
  * REAL decoder, store and poller, the REAL `MockVaultClient` NAV math, driven by canned `ScVal` pages
  * through an injected `EventSource`. No network, no socket, no timer.
  *
- * The load-bearing test is `earned === 0`. Before this unit `server.ts` handed `/earnings` an EMPTY
- * event list, so `getEarnings` reconstructed contributions of `0` and reported a user's ENTIRE
- * PRINCIPAL as profit. Once the poller feeds the decoded `deposit` in, contributions are 1000 and
- * earned is 0 — which is also the honest figure, because the contract does not accrue yield yet
- * (`share_price` reads exactly `SHARE_PRICE_SCALE`).
+ * The load-bearing test is that an **unaccrued** bucket reports `earned === 0`. Before this unit
+ * `server.ts` handed `/earnings` an EMPTY event list, so `getEarnings` reconstructed contributions of
+ * `0` and reported a user's ENTIRE PRINCIPAL as profit. Once the poller feeds the decoded `deposit` in,
+ * contributions are 1000 and earned is 0 — honest, because *this* bucket has no pool position, so
+ * `share_price` reads exactly `SHARE_PRICE_SCALE`. Its twin (`accrual lifts earned`) guards the other
+ * failure the day the vault started accruing (binver 1.3.0): a `simulateYield` raises `share_price`,
+ * earned rises with it, and the pre-deposit points stay 0 — so no future edit can flatten a real gain
+ * back to zero and still pass. A green test guarding a now-false "always 0" invariant is the trap.
  *
  * The other half is the offline guarantee (R4): with the integration env unset, `startRealtime`
  * constructs NOTHING — asserted by spy on the source factory, the ledger read and the scheduler, so the
@@ -173,9 +176,37 @@ describe('realtime wiring — live mode', () => {
     expect(view.chart.map((p) => p.ts)).toEqual(
       expect.arrayContaining([1_752_490_000_000, 1_752_490_060_000]),
     );
-    // Honest by construction: the contract does not accrue, so every point is flat at zero (R10).
+    // This bucket has no pool position, so it has not accrued — every point is honestly flat at zero
+    // (R10). The twin below proves the other direction: once it accrues, earned rises.
     for (const point of view.chart) expect(point.earnedUsd).toBeCloseTo(0, 6);
     expect(deps.earnings.snapshots.series('USD').at(-1)?.price).toBe(SHARE_PRICE_SCALE);
+  });
+
+  it('accrual lifts earned: a NAV rise makes earnedUsd > 0, pre-deposit points stay 0 (binver 1.3.0)', async () => {
+    const deps = await buildDeps();
+    const app = createApp(deps);
+    let now = 1_752_490_000_000;
+
+    const handle = await startLive(deps, scriptedSource(depositPages()), { clock: () => now });
+    // The bucket's pool accrues 10% of Alice's principal — the on-chain mark-to-market lift the vault
+    // now computes (binver 1.3.0), reproduced here through the mock's NAV hook.
+    (deps.vault as MockVaultClient).simulateYield('USD', 100n * UNIT);
+    now += 60_000;
+    await handle?.snapshot(); // records the elevated share_price
+
+    const view = await body<EarningsBody>(await app.request(`/earnings?depositor=${ALICE}`));
+
+    // Earned is no longer zero — the gain is real, shown, and NOT flattened back to 0 by a stale test.
+    expect(view.earnedUsd).toBeGreaterThan(0);
+    expect(view.chart.at(-1)?.earnedUsd).toBeGreaterThan(0);
+    // No retroactive profit: every point before Alice's deposit is still exactly 0 (the old whole-
+    // principal-as-earnings bug must stay dead).
+    const depositTs = Date.parse('2026-07-14T10:00:00Z');
+    for (const p of view.chart) {
+      if (p.ts < depositTs) expect(p.earnedUsd).toBeCloseTo(0, 6);
+    }
+    // The price genuinely moved above the base — the number that had never moved since deploy (R2/R12).
+    expect(deps.earnings.snapshots.series('USD').at(-1)?.price ?? 0n).toBeGreaterThan(SHARE_PRICE_SCALE);
   });
 
   it('resolves the start ledger from the current ledger minus the retention margin, clamped to >= 1', async () => {
