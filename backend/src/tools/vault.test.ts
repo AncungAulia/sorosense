@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Keypair } from '@stellar/stellar-sdk';
 import { MockVaultClient, RealVaultClient } from '@sorosense/vault-client';
-import { getVaultClient, __resetVaultClient } from './vault.js';
+import {
+  getVaultClient,
+  __resetVaultClient,
+  buildPoolRegistry,
+  buildPoolIdResolver,
+  demoPoolFor,
+} from './vault.js';
 import { makeKeeperSigner } from './keeper-signer.js';
 
 const INTEGRATION_VARS = [
@@ -12,6 +18,38 @@ const INTEGRATION_VARS = [
 ] as const;
 
 const PASSPHRASE = 'Test SDF Network ; September 2015';
+
+describe('pool registry — forward and inverse round-trip (KTD: a pool must resolve both ways)', () => {
+  const USD_POOL = 'CAQWUMGQAQRILPUEAOUI6ATPCW4VRKW77NW47NC7GPJKZSB7NKVXLQ7N';
+  const EUR_POOL = 'CDDTTJUB5JEMTXFDDJIQXF5VOPOHALDGTGUBWLEIRTRAQJFXURSSV3UU';
+  const env = { YIELD_POOL_USD: USD_POOL, YIELD_POOL_EUR: EUR_POOL };
+
+  it('resolves a slug forward to its address and the address back to the slug', () => {
+    const resolve = buildPoolRegistry(env)!;
+    const decode = buildPoolIdResolver(env)!;
+    // The exact round-trip getHoldings relies on: activePool returns an Address, poolStatus needs a slug.
+    // Without the inverse, an allocated bucket 500s (the live bug this pins).
+    expect(resolve(demoPoolFor('USD'))).toBe(USD_POOL);
+    expect(decode(USD_POOL)).toBe(demoPoolFor('USD'));
+    expect(decode(resolve(demoPoolFor('EUR')))).toBe(demoPoolFor('EUR'));
+  });
+
+  it('honours the legacy BLEND_POOL_* address names in both directions', () => {
+    const legacy = { BLEND_POOL_USD: USD_POOL };
+    expect(buildPoolRegistry(legacy)!(demoPoolFor('USD'))).toBe(USD_POOL);
+    expect(buildPoolIdResolver(legacy)!(USD_POOL)).toBe(demoPoolFor('USD'));
+  });
+
+  it('decodes an unknown address to itself rather than throwing (a display concern, not a failed read)', () => {
+    const decode = buildPoolIdResolver(env)!;
+    expect(decode('CUNKNOWNPOOLADDRESSNOTINREGISTRY')).toBe('CUNKNOWNPOOLADDRESSNOTINREGISTRY');
+  });
+
+  it('is undefined when no pool address is configured (mock-default path unchanged)', () => {
+    expect(buildPoolRegistry({})).toBeUndefined();
+    expect(buildPoolIdResolver({})).toBeUndefined();
+  });
+});
 
 describe('getVaultClient — config-driven selection', () => {
   const saved: Record<string, string | undefined> = {};
