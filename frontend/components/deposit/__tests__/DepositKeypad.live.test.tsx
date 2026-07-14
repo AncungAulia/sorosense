@@ -142,5 +142,5 @@ test("a successful mint re-reads the balance — the available line moves", asyn
   await user.click(screen.getByRole("button", { name: "Get test USDC" }));
 
   await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
-  expect(screen.getByText(/Test USDC sent/)).toBeInTheDocument();
+  expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument();
 });

@@ -5,7 +5,7 @@ import { Button } from "../ui";
 import { apiEnabled } from "../../lib/api/config";
 import { apiPost, type ApiResult } from "../../lib/api/client";
 import { isFaucetNeedsChangeTrust, type FaucetSuccess } from "../../lib/api/types";
-import { addTrustline } from "../../lib/wallet/changeTrust";
+import { balanceEnabled } from "../../lib/wallet/balance";
 import { stablecoinByCurrency } from "../../lib/vault/data";
 import { useWallet } from "../../hooks/useWallet";
 import { useToast } from "../../hooks/useToast";
@@ -17,11 +17,14 @@ import { useToast } from "../../hooks/useToast";
  * to pick (the backend decides how much it mints). `FAUCET_ISSUER_SECRET` lives on the backend and only
  * a public tx hash comes back. A test asserts the serialized body, so no refactor can smuggle a field in.
  *
- * The button **does not exist** unless the API is configured and the currency is one the faucet mints
- * (USD/EUR — MXN has no self-issued testnet asset). A `404` means the backend mounted no faucet route
- * (mainnet, or no faucet env), so it removes itself rather than leaving a dead control on screen.
+ * **When it exists.** Three conditions, all necessary: the backend API is configured, the currency is one
+ * the faucet mints (USD/EUR — MXN has no self-issued testnet asset), and this stablecoin's Horizon +
+ * issuer config is present. The last one is not decoration: the 409 recovery path *builds a
+ * `changeTrust` from the issuer*, so without it the button could only ever fail — the three env vars are
+ * independently optional (`.env.example`), and an API-only build must not render a control that cannot
+ * work. A `404` (no faucet route on this backend — mainnet, or no faucet env) removes it after the fact.
  *
- * The recovery path: `409 needsChangeTrust` ⇒ the recipient has no trustline for the SAC's underlying
+ * **The recovery path.** `409 needsChangeTrust` ⇒ the recipient has no trustline for the SAC's underlying
  * classic asset. We build the `changeTrust`, sign it in the wallet, submit it, and retry the mint
  * **exactly once** — an unbounded retry against a rate-limited endpoint is the failure mode here.
  */
@@ -33,14 +36,15 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
 
   const coin = stablecoinByCurrency(currency);
   const mintable = currency === "USD" || currency === "EUR";
-  if (!apiEnabled() || !mintable || !address || !coin || unmounted) return null;
+  const configured = coin !== undefined && balanceEnabled(coin.sym);
+  if (!apiEnabled() || !mintable || !configured || !address || !coin || unmounted) return null;
 
   const mint = (): Promise<ApiResult<FaucetSuccess>> =>
     apiPost<FaucetSuccess>("/faucet", { address, currency });
 
   const succeed = () => {
-    show(`Test ${coin.sym} sent to your wallet.`);
-    onMinted?.(); // re-read the balance: the keypad's available line has to move
+    show(`Test ${coin.sym} on the way — your balance updates in a moment.`);
+    onMinted?.(); // re-read the balance (it polls: Horizon needs a ledger close to see the payment)
   };
 
   const onClick = async () => {
@@ -51,7 +55,9 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
       if (first.ok) return succeed();
 
       if (first.status === 404) {
-        // No faucet on this backend. Hide the control instead of surfacing a button that cannot work.
+        // No faucet on this backend. Say so, then remove a control that cannot work — a button that
+        // silently vanishes under the user's finger is worse than no button.
+        show("This backend has no faucet — ask for testnet funds another way.");
         setUnmounted(true);
         return;
       }
@@ -62,6 +68,9 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
 
       if (first.status === 409 && isFaucetNeedsChangeTrust(first.body)) {
         try {
+          // Loaded on demand: `changeTrust` pulls in @stellar/stellar-sdk, and this component is mounted
+          // on Home (via AddFundsDrawer) where it usually renders nothing. Keep the SDK out of that bundle.
+          const { addTrustline } = await import("../../lib/wallet/changeTrust");
           await addTrustline(coin.sym, address, signTransaction);
         } catch (cause) {
           // A declined signature (or a rejected trustline tx) ends the flow: no mint is attempted.
@@ -81,11 +90,11 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
     }
   };
 
-  // The component owns its slot: a call site can drop it in unconditionally without leaving an empty
-  // wrapper behind on the (common) runs where it renders nothing.
+  // The primitive is used as-is (primitives-DRY): no size override, which Tailwind's stylesheet order
+  // would drop on the floor anyway — the wrapper is what shapes the slot.
   return (
     <div className="mx-auto mb-4 mt-2 w-full max-w-[240px]">
-      <Button variant="glass" onClick={onClick} disabled={busy} className="h-11 text-[14px]">
+      <Button variant="glass" onClick={onClick} disabled={busy}>
         {busy ? "Sending test funds…" : `Get test ${coin.sym}`}
       </Button>
     </div>

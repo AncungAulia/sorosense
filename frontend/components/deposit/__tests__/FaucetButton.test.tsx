@@ -17,9 +17,15 @@ import { addTrustline } from "../../../lib/wallet/changeTrust";
 
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+  process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL = "https://horizon-testnet.stellar.org";
+  process.env.NEXT_PUBLIC_USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+  process.env.NEXT_PUBLIC_EURC_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 });
 afterAll(() => {
   delete process.env.NEXT_PUBLIC_API_URL;
+  delete process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL;
+  delete process.env.NEXT_PUBLIC_USDC_ISSUER;
+  delete process.env.NEXT_PUBLIC_EURC_ISSUER;
 });
 
 vi.mock("../../../lib/wallet/changeTrust", () => ({ addTrustline: vi.fn() }));
@@ -99,7 +105,7 @@ test("a 200 mint toasts success and asks the caller to re-read the balance", asy
 
   await user.click(screen.getByRole("button", { name: "Get test USDC" }));
 
-  await waitFor(() => expect(screen.getByText(/Test USDC sent/)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument());
   expect(onMinted).toHaveBeenCalledTimes(1);
   expect(trustline).not.toHaveBeenCalled();
 });
@@ -117,7 +123,7 @@ test("a 409 signs a changeTrust, then retries the mint EXACTLY once", async () =
   expect(trustline).toHaveBeenCalledWith("USDC", ADDRESS, sign);
   // The retry is bounded: two mint attempts, never a loop against a rate-limited endpoint.
   expect(faucetCalls()).toHaveLength(2);
-  expect(screen.getByText(/Test USDC sent/)).toBeInTheDocument();
+  expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument();
 });
 
 test("a declined changeTrust signature toasts and attempts NO mint", async () => {
@@ -145,13 +151,15 @@ test("a 429 toasts the rate limit and does not retry", async () => {
   expect(onMinted).not.toHaveBeenCalled();
 });
 
-test("a 404 (no faucet mounted on this backend) removes the button instead of leaving a dead control", async () => {
+test("a 404 (no faucet mounted on this backend) says so, then removes the dead control", async () => {
   fetchMock.mockResolvedValue(new Response("404 Not Found", { status: 404 }));
   const { user } = setup("USD");
 
   await user.click(screen.getByRole("button", { name: "Get test USDC" }));
 
-  await waitFor(() => expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull());
+  // Not a control that silently vanishes under the user's finger: it explains itself first.
+  await waitFor(() => expect(screen.getByText(/no faucet/i)).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
 });
 
 test("the button is absent for a currency the faucet does not mint (MXN)", () => {

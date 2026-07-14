@@ -148,5 +148,11 @@ export async function readWalletBalance(sym: StablecoinSym, address: string): Pr
     return { ok: true, value: { amount: 0n, trustline: false, unfunded: false } };
   }
 
-  return { ok: true, value: { amount: toBaseUnits(line.balance), trustline: true, unfunded: false } };
+  try {
+    return { ok: true, value: { amount: toBaseUnits(line.balance), trustline: true, unfunded: false } };
+  } catch {
+    // `BigInt()` throws on a non-decimal string. The no-throw contract holds all the way through the
+    // decode: a malformed amount is an error the caller falls back from, never an unhandled rejection.
+    return { ok: false, message: `Horizon sent an unparseable balance: ${line.balance}` };
+  }
 }

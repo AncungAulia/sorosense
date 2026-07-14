@@ -55,8 +55,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function holdingsResponse(rows: unknown[], status = 200): Response {
-  return new Response(JSON.stringify(rows), { status, headers: { "content-type": "application/json" } });
+/** A fresh Response per call — a body can only be read once, and the hook refetches on a vault bump. */
+function holdingsAlways(body: unknown, status = 200) {
+  return () =>
+    Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
 }
 
 function ApyProbe({ currency }: { currency: Currency }) {
@@ -78,7 +80,7 @@ function BucketProbe() {
 }
 
 test("a funded bucket takes its APY from GET /holdings, not the fixture", async () => {
-  fetchMock.mockResolvedValue(holdingsResponse([USD_ROW]));
+  fetchMock.mockImplementation(holdingsAlways([USD_ROW]));
   render(
     <VaultProvider client={new MockVaultClient()}>
       <ApyProbe currency="USD" />
@@ -91,7 +93,7 @@ test("a funded bucket takes its APY from GET /holdings, not the fixture", async 
 });
 
 test("an unfunded bucket has no /holdings row and keeps the fixture rate — never NaN or 0.00", async () => {
-  fetchMock.mockResolvedValue(holdingsResponse([USD_ROW])); // no EUR row: EUR is unfunded (KTD3)
+  fetchMock.mockImplementation(holdingsAlways([USD_ROW])); // no EUR row: EUR is unfunded (KTD3)
   render(
     <VaultProvider client={new MockVaultClient()}>
       <ApyProbe currency="EUR" />
@@ -106,8 +108,8 @@ test("an unfunded bucket has no /holdings row and keeps the fixture rate — nev
 
 test("a /holdings read that 502s falls back to the fixture, logs, and still renders", async () => {
   const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-  fetchMock.mockResolvedValue(
-    holdingsResponse({ error: { code: "unavailable", message: "vault read failed" } } as never, 502),
+  fetchMock.mockImplementation(
+    holdingsAlways({ error: { code: "unavailable", message: "vault read failed" } }, 502),
   );
   render(
     <VaultProvider client={new MockVaultClient()}>
@@ -120,7 +122,7 @@ test("a /holdings read that 502s falls back to the fixture, logs, and still rend
 });
 
 test("useBuckets keeps shares/value/frozen on the SEAM and takes only the APY from HTTP", async () => {
-  fetchMock.mockResolvedValue(holdingsResponse([USD_ROW]));
+  fetchMock.mockImplementation(holdingsAlways([USD_ROW]));
   const client = new MockVaultClient();
   await seedVault(client, "GUSER"); // funds USD + EUR in the browser's own mock vault
   render(

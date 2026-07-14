@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { apiEnabled } from "../lib/api/config";
 import { apiGet } from "../lib/api/client";
 import type { Holding } from "../lib/api/types";
+import { useVault } from "./useVault";
 import { useWallet } from "./useWallet";
 
 /**
@@ -25,8 +26,12 @@ import { useWallet } from "./useWallet";
  */
 const inFlight = new Map<string, Promise<Holding[] | null>>();
 
-function fetchHoldings(depositor: string): Promise<Holding[] | null> {
-  const pending = inFlight.get(depositor);
+function fetchHoldings(depositor: string, version: number): Promise<Holding[] | null> {
+  // Keyed by version too: two hooks in the same tick share one request, but a vault write (which bumps
+  // the version) always gets a fresh read — it must never be served a reply that is already in flight
+  // against the pre-write state.
+  const key = `${depositor}:${version}`;
+  const pending = inFlight.get(key);
   if (pending) return pending;
 
   const request = apiGet<Holding[]>("/holdings", { depositor })
@@ -36,15 +41,19 @@ function fetchHoldings(depositor: string): Promise<Holding[] | null> {
       console.error(`[holdings] ${result.code}: ${result.message}`);
       return null;
     })
-    .finally(() => inFlight.delete(depositor));
+    .finally(() => inFlight.delete(key));
 
-  inFlight.set(depositor, request);
+  inFlight.set(key, request);
   return request;
 }
 
 /** Funded buckets from the backend, or `null` when the API is off, the wallet is absent, or the read failed. */
 export function useHoldings(): { loading: boolean; holdings: Holding[] | null } {
   const { address } = useWallet();
+  // `version` bumps on every write through the seam (deposit / withdraw). Without it a bucket funded
+  // *this session* would keep the fixture rate forever: at mount it had zero shares, so `getHoldings`
+  // correctly omitted it — and two rows on the same screen would then be sourced from different truths.
+  const { version } = useVault();
   const [state, setState] = useState<{ loading: boolean; holdings: Holding[] | null }>({
     loading: apiEnabled(),
     holdings: null,
@@ -58,13 +67,13 @@ export function useHoldings(): { loading: boolean; holdings: Holding[] | null } 
         if (!cancelled) setState({ loading: false, holdings: null });
         return;
       }
-      const holdings = await fetchHoldings(address);
+      const holdings = await fetchHoldings(address, version);
       if (!cancelled) setState({ loading: false, holdings });
     })();
     return () => {
       cancelled = true;
     };
-  }, [address]);
+  }, [address, version]);
 
   return state;
 }

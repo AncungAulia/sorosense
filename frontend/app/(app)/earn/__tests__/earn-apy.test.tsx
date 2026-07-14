@@ -41,8 +41,11 @@ const USD_ROW = {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify([USD_ROW]), { status: 200, headers: { "content-type": "application/json" } }),
+  // A fresh Response per call: a body can only be read once, and the hook refetches on a vault bump.
+  fetchMock = vi.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify([USD_ROW]), { status: 200, headers: { "content-type": "application/json" } }),
+    ),
   );
   vi.stubGlobal("fetch", fetchMock);
 });
