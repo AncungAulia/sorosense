@@ -16,7 +16,7 @@ import type { Address, Currency, VaultClient } from '@sorosense/vault-client';
 
 import { ok, type Result } from '../lib/result.js';
 import { ALL_CURRENCIES, makeReflectorFx, type FxSource } from './earnings.js';
-import { bestSafeVenue, kindLabel, resolveVenue } from './venue-meta.js';
+import { bestSafeVenue, catalogApy, kindLabel, resolveVenue, type ApySource } from './venue-meta.js';
 
 export { makeReflectorFx, type FxSource };
 
@@ -49,6 +49,8 @@ export interface HoldingsDeps {
   vault: Pick<VaultClient, 'balanceOf' | 'assetValueOf' | 'activePool' | 'poolStatus'>;
   /** FX per currency (display-only). */
   fx: FxSource;
+  /** APY per pool — live on-chain `rate_bps()` in production, catalog figure offline. Default: catalog. */
+  apy?: ApySource;
   currencies?: readonly Currency[];
 }
 
@@ -59,6 +61,7 @@ export interface HoldingsDeps {
  */
 export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promise<Result<Holding[]>> {
   const currencies = deps.currencies ?? ALL_CURRENCIES;
+  const apySource = deps.apy ?? catalogApy;
   const holdings: Holding[] = [];
 
   for (const currency of currencies) {
@@ -73,6 +76,11 @@ export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promi
     const meta = pool ? resolveVenue(pool) : bestSafeVenue(currency);
     if (!meta) continue; // no vetted venue for this currency — omit rather than emit a partial bucket
 
+    // The venue's APY: the live on-chain rate for a deployed pool, the catalog figure otherwise. A
+    // failed read surfaces as an error (like FX) rather than a stale headline (R2, KTD7).
+    const apy = await apySource(meta.id);
+    if (!apy.ok) return apy;
+
     // Resolve FX before display; a failure surfaces as an error (never a silent $0).
     const rate = await deps.fx(currency);
     if (!rate.ok) return rate;
@@ -84,7 +92,7 @@ export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promi
       venue: meta.venue,
       kind: meta.kind,
       tags: [meta.venue, kindLabel(meta.kind, meta.name)],
-      apy: meta.apy,
+      apy: apy.value,
       shares,
       value,
       valueUsd,

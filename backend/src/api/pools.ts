@@ -11,7 +11,8 @@
  * blank sheet. Pure: no vault, no FX, no network, and no risk/label/score field.
  */
 
-import { resolveVenue } from './venue-meta.js';
+import { err, ok, type Result } from '../lib/result.js';
+import { catalogApy, resolveVenue, type ApySource } from './venue-meta.js';
 
 /** Display data for one vetted pool — an exit target, named and rated. No risk field. */
 export interface Pool {
@@ -24,9 +25,16 @@ export interface Pool {
   apy: number;
 }
 
-/** One vetted pool by id; `null` for an unknown or trap id (the caller must not render a partial). */
-export function getPool(poolId: string): Pool | null {
+/**
+ * One vetted pool by id. `err('not_found')` for an unknown or trap id (the caller must not render a
+ * partial — it becomes a shaped 404). The APY is the injected {@link ApySource} (live `rate_bps()` in
+ * production, catalog figure offline); a failed live read is that read's typed error, not a stale
+ * constant, so the exit-approval sheet never quotes a rate that is no longer true (R2, KTD7).
+ */
+export async function getPool(poolId: string, apy: ApySource = catalogApy): Promise<Result<Pool>> {
   const meta = resolveVenue(poolId);
-  if (!meta) return null;
-  return { id: meta.id, name: meta.name, venue: meta.venue, apy: meta.apy };
+  if (!meta) return err('not_found', `unknown pool: ${poolId}`);
+  const rate = await apy(poolId);
+  if (!rate.ok) return rate;
+  return ok({ id: meta.id, name: meta.name, venue: meta.venue, apy: rate.value });
 }

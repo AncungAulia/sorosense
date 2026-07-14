@@ -38,13 +38,14 @@ export function isIntegrationEnv(env: NodeJS.ProcessEnv = process.env): boolean 
 
 /**
  * The demo pool slug the keeper drives per currency — the settled Fase B question. Each currency's
- * Blend pool is the demo pool; the registry below maps that slug to its `BLEND_POOL_<CCY>` on-chain
- * address. This is the ONE place a currency maps to a pool slug — no pool address is hardcoded here
- * or in `@sorosense/vault-client` (the registry, not the seam, carries addresses).
+ * SoroSense `yield_pool` (the one that actually accrues, U1) is the demo pool; the registry below maps
+ * that slug to its `YIELD_POOL_<CCY>` on-chain address (falling back to a legacy `BLEND_POOL_<CCY>` so
+ * an existing `.env` still boots). This is the ONE place a currency maps to a pool slug — no pool
+ * address is hardcoded here or in `@sorosense/vault-client` (the registry, not the seam, carries them).
  */
 const DEMO_POOL_SLUG: Partial<Record<Currency, PoolId>> = {
-  USD: 'blend-usdc',
-  EUR: 'blend-eurc',
+  USD: 'sorosense-usd',
+  EUR: 'sorosense-eur',
 };
 
 /** The demo pool slug the keeper drives for a currency. Throws for a currency with no demo pool. */
@@ -55,15 +56,18 @@ export function demoPoolFor(currency: Currency): PoolId {
 }
 
 /**
- * Build the pool registry (seam slug → on-chain {@link Address}) from env — `BLEND_POOL_USD` /
- * `BLEND_POOL_EUR` keyed by each currency's demo pool slug. Passed to {@link RealVaultClient} so its
- * pool-taking writes encode a real contract address. Returns `undefined` when no addresses are set
- * (the mock-default path is unchanged; the real client then passes slugs straight through).
+ * Build the pool registry (seam slug → on-chain {@link Address}) from env — `YIELD_POOL_USD` /
+ * `YIELD_POOL_EUR` keyed by each currency's demo pool slug, falling back to the legacy `BLEND_POOL_*`
+ * so an older `.env` still boots. Passed to {@link RealVaultClient} so its pool-taking writes encode a
+ * real contract address. Returns `undefined` when no addresses are set (the mock-default path is
+ * unchanged; the real client then passes slugs straight through).
  */
 export function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Address) | undefined {
   const entries: Array<[PoolId, Address]> = [];
-  if (env.BLEND_POOL_USD) entries.push([demoPoolFor('USD'), env.BLEND_POOL_USD]);
-  if (env.BLEND_POOL_EUR) entries.push([demoPoolFor('EUR'), env.BLEND_POOL_EUR]);
+  const usd = env.YIELD_POOL_USD ?? env.BLEND_POOL_USD;
+  const eur = env.YIELD_POOL_EUR ?? env.BLEND_POOL_EUR;
+  if (usd) entries.push([demoPoolFor('USD'), usd]);
+  if (eur) entries.push([demoPoolFor('EUR'), eur]);
   if (entries.length === 0) return undefined;
   const registry = new Map<PoolId, Address>(entries);
   return (pool: PoolId): Address => {

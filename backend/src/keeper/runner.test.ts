@@ -46,9 +46,9 @@ describe('makeKeeperRunner — freezePool', () => {
 
     const res = await runner.freezePool('USD');
 
-    expect(freeze).toHaveBeenCalledWith('blend-usdc'); // the settled USD demo pool slug
+    expect(freeze).toHaveBeenCalledWith('sorosense-usd'); // the settled USD demo pool slug
     expect(res.success).toBe(true);
-    expect(await client.poolStatus('blend-usdc')).toBe('frozen');
+    expect(await client.poolStatus('sorosense-usd')).toBe('frozen');
   });
 
   it('rejects a wrong-role (depositor) signer, mirroring the seam guard', async () => {
@@ -61,6 +61,33 @@ describe('makeKeeperRunner — freezePool', () => {
     });
 
     await expect(runner.freezePool('USD')).rejects.toThrow(/wrong signer: need keeper/);
+  });
+});
+
+describe('makeKeeperRunner — allocate', () => {
+  it('moves idle bucket funds into the currency demo pool, keeper-signed', async () => {
+    const client = new MockVaultClient();
+    const allocate = vi.spyOn(client, 'allocate');
+    const runner = makeKeeperRunner({
+      client,
+      signer: mockSigner('keeper'),
+      integration: true,
+      env: LIVE_ENV,
+    });
+
+    const res = await runner.allocate('USD', 100_000n);
+
+    expect(allocate).toHaveBeenCalledWith('sorosense-usd', 'USD', 100_000n);
+    expect(res.success).toBe(true);
+  });
+
+  it('refuses a real allocate in mock mode and attempts no write', async () => {
+    const client = new MockVaultClient();
+    const allocate = vi.spyOn(client, 'allocate');
+    const runner = makeKeeperRunner({ client, integration: false, env: {} });
+
+    await expect(runner.allocate('USD', 100_000n)).rejects.toThrow(MOCK_MODE_MESSAGE);
+    expect(allocate).not.toHaveBeenCalled();
   });
 });
 

@@ -158,8 +158,8 @@ describe('getEarnings — blended APY (R5)', () => {
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    // best Safe APY: USD 8.59 (defindex), EUR 5.1 (blend-eurc); equal USD weights → mean 6.845
-    expect(res.value.apy).toBeCloseTo((8.59 + 5.1) / 2, 6);
+    // best Safe APY: USD 10 (sorosense-usd), EUR 10 (sorosense-eur); equal weights → mean 10
+    expect(res.value.apy).toBeCloseTo((10 + 10) / 2, 6);
   });
 });
 

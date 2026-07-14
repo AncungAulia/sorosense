@@ -15,8 +15,9 @@
 
 import type { Currency } from '@sorosense/vault-client';
 
+import { ok, type Result } from '../lib/result.js';
 import { ALL_CURRENCIES } from './earnings.js';
-import { bestSafeVenue, kindLabel } from './venue-meta.js';
+import { bestSafeVenue, catalogApy, kindLabel, type ApySource } from './venue-meta.js';
 
 /**
  * The rate card for one currency bucket: the venue the agent would allocate it to, and its APY. Field
@@ -37,9 +38,15 @@ export interface Rate {
 
 /**
  * The rate card per currency. A currency with no vetted venue is **omitted** rather than emitted with a
- * zero rate — a `0.00% APY` hero is a lie an empty list is not. Deterministic; safe to call per request.
+ * zero rate — a `0.00% APY` hero is a lie an empty list is not. The APY comes from the injected
+ * {@link ApySource} (live on-chain `rate_bps()` in production, the catalog figure offline); if that read
+ * fails for a currency that *does* have a venue, the whole card fails with that error rather than
+ * quoting a stale constant — the caller maps it to a shaped non-200 (R2, KTD7).
  */
-export function getRates(currencies: readonly Currency[] = ALL_CURRENCIES): Rate[] {
+export async function getRates(
+  currencies: readonly Currency[] = ALL_CURRENCIES,
+  apy: ApySource = catalogApy,
+): Promise<Result<Rate[]>> {
   const rates: Rate[] = [];
 
   for (const currency of currencies) {
@@ -48,15 +55,18 @@ export function getRates(currencies: readonly Currency[] = ALL_CURRENCIES): Rate
     const meta = bestSafeVenue(currency);
     if (!meta) continue;
 
+    const rate = await apy(meta.id);
+    if (!rate.ok) return rate;
+
     rates.push({
       currency,
       name: meta.name,
       venue: meta.venue,
       kind: meta.kind,
       tags: [meta.venue, kindLabel(meta.kind, meta.name)],
-      apy: meta.apy,
+      apy: rate.value,
     });
   }
 
-  return rates;
+  return ok(rates);
 }

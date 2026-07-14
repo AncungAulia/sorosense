@@ -181,10 +181,11 @@ describe('U1 Hono read surface — e2e against the mock vault', () => {
     const body = (await res.json()) as Array<{ currency: string; apy: number; tags: string[]; kind: string }>;
 
     expect(body.map((r) => r.currency)).toEqual(['USD', 'EUR', 'MXN']);
-    // The unfunded USD hero quotes the agent's default target — DeFindex, not the fixture's guess.
+    // The unfunded USD hero quotes the agent's default target — the SoroSense yield pool at 10%, whose
+    // rate out-ranks DeFindex on its own merits, not the fixture's guess.
     const usd = body.find((r) => r.currency === 'USD');
-    expect(usd?.apy).toBe(8.59);
-    expect(usd?.tags).toEqual(['DeFindex', 'Vault']);
+    expect(usd?.apy).toBe(10);
+    expect(usd?.tags).toEqual(['SoroSense', 'Fixed pool']);
     // An RWA-only currency reports the RWA venue and its kind, not a vault.
     const mxn = body.find((r) => r.currency === 'MXN');
     expect(mxn?.kind).toBe('rwa');

@@ -89,6 +89,13 @@ export const DEFAULT_THRESHOLD_PCT = 0.5;
 export interface KeeperRunner {
   /** The real, keeper-signing effects — exposed for a `tick` and for inspection/tests. */
   readonly effects: AllocatorEffects;
+  /**
+   * Move `amount` (base units) of a bucket's **idle** funds into its demo pool — the first-time
+   * allocation that makes `active_pool(ccy)` stop reading `null` and starts the yield accruing. The
+   * `compound` effect re-allocates *accrued* rewards; this is the operator entrypoint that seeds the
+   * position. Refuses in mock mode (never fakes a testnet write).
+   */
+  allocate(currency: Currency, amount: Amount): Promise<TxResult>;
   /** Keeper-freeze the currency's demo pool (protective; moves no funds). Refuses in mock mode. */
   freezePool(currency: Currency): Promise<TxResult>;
   /** Lift a keeper freeze on the currency's demo pool. Refuses in mock mode. */
@@ -160,6 +167,10 @@ export function makeKeeperRunner(options: KeeperRunnerOptions = {}): KeeperRunne
     },
   };
 
+  async function allocate(currency: Currency, amount: Amount): Promise<TxResult> {
+    return submit(() => client.allocate(poolFor(currency), currency, amount));
+  }
+
   async function freezePool(currency: Currency): Promise<TxResult> {
     return submit(() => client.freeze(poolFor(currency)));
   }
@@ -190,5 +201,5 @@ export function makeKeeperRunner(options: KeeperRunnerOptions = {}): KeeperRunne
     });
   }
 
-  return { effects, freezePool, unfreezePool, runTick };
+  return { effects, allocate, freezePool, unfreezePool, runTick };
 }
