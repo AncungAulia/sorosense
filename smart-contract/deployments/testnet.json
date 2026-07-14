@@ -35,7 +35,8 @@
       "verifiedAt": "2026-07-14",
       "note": "rate_bps() reads 1000 on both pools. Funded the USD pool with 500 USDC surplus (issuer mint, R11 — liquidity() reads 5000000000) so it can pay accrued interest on withdrawal. Keeper allocated 1200 USDC of idle USD into the USD pool (tx 473d8ad92e52f3d9ca247fa5145bbd0efffca5d09ae289f9ce8206ff4739dcd4); active_pool(Usd) then reads the pool, not null. share_price(Usd) rose 1000000063 → 1000000443 and pool.balance(vault) 12000000761 → 12000005327 across a ~2-minute window — the mark-to-market NAV lift, live, with no poke.",
       "allocateTx": "473d8ad92e52f3d9ca247fa5145bbd0efffca5d09ae289f9ce8206ff4739dcd4",
-      "usdPoolLiquidity": "5000000000"
+      "usdPoolLiquidity": "5000000000",
+      "eur": "EUR seeded too: demo depositor added the EURC trustline, faucet-minted 1000 EURC, deposited it, the EUR pool was funded with 500 EURC surplus, and the keeper allocated 1000 EURC (tx c511b662c8af6ffd31789b6c2637757a80c86df92990a51a73f56a2c121b4f54). active_pool(Eur) reads the pool, share_price(Eur) rose above 1000000000, EUR pool liquidity 15000000000."
     }
   },
   "faucetSmokeTest": {
