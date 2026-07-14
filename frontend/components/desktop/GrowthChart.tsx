@@ -48,7 +48,7 @@ export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
 
   return (
     <div className="relative mt-2">
-      <div data-testid="bars" className="flex items-end gap-[5px]" style={{ height: CHART_H }} onMouseLeave={() => setHover(null)}>
+      <div data-testid="bars" className="flex items-end justify-center gap-[5px]" style={{ height: CHART_H }} onMouseLeave={() => setHover(null)}>
         {monthly.map((m, i) => {
           const isLast = i === n - 1;
           const grad = isLast
@@ -65,14 +65,14 @@ export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
               onFocus={() => setHover(i)}
               onBlur={() => setHover(null)}
               style={{ height: `${Math.max(6, (m.earnedUsd / max) * CHART_H)}px`, animationDelay: `${i * 40}ms` }}
-              className={`grow-bar min-h-[6px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
+              className={`grow-bar min-h-[6px] w-full max-w-[52px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
             />
           );
         })}
       </div>
-      <div className="mt-2 flex gap-[5px]">
+      <div className="mt-2 flex justify-center gap-[5px]">
         {monthly.map((m, i) => (
-          <span key={m.label} className="flex-1 text-center text-[10px] font-medium text-faint">
+          <span key={m.label} className="w-full max-w-[52px] flex-1 text-center text-[10px] font-medium text-faint">
             {i % 3 === 0 || i === n - 1 ? (SHORT[monthIdx(m.label)] ?? "") : ""}
           </span>
         ))}
