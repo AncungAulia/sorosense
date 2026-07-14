@@ -25,7 +25,7 @@ import { MockVaultClient, mockSigner } from "@sorosense/vault-client";
 
 import { itemFromEntry } from "../../activity/map";
 import { UNIT } from "../../vault/units";
-import type { FeedEntry, FundingOptions, HealthResponse, Holding } from "../types";
+import type { EarningsResponse, FeedEntry, FundingOptions, HealthResponse, Holding } from "../types";
 
 // NOTE: `../client` is imported *dynamically*, inside each test. It reads its base URL at module scope
 // (Next inlines the var), so a static import here would freeze it to "" — the API off — before the
@@ -71,7 +71,23 @@ async function boot(): Promise<Booted | null> {
     app = createApp({
       vault,
       fx: async (currency) => ({ ok: true, value: STUB_RATES[currency] ?? 1 }),
-      earnings: { events: [], snapshots: new InMemorySnapshotStore() },
+      // The deposit above, as the chain reports it — so `/earnings` reconstructs a real cost basis and
+      // `earned = value − contributions` comes out at **0**. Handing this route an empty event list (as
+      // `server.ts` used to) is what made it report a user's entire principal as profit.
+      earnings: {
+        events: [
+          {
+            kind: "deposit" as const,
+            depositor: DEPOSITOR,
+            currency: "USD" as const,
+            amount: USD_DEPOSIT,
+            shares: await vault.balanceOf(DEPOSITOR, "USD"),
+            seq: 1,
+            ts: 2_000,
+          },
+        ],
+        snapshots: new InMemorySnapshotStore(),
+      },
       activity: {
         log,
         userEvents: [
@@ -228,6 +244,55 @@ describeContract("the backend read surface, through the real client", () => {
     for (const rwa of result.value.rwa) {
       expect(typeof rwa.id).toBe("string");
       expect(rwa).not.toHaveProperty("apy");
+    }
+  });
+
+  it("GET /earnings decodes as EarningsResponse — and earned is honestly zero", async () => {
+    const { apiGet, toBigInt } = await import("../client");
+
+    const result = await apiGet<EarningsResponse>("/earnings", { depositor: DEPOSITOR });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const view = result.value;
+
+    // Every field of the declared shape is really there, with the declared type.
+    expect(view.hasDeposit).toBe(true);
+    expect(typeof view.balanceUsd).toBe("number");
+    expect(typeof view.apy).toBe("number");
+    expect(typeof view.earnedUsd).toBe("number");
+
+    const usd = view.buckets.find((b) => b.currency === "USD");
+    expect(usd).toBeDefined();
+    if (!usd) return;
+    expect(typeof usd.usdValue).toBe("number");
+    // The bigint boundary: a decimal string on the wire, decoded losslessly at the edge.
+    expect(typeof usd.nativeValue).toBe("string");
+    expect(toBigInt(usd.nativeValue)).toBe(USD_DEPOSIT);
+
+    // The chart carries BOTH figures per point, from one replay — this is what U1b added and what the
+    // desktop value chart plots. `valueUsd` steps on the deposit; `earnedUsd` does not.
+    for (const p of view.chart) {
+      expect(typeof p.ts).toBe("number");
+      expect(typeof p.valueUsd).toBe("number");
+      expect(typeof p.earnedUsd).toBe("number");
+    }
+
+    // **The honest zero (R10).** `share_price` reads exactly `SHARE_PRICE_SCALE` — the vault does not
+    // accrue yet — and the cost basis reconstructed from the deposit event equals the current value. So
+    // earned is 0 at the headline, in every bucket, in every month, and at every point on the chart. A
+    // nonzero number here would mean the whole deposit is being reported as profit again.
+    expect(view.earnedUsd).toBe(0);
+    expect(usd.earnedUsd).toBe(0);
+    for (const m of view.monthly) expect(m.earnedUsd).toBe(0);
+    for (const p of view.chart) expect(p.earnedUsd).toBe(0);
+    // …while the value is real, and matches what /holdings reports for the same bucket.
+    expect(view.balanceUsd).toBeGreaterThan(0);
+
+    // Safety is invisible: no risk/label/score/tier field, on the view or on a bucket.
+    for (const key of ["risk", "label", "score", "tier"]) {
+      expect(view).not.toHaveProperty(key);
+      expect(usd).not.toHaveProperty(key);
     }
   });
 

@@ -4,9 +4,9 @@ import { buildEarningsFixture } from "../../../lib/earnings/fixtures";
 import { GrowthCard, windowBars } from "../GrowthCard";
 
 const NOW = Date.UTC(2026, 6, 10, 12, 0, 0);
-const fixture = buildEarningsFixture(NOW);
-const chart = fixture.chart.map((p) => ({ ts: p.ts, earnedUsd: p.earnedUsd * 180 }));
-const monthly = fixture.monthly.map((m) => ({ label: m.label, earnedUsd: m.earnedUsd * 180 }));
+// $180 earned on a $1,180 balance — the fixture stretches its normalized curve onto those two figures,
+// so `chart`/`monthly` come out in absolute USD, exactly as `useEarnings` builds them offline.
+const { chart, monthly } = buildEarningsFixture(NOW, { balanceUsd: 1180, earnedUsd: 180 });
 
 test("windowBars returns the documented bar count per period", () => {
   expect(windowBars(chart, "day", NOW)).toHaveLength(24);
@@ -62,10 +62,10 @@ test("a finite window clamps to the data instead of reaching before the series b
   // delta collapses into the final bin.
   const start = NOW - 3 * 3_600_000;
   const short = [
-    { ts: start, earnedUsd: 0 },
-    { ts: start + 3_600_000, earnedUsd: 10 },
-    { ts: start + 2 * 3_600_000, earnedUsd: 25 },
-    { ts: NOW, earnedUsd: 40 },
+    { ts: start, valueUsd: 1000, earnedUsd: 0 },
+    { ts: start + 3_600_000, valueUsd: 1010, earnedUsd: 10 },
+    { ts: start + 2 * 3_600_000, valueUsd: 1025, earnedUsd: 25 },
+    { ts: NOW, valueUsd: 1040, earnedUsd: 40 },
   ];
   const bars = windowBars(short, "week", NOW);
   expect(bars).toHaveLength(7);

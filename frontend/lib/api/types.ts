@@ -96,6 +96,71 @@ export interface FeedEntry {
 /** `GET /activity?depositor=&actor=&currency=&limit=` — the merged feed, most-recent-first. */
 export type ActivityResponse = FeedEntry[];
 
+/**
+ * One point on the value/earned timeline — mirrors `ChartPoint` in `backend/src/api/earnings.ts`.
+ *
+ * Both figures come from ONE replay of the user's cost basis at `ts`, so they are always consistent
+ * with each other:
+ *  - `valueUsd` is a **step function**: it steps on every real deposit and withdrawal and is flat in
+ *    between. That is a real chart of real money — it just does not curve, because nothing curves.
+ *  - `earnedUsd` is cumulative yield. The vault does not accrue on-chain yet (`share_price` reads
+ *    exactly `SHARE_PRICE_SCALE`), so in real mode it is honestly **0** at every point. A growth chart
+ *    that is flat at zero is the correct rendering of that fact, not a broken chart.
+ *
+ * The offline fixture (`lib/earnings/fixtures.ts`) emits this same shape, so one chart component feeds
+ * from both modes.
+ */
+export interface ChartPoint {
+  ts: number;
+  /** Blended-USD asset value at `ts`. Steps on each deposit/withdrawal; never a fabricated curve. */
+  valueUsd: number;
+  /** Cumulative earned (USD) at `ts`. Zero in real mode until NAV accrual ships — honestly flat. */
+  earnedUsd: number;
+}
+
+/** Earned during one calendar month (UTC) — mirrors `MonthlyEarned` in `backend/src/api/earnings.ts`. */
+export interface MonthlyEarned {
+  /** `YYYY-MM`. */
+  label: string;
+  earnedUsd: number;
+}
+
+/**
+ * Per-bucket drill-down — mirrors `BucketBreakdown` in `backend/src/api/earnings.ts`.
+ * `nativeValue` is the vault's `bigint` base units, on the wire as a decimal string.
+ */
+export interface EarningsBucket {
+  currency: Currency;
+  /** bigint as decimal string — decode with `toBigInt`. */
+  nativeValue: string;
+  /** Display-only USD conversion of `nativeValue` (never a fund conversion). */
+  usdValue: number;
+  /** This bucket's native yield blended to USD. FX movement is never earnings. */
+  earnedUsd: number;
+}
+
+/**
+ * `GET /earnings?depositor=…` — mirrors `EarningsView` in `backend/src/api/earnings.ts`.
+ *
+ * The backend already blends to USD with the live oracle and reconstructs cost basis from chain
+ * events, so in real mode this response **is** the Earn screen: the frontend re-derives none of it
+ * (`lib/vault/contributions.ts`, a browser-memory ledger that does not survive a reload, is not
+ * consulted at all).
+ */
+export interface EarningsResponse {
+  /** Whether any bucket holds value — drives the 2-state Earn screen. */
+  hasDeposit: boolean;
+  balanceUsd: number;
+  /** Value-weighted blended APY across the funded buckets. */
+  apy: number;
+  /** Total earned to date, blended to USD. Sums the buckets' `earnedUsd`. */
+  earnedUsd: number;
+  buckets: EarningsBucket[];
+  chart: ChartPoint[];
+  /** Oldest→newest; the last entry is the current month. */
+  monthly: MonthlyEarned[];
+}
+
 /** A fundable stablecoin — mirrors `Stablecoin` in `backend/src/api/funding.ts`. */
 export interface Stablecoin {
   sym: "USDC" | "EURC" | "CETES";

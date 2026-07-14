@@ -71,11 +71,21 @@ test("hasDeposit is false when nothing is deposited", async () => {
 });
 
 /**
- * KTD6 / R6 — the contributions ledger lives in browser memory and does not survive a reload, so
- * against the real contract `value − contributions` renders the user's entire principal as profit.
- * And there is nothing to derive: `share_price` is pinned to the scale until mark-to-market NAV
- * accrual ships, so native yield is exactly zero. The seam's real adapter is used for real (with an
- * injected fake bindings client, so the test stays offline) — not a stub of our own seam.
+ * R10 — the offline hybrid's guard, and why it survives U3.
+ *
+ * In real mode the backend supplies the true (zero) earned figure and this hybrid is never reached. But
+ * the hybrid is also the **fallback** when a configured backend fails mid-demo — and in that state the
+ * client is the real one while `getContributions` is still a browser-memory ledger that does not survive
+ * a reload. `value − contributions` would then render the user's entire principal as profit: the exact
+ * bug this plan kills on the backend, resurrected on the frontend's error path.
+ *
+ * So the hybrid derives earnings only for the client that recorded the ledger (the mock, which genuinely
+ * accrues via `simulateYield`). For a real client it reports zero — which is also simply the fact, since
+ * `share_price` is pinned to the scale until NAV accrual ships. "We cannot know" must never render as
+ * "profit".
+ *
+ * The seam's real adapter is used for real (with an injected fake bindings client, so the test stays
+ * offline) — not a stub of our own seam.
  */
 function realClient(usdShares: bigint, usdValue: bigint): RealVaultClient {
   const read = <T,>(result: T) => Promise.resolve({ result });
@@ -99,7 +109,7 @@ function realClient(usdShares: bigint, usdValue: bigint): RealVaultClient {
   });
 }
 
-test("real mode — an on-chain balance with an empty ledger reports earned = 0, not the principal", async () => {
+test("offline fallback — an on-chain balance with an empty ledger reports earned = 0, not the principal", async () => {
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   resetContributions(); // nothing recorded this session — a reload, or a deposit made before it
   const client = realClient(100n * UNIT, 100n * UNIT);
