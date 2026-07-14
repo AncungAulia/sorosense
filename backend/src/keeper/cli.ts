@@ -18,8 +18,9 @@
 import type { Amount, Currency } from '@sorosense/vault-client';
 import { getCatalog } from '../tools/catalog.js';
 import { makeKeeperRunner, type KeeperRunner, type RunTickInput } from './runner.js';
+import { runKeeperCronOnce } from './cron.js';
 
-const ACTIONS = ['allocate', 'freeze', 'unfreeze', 'tick'] as const;
+const ACTIONS = ['allocate', 'freeze', 'unfreeze', 'tick', 'cron'] as const;
 type Action = (typeof ACTIONS)[number];
 
 const CURRENCIES: Currency[] = ['USD', 'EUR', 'MXN'];
@@ -84,10 +85,17 @@ export async function main(argv: readonly string[]): Promise<number> {
   const [rawAction, rawCurrency, rawAmount] = argv;
   const action = ACTIONS.find((a) => a === rawAction);
   if (!action) {
-    console.error(`usage: keeper <${ACTIONS.join('|')}> <USD|EUR|MXN> [amount]`);
+    console.error(`usage: keeper <${ACTIONS.join('|')}> [USD|EUR|MXN] [amount]`);
     return 2;
   }
   try {
+    // `cron` evaluates every bucket in one pass (idempotent — safe for an OS cron / serverless route to
+    // call daily). Deterministic, so it spends zero AI tokens; it only signs a tx on a real rebalance.
+    if (action === 'cron') {
+      const decisions = await runKeeperCronOnce();
+      console.log(`cron: ${decisions.map((d) => `${d.currency}=${d.kind}`).join(' ')}`);
+      return 0;
+    }
     const currency = parseCurrency(rawCurrency);
     await run(makeKeeperRunner(), action, currency, rawAmount);
     return 0;

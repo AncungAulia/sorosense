@@ -7,6 +7,13 @@
  * resolved from env at construction; no key is read as a module-top-level side effect (it is read
  * inside `resolveModel`), so importing this module is side-effect free and safe in tests.
  *
+ * **AI-cost invariant (audited):** this Agent is **not wired into any runtime path** — the HTTP reads,
+ * the keeper, and the activity feed never invoke it. The feed (`api/activity.ts` + `api/user-activity.ts`)
+ * is deterministic templates, and the allocator decision is pure math (`shouldRebalance`), so the live
+ * system spends **zero Jatevo tokens** no matter how often the agent evaluates. If you ever wire the LLM
+ * in, call it ONLY on a real state change (a rebalance/freeze that actually happened) — never per tick,
+ * never on a noop — so a daily cron does not turn into a per-tick model bill.
+ *
  * Model selection (STE-21 Fase A):
  * - `JATEVO_API_KEY` set → an OpenAI-compatible provider pointed at Jatevo (`JATEVO_BASE_URL`,
  *   default `https://2.jatevo.ai/v1`), model `SOROSENSE_MODEL` (default `gpt-5.4-mini`). Mastra

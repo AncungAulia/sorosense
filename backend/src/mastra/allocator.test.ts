@@ -186,8 +186,10 @@ describe('runAllocatorTick — dwell clock persists across ticks', () => {
     let now = 1_000_000_000_000;
     const base = {
       currency: 'USD' as const,
+      activeAnomaly: false,
       activeRay: 8.1,
       candidates: [{ poolId: 'defindex-usdc', ray: 8.1 }, { poolId: 'sorosense-usd', ray: 10.5 }],
+      yieldAccrued: false,
       thresholdPct: 1.5,
       store,
       effects,
