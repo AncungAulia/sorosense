@@ -194,8 +194,8 @@ export async function getEarnings(user: Address, deps: EarningsDeps): Promise<Re
 
 /**
  * Default FX source backed by Reflector (`price.ts`). USD is the numéraire (rate 1); other buckets
- * map to a Reflector symbol. Symbol format is a wiring detail (see the plan's Open Questions), so it
- * is injectable; tests pass a stub instead.
+ * map to a Reflector symbol. Symbol format is a wiring detail, so it is injectable; tests pass a stub
+ * instead.
  */
 export function makeReflectorFx(
   symbolOf: (currency: Currency) => string | null = defaultFxSymbol,
@@ -210,14 +210,27 @@ export function makeReflectorFx(
   };
 }
 
-/** Provisional Reflector symbol per currency (USD = numéraire). Confirmed at wiring. */
-function defaultFxSymbol(currency: Currency): string | null {
+/**
+ * The Reflector symbol per currency — CONFIG, not code (KTD6). The defaults below are the provisional
+ * guess; `FX_SYMBOL_EUR` / `FX_SYMBOL_MXN` override them, so a symbol that turns out wrong during a
+ * live smoke is a `.env` edit rather than a patch release. USD is the numéraire and has no symbol.
+ * A failed FX read stays a typed `Result` error → non-200 → "unavailable"; never a silent $0.
+ */
+export function fxSymbolFor(
+  currency: Currency,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
   switch (currency) {
     case 'USD':
       return null;
     case 'EUR':
-      return 'EURUSD';
+      return env.FX_SYMBOL_EUR ?? 'EURUSD';
     case 'MXN':
-      return 'MXNUSD';
+      return env.FX_SYMBOL_MXN ?? 'MXNUSD';
   }
+}
+
+/** The env-resolved symbol, read at call time so a late `.env` load still takes effect. */
+function defaultFxSymbol(currency: Currency): string | null {
+  return fxSymbolFor(currency);
 }

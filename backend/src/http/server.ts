@@ -3,9 +3,10 @@
  * tests boot it without a socket; this file is the ONLY place that binds a port.
  *
  * It wires the process-wide vault client (mock by default, real testnet when the integration env is
- * set — see `tools/vault.ts`) and the display-only Reflector FX into the app. The on-chain event
- * readers for earnings/activity are deferred to integration (Fase C), so those history sources start
- * empty here; the composed reads still serve their shapes.
+ * set — see `tools/vault.ts`), the display-only FX, and — in LIVE mode only — the realtime loops
+ * (`realtime.ts`): an event poll that feeds `/earnings` and `/activity` from decoded on-chain events,
+ * and a share-price snapshot loop that gives the chart a real time axis. Offline the deps holder stays
+ * exactly as it was (empty history, stub FX) and not one socket is opened.
  */
 
 import { serve } from '@hono/node-server';
@@ -13,36 +14,43 @@ import { serve } from '@hono/node-server';
 import { makeReflectorFx, type FxSource } from '../api/earnings.js';
 import { ActivityLog } from '../api/activity.js';
 import { InMemorySnapshotStore } from '../earnings/snapshotter.js';
-import { getVaultClient } from '../tools/vault.js';
+import { getVaultClient, isIntegrationEnv } from '../tools/vault.js';
 import { ok } from '../lib/result.js';
-import { createApp } from './app.js';
+import { createApp, type HttpAppDeps } from './app.js';
 import { mountFaucet } from './faucet.js';
 import { makeFaucetMinter } from './faucet-minter.js';
+import { startRealtime } from './realtime.js';
 
 const port = Number.parseInt(process.env.PORT ?? '8787', 10);
 
-/** True when the integration env is set (real testnet). Mirrors the selection in `tools/vault.ts`. */
-const live = Boolean(
-  process.env.VAULT_CONTRACT_ID &&
-    process.env.STELLAR_RPC_URL &&
-    process.env.STELLAR_NETWORK_PASSPHRASE &&
-    process.env.KEEPER_SECRET,
-);
+/** True when the integration env is set (real testnet) — the one gate, shared with `tools/vault.ts`. */
+const live = isIntegrationEnv();
 
 /** Deterministic offline FX for a mock/dev run — the mock server must not depend on the network.
  * Live runs use the real Reflector FX. Display-only fixed rates; never a fund conversion. */
 const STUB_RATES: Record<string, number> = { USD: 1, EUR: 1.08, MXN: 0.058 };
 const stubFx: FxSource = async (currency) => ok(STUB_RATES[currency] ?? 1);
 
-const app = createApp(
-  {
-    vault: getVaultClient(),
-    fx: live ? makeReflectorFx() : stubFx,
-    earnings: { events: [], snapshots: new InMemorySnapshotStore() },
-    activity: { log: new ActivityLog(), userEvents: [] },
-  },
-  { corsOrigin: process.env.FRONTEND_ORIGIN },
-);
+/**
+ * The deps HOLDER (KTD2). The routes dereference `earnings.events` / `activity.userEvents` at request
+ * time, so the realtime poller refreshes them by REASSIGNING those two fields on this same object —
+ * no app rebuild, no `app.ts` change. Offline they simply stay empty, as today.
+ */
+const deps: HttpAppDeps = {
+  vault: getVaultClient(),
+  fx: live ? makeReflectorFx() : stubFx,
+  earnings: { events: [], snapshots: new InMemorySnapshotStore() },
+  activity: { log: new ActivityLog(), userEvents: [] },
+};
+
+const app = createApp(deps, { corsOrigin: process.env.FRONTEND_ORIGIN });
+
+// Live only: one immediate poll + one immediate snapshot (so the first request is already
+// chain-sourced), then the two interval loops. Offline this is a no-op and returns null (R4).
+const realtime = await startRealtime(deps);
+if (realtime === null && live) {
+  console.warn('Realtime loops are NOT running — /activity and /earnings will serve empty history');
+}
 
 // Faucet is env-gated: mounted only when the issuer secret + SAC ids + network are all present, so the
 // route simply does not exist on mainnet or in a mock-only run. `FAUCET_ISSUER_SECRET` stays backend-only.
