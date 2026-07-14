@@ -15,12 +15,12 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, xdr } from '@stellar/stellar-sdk';
 import { MockVaultClient, mockSigner, SHARE_PRICE_SCALE, type Currency } from '@sorosense/vault-client';
 
 import { err, ok } from '../lib/result.js';
 import { ActivityLog } from '../api/activity.js';
-import { fxSymbolFor, type FxSource } from '../api/earnings.js';
+import { fxSymbolFor, makeReflectorFx, type FxSource } from '../api/earnings.js';
 import { InMemorySnapshotStore } from '../earnings/snapshotter.js';
 import type { EventPage, EventSource } from '../chain/event-reader.js';
 import { depositEvt, scriptedSource } from '../chain/__fixtures__/vault-events.js';
@@ -276,14 +276,43 @@ describe('realtime wiring — offline mode (R4)', () => {
   });
 });
 
+/** The network env a live backend runs with — never reached here: a stub `OracleSource` intercepts. */
+const LIVE_FX_ENV = {
+  STELLAR_RPC_URL: 'https://rpc.invalid',
+  STELLAR_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015',
+} as NodeJS.ProcessEnv;
+
 describe('Reflector FX symbols are config, not code (KTD6, R12)', () => {
-  it('defaults to EURUSD / MXNUSD and lets env override them', () => {
-    expect(fxSymbolFor('USD', {})).toBeNull(); // the numéraire has no symbol
-    expect(fxSymbolFor('EUR', {})).toBe('EURUSD');
-    expect(fxSymbolFor('MXN', {})).toBe('MXNUSD');
+  it('defaults to what the oracle actually lists (EURC; no MXN) and lets env override them', () => {
+    expect(fxSymbolFor('USD', {})).toBeNull(); // the numéraire IS the oracle's base — no symbol, no read
+    expect(fxSymbolFor('EUR', {})).toBe('EURC'); // the feed prices the euro stablecoin, not an EURUSD pair
+    expect(fxSymbolFor('MXN', {})).toBeNull(); // the feed carries no MXN at all (verified via `assets()`)
 
     expect(fxSymbolFor('EUR', { FX_SYMBOL_EUR: 'EURUSDT' })).toBe('EURUSDT');
     expect(fxSymbolFor('MXN', { FX_SYMBOL_MXN: 'MXN_USD' })).toBe('MXN_USD');
+  });
+
+  it('an unpriceable bucket fails closed — never a 1:1 rate that would invent money', async () => {
+    const fx = makeReflectorFx(() => null, { env: {} as NodeJS.ProcessEnv });
+
+    expect(await fx('USD')).toEqual(ok(1)); // the base: rate 1 by definition, no oracle read
+    const mxn = await fx('MXN');
+    expect(mxn.ok).toBe(false);
+    if (mxn.ok) return;
+    expect(mxn.code).toBe('unavailable');
+  });
+
+  it('a symbol the feed does not carry is an unavailable RATE (503), not a 404 "no such depositor"', async () => {
+    // `getReflectorPrice` types Option::None as `not_found` — precise for the tool, but HTTP-mapped to
+    // 404. As an FX rate it means "unavailable", which is the 503 the read surfaces already promise.
+    const source = { simulate: async () => xdr.ScVal.scvVoid() }; // the oracle's Option::None
+    const fx = makeReflectorFx(() => 'NOPE', { source, env: LIVE_FX_ENV });
+
+    const rate = await fx('EUR');
+
+    expect(rate.ok).toBe(false);
+    if (rate.ok) return;
+    expect(rate.code).toBe('unavailable');
   });
 
   it('an FX failure still surfaces as a non-200 from /earnings — never a 200 with $0', async () => {

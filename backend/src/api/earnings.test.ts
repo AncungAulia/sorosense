@@ -370,4 +370,36 @@ describe('getEarnings — invariants', () => {
     if (res.ok) return;
     expect(res.code).toBe('unavailable');
   });
+
+  it('needs no rate for an untouched bucket — an unpriceable MXN cannot 503 a funded USD view (U1c)', async () => {
+    // The Reflector feed carries no MXN symbol, so its rate is permanently unavailable. A bucket with no
+    // value and no history contributes 0 × rate = 0 to every figure, so the view must not ask for one.
+    const asked: Currency[] = [];
+    const fx: FxSource = async (c) => {
+      asked.push(c);
+      return c === 'MXN' ? err('unavailable', 'no Reflector symbol configured for MXN') : ok(1);
+    };
+
+    const res = await getEarnings(
+      USER,
+      deps({ vault: stubVault({ USD: U(100n) }), events: [dep('USD', U(100n), U(100n), 1)], fx }),
+    );
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.balanceUsd).toBeCloseTo(100, 6);
+    expect(asked).toEqual(['USD']); // EUR and MXN are untouched — neither was priced
+    expect(res.value.buckets.find((b) => b.currency === 'MXN')?.usdValue).toBe(0);
+  });
+
+  it('still fails closed when the unpriceable bucket HOLDS money (fail-closed where it matters)', async () => {
+    const fx: FxSource = async (c) =>
+      c === 'MXN' ? err('unavailable', 'no Reflector symbol configured for MXN') : ok(1);
+
+    const res = await getEarnings(USER, deps({ vault: stubVault({ USD: 100n, MXN: 100n }), fx }));
+
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.code).toBe('unavailable');
+  });
 });
