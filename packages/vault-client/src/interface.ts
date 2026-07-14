@@ -38,6 +38,15 @@ export type PriceRay = bigint;
 /** Fixed-point scale for {@link PriceRay}: a share price equal to this means 1 asset per share. */
 export const SHARE_PRICE_SCALE = 1_000_000_000n;
 
+/**
+ * The demo yield pool's default annual rate, in basis points (`1000` = 10%). Mirrors
+ * `DEFAULT_YIELD_RATE_BPS` — the `1000` a `yield_pool` is deployed with — the way {@link SHARE_PRICE_SCALE}
+ * mirrors the contract's scale: **the two must agree.** It is the offline fallback the backend quotes as
+ * the display APY when the on-chain `rate_bps()` read is unavailable; a pool's live rate is read from the
+ * pool, never from the vault seam (a rate is not a vault call), so this is a constant, not a client method.
+ */
+export const DEFAULT_YIELD_RATE_BPS = 1000;
+
 /** A pool is either accepting flows or frozen by the keeper (Sentinel). */
 export type PoolStatus = 'active' | 'frozen';
 
