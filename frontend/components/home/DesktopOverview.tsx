@@ -238,10 +238,9 @@ export function DesktopOverview() {
             <button
               type="button"
               onClick={() => open("activity")}
-              className="inline-flex items-center gap-[3px] text-[12.5px] font-medium text-muted"
+              className="text-[12.5px] font-medium text-muted transition-colors hover:text-ink"
             >
               View all
-              <svg viewBox="0 0 24 24" className="w-3.5 fill-none stroke-current [stroke-width:2] [stroke-linecap:round] [stroke-linejoin:round]" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
             </button>
           </div>
           <ActivityList items={activity.slice(0, 3)} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />

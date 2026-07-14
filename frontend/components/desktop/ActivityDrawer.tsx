@@ -34,7 +34,7 @@ export function ActivityDrawer({ open, onClose, onReview }: { open: boolean; onC
       <div className="flex-1 overflow-auto px-[22px] py-5">
         <Segmented options={TABS} value={tab} onChange={setTab} label="Filter" variant="period" />
         <div className="mt-2">
-          <ActivityList items={shown} onReview={onReview} reviewed={!pend} />
+          <ActivityList items={shown} onReview={onReview} reviewed={!pend} divider={false} />
         </div>
       </div>
     </Drawer>
