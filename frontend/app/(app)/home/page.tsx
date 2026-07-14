@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button, Card } from "../../../components/ui";
+import { Button, Card, Skeleton } from "../../../components/ui";
 import { useNav } from "../../../hooks/useNav";
 import { TotalHero } from "../../../components/home/TotalHero";
 import { FreezeBanner } from "../../../components/status/FreezeBanner";
@@ -22,15 +22,37 @@ function MobileHome() {
 
   return (
     <div>
-      <TotalHero buckets={buckets} totalUsd={totalUsd} />
+      {loading ? (
+        <div className="py-[30px] text-center">
+          <Skeleton className="mx-auto h-4 w-28" />
+          <Skeleton className="mx-auto mt-3 h-[46px] w-[210px] rounded-lg" />
+        </div>
+      ) : (
+        <TotalHero buckets={buckets} totalUsd={totalUsd} />
+      )}
       {pend && <FreezeBanner onReview={() => setExitOpen(true)} />}
       <Button className="mb-[22px]" onClick={() => nav.forward("/add-funds")}>Add funds</Button>
 
       <h2 className="mx-1 mb-2 text-sm font-medium text-muted">Buckets</h2>
       <Card className="mb-[22px] px-5 py-1">
-        {loading ? <div className="py-6 text-center text-sm text-muted">Loading…</div>
-          : buckets.length === 0 ? <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
-          : buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)}
+        {loading ? (
+          <div className="flex flex-col gap-4 py-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex items-center gap-[13px]">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="mt-2 h-3 w-16" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+        ) : buckets.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+        ) : (
+          buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)
+        )}
       </Card>
 
       <h2 className="mx-1 mb-2 text-sm font-medium text-muted">Agent activity</h2>

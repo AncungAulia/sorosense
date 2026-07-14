@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
-import { Button } from "../../../components/ui";
+import { Button, Card, Skeleton } from "../../../components/ui";
 import { BucketToggle } from "../../../components/bucket/BucketToggle";
 import { GrowthCard } from "../../../components/earn/GrowthCard";
 import { Simulator } from "../../../components/simulator/Simulator";
 import { useEarnings } from "../../../hooks/useEarnings";
 import { useNav } from "../../../hooks/useNav";
+import { useRedirectDesktopToHome } from "../../../hooks/useRedirectDesktopToHome";
 import { getBucketMeta } from "../../../lib/vault/data";
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -16,9 +17,26 @@ export default function EarnPage() {
   const { loading, view } = useEarnings();
   const [currency, setCurrency] = useState<Currency>("USD");
   const [i, setI] = useState(0);
+  // Earn is a mobile-only surface; a desktop visitor is redirected to the Overview (which absorbs it).
+  if (useRedirectDesktopToHome()) return null;
 
   if (loading) {
-    return <div className="py-[30px] text-center text-sm text-muted">Loading…</div>;
+    return (
+      <div>
+        <div className="py-[30px] text-center">
+          <Skeleton className="mx-auto h-4 w-24" />
+          <Skeleton className="mx-auto mt-3 h-[44px] w-[200px] rounded-lg" />
+        </div>
+        <Card className="p-5">
+          <Skeleton className="h-4 w-20" />
+          <div className="mt-4 flex h-[118px] items-end gap-1.5">
+            {[50, 70, 55, 76, 88, 62, 90, 80, 40].map((hgt, i) => (
+              <Skeleton key={i} className="flex-1 rounded-t-md" style={{ height: `${hgt}%` }} />
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   if (!view.hasDeposit) {

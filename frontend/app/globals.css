@@ -39,6 +39,26 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   }
 }
 
+/* ── Loading skeleton: a light sweep glides across a soft-grey block ──────────
+   In @layer components so Tailwind's radius utilities (rounded-full/-xl/…) win —
+   callers set the shape, this only owns the base tone + the shimmer. `overflow`
+   clips the sweep to the rounded corners. Stilled under prefers-reduced-motion. */
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+@layer components {
+  .skeleton { position: relative; overflow: hidden; border-radius: 6px; background: var(--color-line); }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+    animation: skeleton-shimmer 1.5s infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
 /* ── Page enter transition ───────────────────────────────────────────────────
    Sub-screens (the (flow) route group) mount inside a template that carries the
    .page-enter class, so navigating into them slides the new page in from the
