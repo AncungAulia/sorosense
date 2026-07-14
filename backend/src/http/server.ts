@@ -45,7 +45,7 @@ const deps: HttpAppDeps = {
   // mock server answers /rates and /holdings without a network — byte-identical to today's offline shape.
   apy: live ? makeLiveApySource() : catalogApy,
   earnings: { events: [], snapshots: new InMemorySnapshotStore() },
-  activity: { log: new ActivityLog(), userEvents: [] },
+  activity: { log: new ActivityLog(), userEvents: [], agentEvents: [] },
 };
 
 const app = createApp(deps, { corsOrigin: process.env.FRONTEND_ORIGIN });
