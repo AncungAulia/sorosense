@@ -49,11 +49,15 @@ export function FaucetButton({ currency, onMinted }: { currency: Currency; onMin
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [nowTs, setNowTs] = useState(0);
 
+  // Reading the persisted cooldown (and the clock) is exactly what an effect is for: `localStorage` and
+  // `Date.now()` do not exist during SSR, and lazy initial state cannot follow a changing `address`.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!address) return setCooldownUntil(0);
     setCooldownUntil(Number(localStorage.getItem(cooldownKey(address)) ?? 0));
     setNowTs(Date.now());
   }, [address]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (cooldownUntil <= Date.now()) return;

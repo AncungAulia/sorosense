@@ -52,6 +52,10 @@ function json(body: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  // The claim cooldown is persisted in `localStorage`, and jsdom shares one window across this file's
+  // tests: a test that mints successfully leaves the key behind and the next one renders "Next claim
+  // in 01:00:00" instead of the button. Each test starts from a fresh, un-claimed address.
+  localStorage.clear();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   sign = vi.fn(async (xdr: string) => `signed:${xdr}`);
