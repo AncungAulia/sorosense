@@ -23,11 +23,13 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import type { Currency, VaultClient } from '@sorosense/vault-client';
 
-import type { Err, Result } from '../lib/result.js';
+import { err, type Err, type Result } from '../lib/result.js';
 import { getActivity, type ActivityFeedDeps } from '../api/activity-feed.js';
 import { getEarnings, type FxSource } from '../api/earnings.js';
 import { getFundingOptions } from '../api/funding.js';
 import { getHoldings } from '../api/holdings.js';
+import { getPool } from '../api/pools.js';
+import { getRates } from '../api/rates.js';
 import type { VaultEvent } from '../earnings/cost-basis.js';
 import type { SnapshotStore } from '../earnings/snapshotter.js';
 import { mountDocs } from './openapi.js';
@@ -160,6 +162,20 @@ export function createApp(deps: HttpAppDeps, options: HttpAppOptions = {}): Hono
 
   // GET /funding — the Add-funds list (pure; no Result, no seam, no FX).
   app.get('/funding', (c) => jsonBig(c, getFundingOptions()));
+
+  // GET /rates — the per-currency rate card for an UNFUNDED bucket, which `/holdings` omits by design
+  // (R13). Pure catalog read: no depositor, no seam, no FX.
+  app.get('/rates', (c) => jsonBig(c, getRates()));
+
+  // GET /pools/:id — one vetted pool's name + rate (the exit-approval sheet's target). An unknown or
+  // trap id is a shaped 404, never a 200 carrying `null`: the sheet would render blank and the user
+  // would be asked to approve a move to a pool with no name.
+  app.get('/pools/:id', (c) => {
+    const id = c.req.param('id');
+    const pool = getPool(id);
+    if (!pool) return jsonErr(c, err('not_found', `unknown pool: ${id}`));
+    return jsonBig(c, pool);
+  });
 
   // OpenAPI spec (GET /openapi.json) + Swagger UI (GET /docs). Read-only, no secret.
   mountDocs(app);
