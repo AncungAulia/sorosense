@@ -91,3 +91,17 @@ test("desktop FreezeBanner is hidden when nothing is frozen", async () => {
   expect(screen.queryByText(/your earning is paused/i)).toBeNull(); // no banner when not pending
   isDesktop.mockReturnValue(false);
 });
+
+test("desktop shows loading skeletons before data resolves, and none after", async () => {
+  isDesktop.mockReturnValue(true);
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  const client = new MockVaultClient();
+  await seedVault(client, "GUSER");
+  render(<VaultProvider client={client}><ToastProvider><HomePage /></ToastProvider></VaultProvider>);
+  // First render: useBuckets is still loading → skeletons stand in for value/chart/buckets/growth.
+  expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+  // Once the reads resolve, the skeletons are gone.
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Buckets" })).toBeInTheDocument());
+  await waitFor(() => expect(screen.queryAllByTestId("skeleton")).toHaveLength(0));
+  isDesktop.mockReturnValue(false);
+});
