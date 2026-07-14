@@ -5,6 +5,7 @@ import { useNav } from "../../../hooks/useNav";
 import { TotalHero } from "../../../components/home/TotalHero";
 import { FreezeBanner } from "../../../components/status/FreezeBanner";
 import { BucketRow } from "../../../components/bucket/BucketRow";
+import { FaucetButton } from "../../../components/deposit/FaucetButton";
 import { ActivityList } from "../../../components/activity/ActivityList";
 import { ExitApproval } from "../../../components/proposal/ExitApproval";
 import { useBuckets } from "../../../hooks/useBuckets";
@@ -50,7 +51,12 @@ function MobileHome() {
             ))}
           </div>
         ) : buckets.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+          <div className="py-6 text-center">
+            <div className="text-sm text-muted">No buckets yet. Add funds to start.</div>
+            {/* Fresh testnet wallet has $0 — the faucet is the first step, so surface it here
+                rather than only inside the deposit flow. Renders only in integration mode. */}
+            <FaucetButton currency="USD" />
+          </div>
         ) : (
           <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)}</div>
         )}

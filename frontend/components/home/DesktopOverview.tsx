@@ -8,6 +8,7 @@ import { Button, Card, CountUp, Segmented, Skeleton } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
 import { BucketRow } from "../bucket/BucketRow";
+import { FaucetButton } from "../deposit/FaucetButton";
 import { ActivityList } from "../activity/ActivityList";
 import { FreezeBar } from "../desktop/FreezeBar";
 import { GrowthChart } from "../desktop/GrowthChart";
@@ -216,7 +217,13 @@ export function DesktopOverview() {
               ))}
             </div>
           ) : buckets.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+            <div className="py-6 text-center">
+              <div className="text-sm text-muted">No buckets yet. Add funds to start.</div>
+              {/* Fresh testnet wallet has $0 — surface the faucet right here so the first step is
+                  one click, not buried in the Add-funds drawer. Renders only in integration mode
+                  (apiEnabled + issuer configured); null in mock/offline. */}
+              <FaucetButton currency="USD" />
+            </div>
           ) : (
             <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} divider={false} />)}</div>
           )}
