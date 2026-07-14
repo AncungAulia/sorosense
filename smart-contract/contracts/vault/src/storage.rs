@@ -7,9 +7,14 @@
 //! frozen flag, per-currency pending exit, per-currency token + configured pool.
 //! Reads default sensibly.
 
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
 use crate::types::{Config, Currency, ExitProposal};
+
+/// Upper bound on how many distinct pools a currency bucket may hold at once. NAV
+/// iterates this list on every price read, so it must stay bounded (Scout
+/// `dos-unbounded-operation`); a 12th pool for one bucket is a misconfiguration.
+pub const MAX_POOLS_PER_CURRENCY: u32 = 12;
 
 #[contracttype]
 pub enum DataKey {
@@ -27,6 +32,10 @@ pub enum DataKey {
     TotalShares(Currency),
     TotalAssets(Currency),
     ActivePool(Currency),
+    /// The set of pools whose `balance(vault)` counts toward a bucket's NAV. Written
+    /// only by `supply_to_pool` (so an un-vetted pool can never enter NAV) and pruned
+    /// only when a pool's `balance(vault)` hits 0 (interest outlives principal).
+    PoolList(Currency),
     PoolHoldings(Currency, Address),
     Consent(Address),
     AutoCompound(Address),
@@ -173,6 +182,37 @@ pub fn clear_active_pool(env: &Env, currency: Currency) {
     env.storage()
         .persistent()
         .remove(&DataKey::ActivePool(currency));
+}
+
+/// The bucket's NAV pool list (empty when never allocated).
+pub fn get_pool_list(env: &Env, currency: Currency) -> Vec<Address> {
+    get_persist(env, &DataKey::PoolList(currency)).unwrap_or(Vec::new(env))
+}
+
+/// Add `pool` to the bucket's NAV list if absent. Returns `false` when the list is
+/// already at `MAX_POOLS_PER_CURRENCY` (caller panics `TooManyPools`); adding a pool
+/// already present is a no-op that returns `true`.
+pub fn add_to_pool_list(env: &Env, currency: Currency, pool: &Address) -> bool {
+    let mut list = get_pool_list(env, currency);
+    if list.contains(pool) {
+        return true;
+    }
+    if list.len() >= MAX_POOLS_PER_CURRENCY {
+        return false;
+    }
+    list.push_back(pool.clone());
+    set_persist(env, &DataKey::PoolList(currency), &list);
+    true
+}
+
+/// Drop `pool` from the bucket's NAV list (no-op if absent).
+pub fn remove_from_pool_list(env: &Env, currency: Currency, pool: &Address) {
+    let list = get_pool_list(env, currency);
+    if let Some(i) = list.first_index_of(pool) {
+        let mut next = list.clone();
+        next.remove(i);
+        set_persist(env, &DataKey::PoolList(currency), &next);
+    }
 }
 
 pub fn get_pool_holdings(env: &Env, currency: Currency, pool: &Address) -> i128 {

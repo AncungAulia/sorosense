@@ -71,4 +71,16 @@ impl MockPool {
             .get(&PoolKey::Holdings)
             .unwrap_or(0)
     }
+
+    /// What `_of`'s position is worth. This test-double does not accrue, so a
+    /// supplier's balance is the pool's booked holdings — the same surface a
+    /// `yield_pool` exposes (there it grows with time). Single-supplier in tests
+    /// (the vault), so the address is not disambiguated. The vault's NAV read calls
+    /// this across the bucket's pools.
+    pub fn balance(env: Env, _of: Address) -> i128 {
+        env.storage()
+            .instance()
+            .get(&PoolKey::Holdings)
+            .unwrap_or(0)
+    }
 }

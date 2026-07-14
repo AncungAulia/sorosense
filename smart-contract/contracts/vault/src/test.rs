@@ -829,17 +829,268 @@ mod integration {
     }
 
     #[test]
-    fn withdraw_while_allocated_reverts() {
+    fn withdraw_while_allocated_pulls_from_pool() {
         let ctx = setup();
         let d = funded_depositor(&ctx, 100_000);
         ctx.vault.deposit(&d, &Currency::Usd, &100_000);
         ctx.vault.allocate(&ctx.pool_a, &Currency::Usd, &100_000);
-        // Funds are in the pool, not liquid in the vault — withdraw reverts
-        // (fail-safe; the backend deallocates first). Shares are untouched.
+        // Funds are in the pool, not idle in the vault — but withdraw now pulls the
+        // shortfall back itself (KTD5), so the depositor exits without a prior
+        // deallocate. The pool is drained and drops out of the bucket's NAV list.
+        ctx.vault.withdraw(&d, &Currency::Usd, &100_000);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 0);
+        assert_eq!(ctx.usd_token.balance(&d), 100_000);
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.pool_a).holdings(),
+            0
+        );
+        assert!(ctx.vault.active_pool(&Currency::Usd).is_none());
+    }
+}
+
+/// Mark-to-market NAV driven by a **real** `yield_pool` on the ledger clock (U2).
+/// Where `mod nav` pokes idle via `simulate_yield`, these register an accruing pool
+/// and advance `set_timestamp`, so the share price moves from on-chain interest —
+/// the production path, not a storage poke.
+mod nav_accrual {
+    use super::*;
+    use crate::shares::SHARE_PRICE_SCALE;
+    use soroban_sdk::testutils::Ledger as _;
+    use yield_pool::{YieldPool, YieldPoolClient};
+
+    const YEAR: u64 = 31_536_000;
+
+    struct YCtx<'a> {
+        env: Env,
+        vault: VaultClient<'a>,
+        usd_admin: token::StellarAssetClient<'a>,
+        usd_token: token::Client<'a>,
+        pool: Address,             // an accruing yield_pool
+        pool_client: YieldPoolClient<'a>,
+        safe: Address,             // a mock_pool exit target
+    }
+
+    /// Vault + one 10% `yield_pool` (allowlisted, seeded with `surplus` so it can pay
+    /// interest) + one mock safe pool. No deposit yet.
+    fn yield_setup<'a>(rate_bps: u32, surplus: i128) -> YCtx<'a> {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let keeper = Address::generate(&env);
+        let config = Config {
+            per_pool_cap: CAP,
+            min_first_deposit: MIN_FIRST,
+            virtual_offset: VIRT,
+        };
+        let vault_id = env.register(Vault, (admin.clone(), keeper.clone(), config));
+        let vault = VaultClient::new(&env, &vault_id);
+
+        let issuer = Address::generate(&env);
+        let usd = env.register_stellar_asset_contract_v2(issuer).address();
+        let usd_admin = token::StellarAssetClient::new(&env, &usd);
+        let usd_token = token::Client::new(&env, &usd);
+        vault.set_token(&Currency::Usd, &usd);
+
+        let pool = env.register(YieldPool, (admin.clone(), usd.clone(), rate_bps));
+        let pool_client = YieldPoolClient::new(&env, &pool);
+        // Seed the pool so it holds enough stablecoin to pay accrued interest.
+        if surplus > 0 {
+            usd_admin.mint(&pool, &surplus);
+        }
+        let safe = env.register(mock_pool::MockPool, ());
+        mock_pool::MockPoolClient::new(&env, &safe).init(&usd);
+
+        vault.set_pool_allowed(&pool, &true);
+        vault.set_pool_allowed(&safe, &true);
+
+        YCtx { env, vault, usd_admin, usd_token, pool, pool_client, safe }
+    }
+
+    /// A consented depositor who deposits `amount` USD, which the keeper allocates
+    /// wholesale into the accruing pool.
+    fn deposit_and_allocate(ctx: &YCtx, amount: i128) -> Address {
+        let d = Address::generate(&ctx.env);
+        ctx.usd_admin.mint(&d, &amount);
+        ctx.vault.set_policy_consent(&d);
+        ctx.vault.deposit(&d, &Currency::Usd, &amount);
+        ctx.vault.allocate(&ctx.pool, &Currency::Usd, &amount);
+        d
+    }
+
+    #[test]
+    fn accrual_lifts_share_price_and_buckets_dont_blend() {
+        let ctx = yield_setup(1000, 1_000_000);
+        let d = deposit_and_allocate(&ctx, 100_000);
+
+        // At t=0 the pool holds exactly principal, so the price is still the scale.
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), SHARE_PRICE_SCALE);
+
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        // The pool now owes 110_000; NAV = idle(0) + 110_000, so the price rises.
+        assert_eq!(ctx.pool_client.balance(&ctx.vault.address), 110_000);
+        assert!(ctx.vault.share_price(&Currency::Usd) > SHARE_PRICE_SCALE);
+        // Lone depositor owns the whole bucket: value ≈ 100_000·111_000/101_000.
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), 109_900);
+        // The untouched EUR bucket beside it never blends in USD's yield.
+        assert_eq!(ctx.vault.share_price(&Currency::Eur), SHARE_PRICE_SCALE);
+    }
+
+    #[test]
+    fn value_of_previews_withdraw_at_a_non_unit_price() {
+        let ctx = yield_setup(1000, 1_000_000);
+        let d = deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        let previewed = ctx.vault.value_of(&d, &Currency::Usd);
+        assert!(previewed > 100_000); // genuinely above the scale
+        let owned = ctx.vault.balance_of(&d, &Currency::Usd);
+        ctx.vault.withdraw(&d, &Currency::Usd, &owned);
+        assert_eq!(ctx.usd_token.balance(&d), previewed);
+    }
+
+    #[test]
+    fn full_withdraw_after_accrual_pulls_principal_plus_interest() {
+        // KTD5: no operator deallocate — withdraw pulls the grown value from the pool.
+        let ctx = yield_setup(1000, 1_000_000);
+        let d = deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        let owned = ctx.vault.balance_of(&d, &Currency::Usd);
+        ctx.vault.withdraw(&d, &Currency::Usd, &owned);
+        // Paid the full accrued value (principal + interest) straight from the pool.
+        assert_eq!(ctx.usd_token.balance(&d), 109_900);
+        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 0);
+        // Floor rounding leaves at most a sub-share dust of interest behind (toward
+        // the vault, KTD10) — the depositor was made whole.
+        assert!(ctx.pool_client.balance(&ctx.vault.address) < 1_000);
+    }
+
+    #[test]
+    fn direct_donation_moves_neither_nav_nor_price() {
+        // R5: an unsolicited SAC transfer to the vault is not NAV.
+        let ctx = yield_setup(1000, 1_000_000);
+        let d = deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        let price_before = ctx.vault.share_price(&Currency::Usd);
+        let value_before = ctx.vault.value_of(&d, &Currency::Usd);
+        ctx.usd_admin.mint(&ctx.vault.address, &500_000); // the donation
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), price_before);
+        assert_eq!(ctx.vault.value_of(&d, &Currency::Usd), value_before);
+    }
+
+    #[test]
+    fn nav_cannot_be_inflated_through_the_pool() {
+        // KTD4: crediting the vault's pool position needs the vault's auth, so once
+        // auths are dropped a third party cannot supply into it to inflate NAV.
+        let ctx = yield_setup(1000, 1_000_000);
+        deposit_and_allocate(&ctx, 100_000);
+        let price_before = ctx.vault.share_price(&Currency::Usd);
+
+        ctx.env.set_auths(&[]); // no more mocked authorizations
+        assert!(ctx
+            .pool_client
+            .try_supply(&ctx.vault.address, &1_000_000)
+            .is_err());
+        assert_eq!(ctx.vault.share_price(&Currency::Usd), price_before);
+    }
+
+    #[test]
+    fn pool_leaves_nav_list_only_at_zero_balance() {
+        // Deallocating exactly the booked principal after accrual leaves the interest
+        // in the pool — so the pool stays in NAV and the price stays above the scale.
+        let ctx = yield_setup(1000, 1_000_000);
+        deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        ctx.vault.deallocate(&ctx.pool, &Currency::Usd, &100_000); // principal only
+        assert_eq!(ctx.pool_client.balance(&ctx.vault.address), 10_000); // interest remains
+        assert!(ctx.vault.share_price(&Currency::Usd) > SHARE_PRICE_SCALE);
+        assert_eq!(
+            ctx.vault.active_pool(&Currency::Usd),
+            Some(ctx.pool.clone())
+        );
+    }
+
+    #[test]
+    fn freeze_exit_moves_principal_plus_interest() {
+        // KTD6: the exit relocates the pool's whole value, not just booked principal.
+        let ctx = yield_setup(1000, 1_000_000);
+        let d = deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        ctx.vault.freeze(&ctx.pool);
+        ctx.vault
+            .propose_exit(&Currency::Usd, &ctx.pool, &ctx.safe);
+        let exit_id = ctx.vault.pending_exit(&Currency::Usd).unwrap().id;
+        ctx.vault.approve_exit(&d, &exit_id);
+
+        // The whole 110_000 landed in the safe pool; the frozen pool is emptied.
+        assert_eq!(
+            mock_pool::MockPoolClient::new(&ctx.env, &ctx.safe).balance(&ctx.vault.address),
+            110_000
+        );
+        assert_eq!(ctx.pool_client.balance(&ctx.vault.address), 0);
+    }
+
+    #[test]
+    fn too_many_pools_is_rejected() {
+        // The NAV list is bounded (Scout dos-unbounded-operation): a 13th pool errors.
+        let ctx = yield_setup(1000, 0);
+        let d = Address::generate(&ctx.env);
+        ctx.usd_admin.mint(&d, &100_000);
+        ctx.vault.set_policy_consent(&d);
+        ctx.vault.deposit(&d, &Currency::Usd, &100_000);
+
+        // Fill the list to MAX_POOLS_PER_CURRENCY (12) with distinct mock pools.
+        for _ in 0..12 {
+            let p = ctx.env.register(mock_pool::MockPool, ());
+            mock_pool::MockPoolClient::new(&ctx.env, &p).init(&ctx.usd_token.address);
+            ctx.vault.set_pool_allowed(&p, &true);
+            ctx.vault.allocate(&p, &Currency::Usd, &1_000);
+        }
+        // The 13th distinct pool overflows the bound.
+        let overflow = ctx.env.register(mock_pool::MockPool, ());
+        mock_pool::MockPoolClient::new(&ctx.env, &overflow).init(&ctx.usd_token.address);
+        ctx.vault.set_pool_allowed(&overflow, &true);
         assert!(ctx
             .vault
-            .try_withdraw(&d, &Currency::Usd, &100_000)
+            .try_allocate(&overflow, &Currency::Usd, &1_000)
             .is_err());
-        assert_eq!(ctx.vault.balance_of(&d, &Currency::Usd), 100_000);
+    }
+
+    #[test]
+    fn dust_deposit_that_mints_no_shares_is_rejected() {
+        // KTD10: above the scale a 1-unit deposit rounds to 0 shares — reject, don't
+        // confiscate. (Price ≈ 1.099e9 here, so 1 unit buys 0 shares.)
+        let ctx = yield_setup(1000, 1_000_000);
+        deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        let dust = Address::generate(&ctx.env);
+        ctx.usd_admin.mint(&dust, &1);
+        ctx.vault.set_policy_consent(&dust);
+        assert!(ctx.vault.try_deposit(&dust, &Currency::Usd, &1).is_err());
+        // The tokens were not taken.
+        assert_eq!(ctx.usd_token.balance(&dust), 1);
+    }
+
+    #[test]
+    fn mint_then_redeem_never_returns_more_than_deposited_above_scale() {
+        // KTD10: a round-trip at a price above the scale must not be profitable
+        // (floor rounding is toward the vault, never the depositor).
+        let ctx = yield_setup(1000, 1_000_000);
+        deposit_and_allocate(&ctx, 100_000);
+        ctx.env.ledger().set_timestamp(YEAR);
+
+        let e = Address::generate(&ctx.env);
+        ctx.usd_admin.mint(&e, &50_000);
+        ctx.vault.set_policy_consent(&e);
+        ctx.vault.deposit(&e, &Currency::Usd, &50_000);
+        let owned = ctx.vault.balance_of(&e, &Currency::Usd);
+        ctx.vault.withdraw(&e, &Currency::Usd, &owned);
+        assert!(ctx.usd_token.balance(&e) <= 50_000);
     }
 }

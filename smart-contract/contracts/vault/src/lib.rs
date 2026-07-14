@@ -12,6 +12,7 @@ mod allocate;
 mod blend;
 mod events;
 mod guard;
+mod nav;
 mod shares;
 mod storage;
 mod types;
@@ -26,7 +27,8 @@ use soroban_sdk::{
 use types::{Config, Currency, Error, ExitProposal, PoolStatus};
 
 // Binary version metadata (bumped on each upgraded build).
-contractmeta!(key = "binver", val = "1.2.0");
+// 1.3.0 — mark-to-market NAV: share_price now reflects pool interest (KTD-SC3/R6).
+contractmeta!(key = "binver", val = "1.3.0");
 
 #[contract]
 pub struct Vault;
@@ -102,6 +104,12 @@ impl Vault {
             &amount,
         );
         let minted = shares::mint_shares(&env, currency, amount, config.virtual_offset);
+        // At a price above the scale a dust deposit can round to zero shares; reject
+        // it rather than take the tokens for nothing (KTD10). The min-first-deposit
+        // guard covers the empty bucket; this covers every deposit after yield.
+        if minted <= 0 {
+            panic_with_error!(&env, Error::MintsNoShares);
+        }
         let owned = storage::get_shares(&env, &depositor, currency);
         storage::set_shares(&env, &depositor, currency, owned + minted);
         storage::set_total_shares(&env, currency, total_shares + minted);
@@ -119,8 +127,11 @@ impl Vault {
         .publish(&env);
     }
 
-    /// Burn `shares` from the depositor's bucket and return the stablecoin.
-    /// Assumes the redeemed value is liquid in the vault (backend deallocates first).
+    /// Burn `shares` from the depositor's bucket and return the stablecoin. Pays from
+    /// the bucket's idle balance, pulling any shortfall back from its pools first
+    /// (KTD5) — so a depositor can exit their mark-to-market value (principal +
+    /// accrued interest) without an operator deallocating first. Reverts
+    /// `InsufficientLiquidity` if the pools cannot together cover the payout.
     pub fn withdraw(env: Env, depositor: Address, currency: Currency, shares: i128) {
         depositor.require_auth();
         guard::require_not_paused(&env);
@@ -139,6 +150,12 @@ impl Vault {
             currency,
             storage::get_total_shares(&env, currency) - shares,
         );
+        // Make the payout liquid: pull the shortfall from the bucket's pools into idle
+        // (moves value between NAV terms without changing NAV), then debit idle.
+        let idle = storage::get_total_assets(&env, currency);
+        if idle < assets {
+            allocate::pull_from_pools(&env, currency, assets - idle);
+        }
         storage::set_total_assets(
             &env,
             currency,

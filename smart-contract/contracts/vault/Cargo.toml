@@ -14,3 +14,4 @@ soroban-sdk = { workspace = true }
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 mock-pool = { path = "../mock_pool" }
+yield-pool = { path = "../yield_pool" }

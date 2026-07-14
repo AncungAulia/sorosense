@@ -70,4 +70,15 @@ pub enum Error {
     PoolNotAllowed = 13,
     /// A freeze-exit was approved for a pool that is not actually frozen.
     SourceNotFrozen = 14,
+    /// `allocate` for more than the bucket's idle (un-pooled) balance.
+    InsufficientIdle = 15,
+    /// `withdraw` could not be covered even after pulling every pool in the
+    /// bucket's list — the NAV says the value exists but no pool can pay it out.
+    InsufficientLiquidity = 16,
+    /// A bucket's NAV pool list is already at `MAX_POOLS_PER_CURRENCY`; adding
+    /// another would make the NAV read unbounded (Scout `dos-unbounded-operation`).
+    TooManyPools = 17,
+    /// A deposit so small that, at the current share price, it would mint zero
+    /// shares — rejected rather than silently confiscating the tokens (KTD10).
+    MintsNoShares = 18,
 }
