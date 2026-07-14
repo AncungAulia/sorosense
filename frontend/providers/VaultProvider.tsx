@@ -1,7 +1,8 @@
 "use client";
-import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { MockVaultClient, type VaultClient } from "@sorosense/vault-client";
 import { useWallet } from "../hooks/useWallet";
+import { createVaultClient, isIntegrationEnv } from "../lib/vault/client";
 import { seedVault } from "../lib/vault/seed";
 import { E2E, installE2EBridge } from "../lib/e2e/bridge";
 
@@ -19,11 +20,23 @@ function getSingleton(): MockVaultClient {
 }
 
 export function VaultProvider({ children, client }: { children: ReactNode; client?: VaultClient }) {
-  // getSingleton() is idempotent (same instance every call) and `client` is caller-fixed, so this
-  // resolves to a stable reference across renders without needing a ref.
-  const resolvedClient = client ?? getSingleton();
-  const { address } = useWallet();
+  const { address, signTransaction } = useWallet();
   const [version, setVersion] = useState(0);
+
+  // Mock by default — the contract env is unset in dev, vitest and Playwright, so `createVaultClient`
+  // is never even reached there and not one request leaves the browser (KTD2).
+  //
+  // The real client is address-scoped (KTD3): its bindings client assembles a write against the
+  // connected account as the source, so it must be rebuilt when the wallet switches accounts or a
+  // write would be assembled against the wrong source. The mock keeps its module singleton — one
+  // in-memory vault shared across screens, which every test and the e2e bridge depend on.
+  const configured = useMemo(
+    () =>
+      isIntegrationEnv() ? createVaultClient({ address, signTransaction }) : getSingleton(),
+    [address, signTransaction],
+  );
+  // An injected client (tests) always wins; `configured` is stable per address, so this needs no ref.
+  const resolvedClient = client ?? configured;
 
   const bump = useCallback(() => setVersion((n) => n + 1), []);
 

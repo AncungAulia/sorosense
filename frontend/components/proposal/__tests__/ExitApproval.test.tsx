@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockVaultClient } from "@sorosense/vault-client";
 import { VaultProvider } from "../../../providers/VaultProvider";
@@ -81,14 +81,16 @@ test("a rejected approval says nothing moved — the proposal stays pending, the
 test("a double-press fires one approval, not two", async () => {
   const { client, onClose } = setup();
   await seedVault(client, "GUSER");
-  const user = userEvent.setup();
   const approveExit = vi.spyOn(client, "approveExit");
   render(<VaultProvider client={client}><ExitApproval open onClose={onClose} /></VaultProvider>);
 
   await waitFor(() => expect(screen.getByText("DeFindex EURC")).toBeInTheDocument());
+  // Both presses land in the SAME tick, before React can re-render the button into its disabled
+  // state — the in-flight ref is the only thing standing between them and two signatures.
   const approve = screen.getByRole("button", { name: "Approve and sign in wallet" });
-  await Promise.all([user.click(approve), user.click(approve)]);
+  fireEvent.click(approve);
+  fireEvent.click(approve);
 
   await waitFor(() => expect(onClose).toHaveBeenCalled());
-  expect(approveExit).toHaveBeenCalledTimes(1); // the in-flight guard holds
+  expect(approveExit).toHaveBeenCalledTimes(1);
 });
