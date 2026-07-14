@@ -1,5 +1,6 @@
 import { Chip, CoinBadge } from "../ui";
 import { formatCurrency } from "../../lib/vault/units";
+import { netApyOf, feeLabel } from "../../lib/vault/fee";
 import type { BucketView } from "../../hooks/useBuckets";
 
 export function BucketRow({ bucket, first, divider = true }: { bucket: BucketView; first: boolean; divider?: boolean }) {
@@ -15,6 +16,7 @@ export function BucketRow({ bucket, first, divider = true }: { bucket: BucketVie
       <div className="text-right">
         <div className="font-semibold [font-variant-numeric:tabular-nums]">{formatCurrency(bucket.value, bucket.currency)}</div>
         <div className="text-xs font-semibold text-pos">{bucket.apy.toFixed(2)}% APY</div>
+        <div className="text-[11px] text-faint [font-variant-numeric:tabular-nums]">{netApyOf(bucket.apy).toFixed(2)}% after {feeLabel} fee</div>
       </div>
     </div>
   );

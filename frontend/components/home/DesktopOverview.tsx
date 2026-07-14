@@ -4,6 +4,7 @@ import { useBuckets } from "../../hooks/useBuckets";
 import { useEarnings, type ChartPoint } from "../../hooks/useEarnings";
 import { usePanel } from "../../hooks/usePanel";
 import { formatCurrency, UNIT } from "../../lib/vault/units";
+import { netApyOf, feeLabel } from "../../lib/vault/fee";
 import { Button, Card, CountUp, Segmented, Skeleton } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
@@ -167,6 +168,9 @@ export function DesktopOverview() {
               <span className="text-pos">{sel.apy.toFixed(2)}% APY</span>
               <span className="text-muted">{sel.sub}</span>
               {sel.isAll && <span className="text-faint"> ≈ USD</span>}
+            </div>
+            <div className="mt-0.5 text-[12px] text-faint [font-variant-numeric:tabular-nums]">
+              {netApyOf(sel.apy).toFixed(2)}% after {feeLabel} performance fee
             </div>
 
             <div className="mt-[22px] flex flex-col" aria-label="Breakdown">
