@@ -166,8 +166,13 @@ describe('realtime wiring — live mode', () => {
 
     const view = await body<EarningsBody>(await app.request(`/earnings?depositor=${ALICE}`));
 
-    // Two ticks × the boot tick's timestamp and the later one → two sampled times on the chart.
-    expect(view.chart.map((p) => p.ts)).toEqual([1_752_490_000_000, 1_752_490_060_000]);
+    // The two snapshot ticks (boot + one interval later) are sampled on the chart. The chart may also
+    // carry the deposit's own timestamp — U1b samples union(snapshot ts, event ts) so a deposit steps
+    // the value chart before the next tick — so assert the snapshot times are present, not that they
+    // are the only two.
+    expect(view.chart.map((p) => p.ts)).toEqual(
+      expect.arrayContaining([1_752_490_000_000, 1_752_490_060_000]),
+    );
     // Honest by construction: the contract does not accrue, so every point is flat at zero (R10).
     for (const point of view.chart) expect(point.earnedUsd).toBeCloseTo(0, 6);
     expect(deps.earnings.snapshots.series('USD').at(-1)?.price).toBe(SHARE_PRICE_SCALE);
