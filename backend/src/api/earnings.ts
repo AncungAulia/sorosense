@@ -14,9 +14,10 @@
  * failed FX read surfaces as a typed `Result` error, never a silent $0.
  *
  * The timeline (`chart`) carries BOTH `valueUsd` and `earnedUsd` per point, from one replay (`stateAt`).
- * While the contract does not accrue yield, `earnedUsd` is honestly zero and `valueUsd` is a step
- * function that steps on each real deposit/withdrawal — a real chart of real money, flat by fact, never
- * fabricated upward.
+ * `earnedUsd` is zero only while nothing has accrued — an unallocated bucket; once the bucket is in an
+ * accruing `yield_pool` and `share_price` rises, `earnedUsd` rises with it, and `valueUsd` both steps on
+ * each real deposit/withdrawal and curves up with accrual. Real money, real chart — never fabricated
+ * upward on an unaccrued bucket, and never flattened back to zero once it has genuinely earned.
  */
 
 import type { Address, Currency, VaultClient } from '@sorosense/vault-client';
@@ -53,7 +54,7 @@ export interface ChartPoint {
   ts: number;
   /** Blended-USD asset value at `ts`. A step function: it steps on every deposit/withdrawal. */
   valueUsd: number;
-  /** Cumulative earned (USD) at `ts`. Zero while the vault does not accrue — honestly flat, not fabricated. */
+  /** Cumulative earned (USD) at `ts`. Zero until the bucket's pool accrues, then rises with `share_price`. */
   earnedUsd: number;
 }
 
@@ -106,11 +107,12 @@ function bestApy(currency: Currency): number {
 /**
  * Latest snapshot price for a currency at or before `ts`; base price (`SHARE_PRICE_SCALE`) if none yet.
  *
- * KTD3: a `ts` older than the first snapshot resolving to the base price is not an approximation today —
- * the contract does not accrue (`total_assets` moves only on deposit/withdraw), so `share_price` *is* the
- * scale for the whole of that history. It is what lets the value chart show a real step at a deposit that
- * happened before the server booted. The day mark-to-market NAV accrual ships, this assumption expires
- * and the snapshot series becomes load-bearing for pre-boot history.
+ * KTD3: a `ts` older than the first snapshot resolves to the base price. That is exact for a bucket that
+ * had **no pool position** over that history (`share_price` *is* the scale then), which is the pre-boot
+ * case this handles — it lets the value chart show a real step at a deposit that predates the server. Now
+ * that mark-to-market NAV accrual has shipped (vault 1.3.0), an *allocated* bucket's pre-boot history is
+ * no longer flat, so the snapshot series is load-bearing: sample often enough that the price curve is not
+ * approximated by its base for a bucket that was already earning before boot.
  */
 function priceAt(snapshots: SnapshotStore, currency: Currency, ts: number): bigint {
   let price = SHARE_PRICE_SCALE;

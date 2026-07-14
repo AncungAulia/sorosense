@@ -101,11 +101,11 @@ export type ActivityResponse = FeedEntry[];
  *
  * Both figures come from ONE replay of the user's cost basis at `ts`, so they are always consistent
  * with each other:
- *  - `valueUsd` is a **step function**: it steps on every real deposit and withdrawal and is flat in
- *    between. That is a real chart of real money — it just does not curve, because nothing curves.
- *  - `earnedUsd` is cumulative yield. The vault does not accrue on-chain yet (`share_price` reads
- *    exactly `SHARE_PRICE_SCALE`), so in real mode it is honestly **0** at every point. A growth chart
- *    that is flat at zero is the correct rendering of that fact, not a broken chart.
+ *  - `valueUsd` **steps** on every real deposit and withdrawal, and **curves up** with accrual once the
+ *    bucket is allocated into an accruing `yield_pool`. A real chart of real money.
+ *  - `earnedUsd` is cumulative yield. It is **0** only while the bucket has no accruing pool position
+ *    (`share_price` == `SHARE_PRICE_SCALE`) — a flat-at-zero growth chart is the honest rendering of that.
+ *    Once the vault accrues (binver 1.3.0, mark-to-market NAV), it rises with `share_price`.
  *
  * The offline fixture (`lib/earnings/fixtures.ts`) emits this same shape, so one chart component feeds
  * from both modes.

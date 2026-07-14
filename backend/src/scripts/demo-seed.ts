@@ -560,9 +560,10 @@ export async function runSeed(deps: SeedDeps): Promise<SeedReport> {
         const value = await vault.assetValueOf(key.publicKey, config.currency);
         const sharePrice = await vault.sharePrice(config.currency);
 
-        // The read-back is the proof (R2). Yield does NOT accrue on-chain yet — share price is exactly
-        // the scale — so the deposit must land as an exact value delta. Asserting that value *grew* on
-        // its own would be false by construction and is deliberately not written.
+        // The read-back is the proof (R2). This seed deposits but does not allocate, so the bucket has
+        // no accruing pool position yet — share price is exactly the scale — and the deposit must land
+        // as an exact value delta. Accrual is proven separately once the keeper allocates (U5); here,
+        // asserting the value grew on its own would be false by construction and is deliberately absent.
         if (shares <= sharesBefore) {
           throw new Error(
             `deposit landed (tx ${hashes.deposit}) but shares did not increase: ${sharesBefore} → ${shares}`,

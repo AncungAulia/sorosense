@@ -255,7 +255,7 @@ describeContract("the backend read surface, through the real client", () => {
     }
   });
 
-  it("GET /earnings decodes as EarningsResponse — and earned is honestly zero", async () => {
+  it("GET /earnings decodes as EarningsResponse — and earned is zero for an unaccrued bucket", async () => {
     const { apiGet, toBigInt } = await import("../client");
 
     const result = await apiGet<EarningsResponse>("/earnings", { depositor: DEPOSITOR });
@@ -286,10 +286,11 @@ describeContract("the backend read surface, through the real client", () => {
       expect(typeof p.earnedUsd).toBe("number");
     }
 
-    // **The honest zero (R10).** `share_price` reads exactly `SHARE_PRICE_SCALE` — the vault does not
-    // accrue yet — and the cost basis reconstructed from the deposit event equals the current value. So
-    // earned is 0 at the headline, in every bucket, in every month, and at every point on the chart. A
-    // nonzero number here would mean the whole deposit is being reported as profit again.
+    // **The honest zero for an unaccrued bucket (R10).** This fixture's bucket has no accruing pool
+    // position, so `share_price` reads exactly `SHARE_PRICE_SCALE` and the cost basis reconstructed from
+    // the deposit event equals the current value — earned is 0 at the headline, in every bucket, month
+    // and chart point. A nonzero number *here* would mean the whole deposit is reported as profit again.
+    // (Accrual is not flat: the backend realtime suite's `accrual lifts earned` twin proves that path.)
     expect(view.earnedUsd).toBe(0);
     expect(usd.earnedUsd).toBe(0);
     for (const m of view.monthly) expect(m.earnedUsd).toBe(0);
