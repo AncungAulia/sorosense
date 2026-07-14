@@ -313,6 +313,10 @@ export class RealVaultClient implements VaultClient {
     return tx.result;
   }
 
+  // As of vault binver 1.3.0 this is a mark-to-market read: the price rises as the
+  // bucket's pools accrue interest on-chain (NAV = idle + Σ pool.balance(vault)), so a
+  // repeated call returns a growing number even with no deposit — no longer pinned to
+  // SHARE_PRICE_SCALE until yield "ships".
   async sharePrice(currency: Currency): Promise<PriceRay> {
     const tx = await this.client.share_price({ currency: toBindingsCurrency(currency) });
     return tx.result;

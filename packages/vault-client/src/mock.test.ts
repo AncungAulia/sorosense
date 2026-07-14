@@ -143,6 +143,48 @@ describe('MockVaultClient — NAV reads (sharePrice / assetValueOf)', () => {
     const v = new MockVaultClient();
     expect(() => v.simulateYield('USD', -1n)).toThrow(/non-negative/);
   });
+
+  it('the same deposit mints fewer shares after yield, and the first holder keeps the gain', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 100_000n).signAndSubmit(depositor);
+    const aliceShares = await v.balanceOf('alice', 'USD');
+    v.simulateYield('USD', 10_000n); // price now above the scale
+
+    const bob = mockSigner('depositor', 'bob');
+    await v.deposit('bob', 'USD', 100_000n).signAndSubmit(bob);
+    const bobShares = await v.balanceOf('bob', 'USD');
+
+    // Same 100_000 buys strictly fewer shares once a share costs more than one asset.
+    expect(bobShares).toBeLessThan(aliceShares);
+    // Alice, the sole holder when the yield landed, carries the whole gain.
+    expect(await v.assetValueOf('alice', 'USD')).toBeGreaterThan(100_000n);
+  });
+
+  it('assetValueOf equals redeeming the full balance at a price above the scale (no double truncation)', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 100_000n).signAndSubmit(depositor);
+    v.simulateYield('USD', 33_333n); // deliberately non-round so truncation would show
+
+    const previewed = await v.assetValueOf('alice', 'USD');
+    const owned = await v.balanceOf('alice', 'USD');
+    await v.withdraw('alice', 'USD', owned).signAndSubmit(depositor);
+    // What value_of previewed is exactly what burning every share pays out.
+    expect(await v.assetValueOf('alice', 'USD')).toBe(0n);
+    // (Re-derive the payout: the bucket's assets fell by exactly `previewed`.)
+    await v.deposit('alice', 'USD', previewed).signAndSubmit(depositor);
+    expect(await v.assetValueOf('alice', 'USD')).toBe(previewed);
+  });
+
+  it('a dust deposit at a high price mints zero shares and is rejected, not confiscated (KTD10)', async () => {
+    const v = new MockVaultClient();
+    await v.deposit('alice', 'USD', 100_000n).signAndSubmit(depositor);
+    v.simulateYield('USD', 100_000n); // price ~2x the scale, so 1 unit buys 0 shares
+
+    const bob = mockSigner('depositor', 'bob');
+    // A blocked guard throws (mirroring a contract panic), leaving state untouched.
+    await expect(v.deposit('bob', 'USD', 1n).signAndSubmit(bob)).rejects.toThrow(/mints no shares/);
+    expect(await v.balanceOf('bob', 'USD')).toBe(0n);
+  });
 });
 
 describe('MockVaultClient — auto-compound preference', () => {

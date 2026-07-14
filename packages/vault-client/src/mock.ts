@@ -86,6 +86,9 @@ export class MockVaultClient implements VaultClient {
       const key = bucketKey(depositor, currency);
       // Mint against accrued NAV (1:1 for the first deposit; fewer shares after yield accrues).
       const minted = this.mintShares(currency, amount);
+      // Above the base price a dust deposit rounds to zero shares; reject it rather
+      // than take the funds for nothing — mirrors the contract's MintsNoShares (KTD10).
+      if (minted <= 0n) throw new Error('deposit mints no shares (below one share at current price)');
       this.shares.set(key, (this.shares.get(key) ?? 0n) + minted);
       this.totalShares.set(currency, (this.totalShares.get(currency) ?? 0n) + minted);
       this.totalAssets.set(currency, (this.totalAssets.get(currency) ?? 0n) + amount);
@@ -208,8 +211,10 @@ export class MockVaultClient implements VaultClient {
 
   // ── Test-only hooks (NOT part of VaultClient) ─────────────────────────────
   /**
-   * Raise a bucket's NAV by `amount` without minting shares — the only way to lift its share price in
-   * tests, standing in for pool yield the real contract accrues. Not a vault operation; test-only.
+   * Raise a bucket's NAV by `amount` without minting shares — the same lift the vault now computes on
+   * chain as a `yield_pool`'s `balance(vault)` grows with ledger time (mark-to-market NAV, contract
+   * binver 1.3.0). The mock keeps NAV in `totalAssets` directly rather than summing pool balances, so
+   * this hook is how a test advances the clock's effect. Not a vault operation; test-only.
    */
   simulateYield(currency: Currency, amount: Amount): void {
     if (amount < 0n) throw new Error('simulateYield amount must be non-negative');
