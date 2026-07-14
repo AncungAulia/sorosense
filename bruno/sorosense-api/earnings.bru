@@ -1,0 +1,11 @@
+meta {
+  name: earnings
+  type: http
+  seq: 4
+}
+get {
+  url: {{baseUrl}}/earnings?depositor={{depositor}}
+}
+assert {
+  res.status: eq 200
+}

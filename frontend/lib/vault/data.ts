@@ -19,7 +19,20 @@ export function stablecoinBySym(sym: string): Stablecoin | undefined {
   return STABLECOINS.find((s) => s.sym === sym.toUpperCase());
 }
 
-/** Venue/APY/tags per bucket — figures mirror backend catalog (getCatalog). No risk field. */
+/** The stablecoin that funds a bucket — how the faucet's `currency` maps back to a classic asset. */
+export function stablecoinByCurrency(currency: Currency): Stablecoin | undefined {
+  return STABLECOINS.find((s) => s.currency === currency);
+}
+
+/**
+ * Venue/APY/tags per bucket — figures mirror the backend catalog (`getCatalog`). No risk field.
+ *
+ * **The `apy` here is a documented FALLBACK, not the source of truth (R5 · KTD3).** Read it only
+ * through `useApy` / `useApyResolver`, which prefer the backend's `GET /holdings` row and fall back to
+ * this when the bucket is unfunded (no row — the Earn empty-state hero and the simulator), when
+ * `NEXT_PUBLIC_API_URL` is unset, or when the read failed. It goes away the day a backend rate route
+ * exists (a `GET /rates`, owned by the backend track); the name/venue/tags stay here regardless.
+ */
 const BUCKET_META: Record<Currency, BucketMeta> = {
   USD: { currency: "USD", name: "USD bucket", venue: "DeFindex", tags: ["DeFindex", "Vault"], apy: 8.59 },
   EUR: { currency: "EUR", name: "EUR bucket", venue: "Blend", tags: ["Blend", "Fixed pool"], apy: 5.1 },
@@ -58,7 +71,14 @@ export function getFxRateToUsd(currency: Currency): number {
   return { USD: 1, EUR: 1.08, MXN: 0.055 }[currency];
 }
 
-/** Fixture wallet balances (base units) backing the deposit % quick-fill; real read deferred. */
-export function getWalletBalance(sym: StablecoinSym): bigint {
+/**
+ * Fixture wallet balances (base units) backing the deposit % quick-fill — the **mock path only** (R6).
+ *
+ * The real balance is a Horizon trustline read (`lib/wallet/balance.ts`), reached through
+ * `useWalletBalance`. This stays as the offline fallback: with `NEXT_PUBLIC_STELLAR_HORIZON_URL` /
+ * the issuer vars unset (vitest, Playwright, a bare `pnpm dev`) no request is issued and these numbers
+ * render. Nothing outside `useWalletBalance` should call it.
+ */
+export function getFixtureWalletBalance(sym: StablecoinSym): bigint {
   return { USDC: 9076n, EURC: 4200n, CETES: 15000n }[sym] * UNIT;
 }

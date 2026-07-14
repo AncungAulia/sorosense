@@ -16,6 +16,9 @@ import { getEarnings, type FxSource } from '../api/earnings.js';
 
 const alice = mockSigner('depositor', 'alice');
 const CURRENCIES: readonly Currency[] = ['USD', 'EUR', 'MXN'];
+/** On-chain 7-decimal base units (matches the seam's UNIT); getEarnings divides by this for USD. */
+const UNIT = 10_000_000n;
+const U = (whole: number): bigint => BigInt(whole) * UNIT;
 const okFx = (map: Partial<Record<Currency, number>> = {}): FxSource => async (c) => ok(map[c] ?? 1);
 
 /** Deposit into the mock AND record the matching event with the shares the mock actually minted. */
@@ -46,10 +49,10 @@ describe('EH-U6 — earnings end-to-end against the mock vault', () => {
     let now = Date.UTC(2026, 0, 15);
     const clock = () => now;
 
-    await depositAndRecord(vault, events, 'USD', 1000n, 1, Date.UTC(2026, 0, 1));
+    await depositAndRecord(vault, events, 'USD', U(1000), 1, Date.UTC(2026, 0, 1));
     await snapshotTick(vault, store, clock, CURRENCIES); // Jan: base price
 
-    vault.simulateYield('USD', 200n); // pool returns accrue into NAV
+    vault.simulateYield('USD', U(200)); // pool returns accrue into NAV
     now = Date.UTC(2026, 1, 15);
     await snapshotTick(vault, store, clock, CURRENCIES); // Feb: price up
 
@@ -100,17 +103,17 @@ describe('EH-U6 — earnings end-to-end against the mock vault', () => {
   it('blends multiple buckets for display without converting funds', async () => {
     const vault = new MockVaultClient();
     const events: VaultEvent[] = [];
-    await depositAndRecord(vault, events, 'USD', 100n, 1, Date.UTC(2026, 0, 1));
-    await depositAndRecord(vault, events, 'EUR', 100n, 2, Date.UTC(2026, 0, 1));
+    await depositAndRecord(vault, events, 'USD', U(100), 1, Date.UTC(2026, 0, 1));
+    await depositAndRecord(vault, events, 'EUR', U(100), 2, Date.UTC(2026, 0, 1));
 
     const view = unwrap(
       await getEarnings('alice', { vault, events, snapshots: new InMemorySnapshotStore(), fx: okFx({ EUR: 1.14 }) }),
     );
 
     expect(view.balanceUsd).toBeCloseTo(214, 6);
-    // Funds are untouched per bucket — the native balances still stand alone.
-    expect(await vault.balanceOf('alice', 'USD')).toBe(100n);
-    expect(await vault.balanceOf('alice', 'EUR')).toBe(100n);
+    // Funds are untouched per bucket — the native balances (in base units) still stand alone.
+    expect(await vault.balanceOf('alice', 'USD')).toBe(U(100));
+    expect(await vault.balanceOf('alice', 'EUR')).toBe(U(100));
   });
 
   it('a mid-period deposit does not inflate that period earned', async () => {
@@ -120,13 +123,13 @@ describe('EH-U6 — earnings end-to-end against the mock vault', () => {
     let now = Date.UTC(2026, 0, 1);
     const clock = () => now;
 
-    await depositAndRecord(vault, events, 'USD', 1000n, 1, now);
-    vault.simulateYield('USD', 200n); // NAV up before the window
+    await depositAndRecord(vault, events, 'USD', U(1000), 1, now);
+    vault.simulateYield('USD', U(200)); // NAV up before the window
 
     now = Date.UTC(2026, 1, 5);
     await snapshotTick(vault, store, clock, CURRENCIES); // before the mid-period deposit
 
-    await depositAndRecord(vault, events, 'USD', 500n, 2, Date.UTC(2026, 1, 10)); // buys in at current NAV
+    await depositAndRecord(vault, events, 'USD', U(500), 2, Date.UTC(2026, 1, 10)); // buys in at current NAV
 
     now = Date.UTC(2026, 1, 15);
     await snapshotTick(vault, store, clock, CURRENCIES); // after the deposit (same NAV)

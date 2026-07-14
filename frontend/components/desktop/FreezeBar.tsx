@@ -21,6 +21,7 @@ export function FreezeBar({ onReview }: { onReview: () => void }) {
       <button
         type="button"
         onClick={onReview}
+        aria-label="Review paused pool"
         className="inline-flex h-[30px] shrink-0 items-center rounded-full bg-ink px-3.5 text-[12.5px] font-semibold text-[#f8f8f8] transition-opacity hover:opacity-90"
       >
         Review

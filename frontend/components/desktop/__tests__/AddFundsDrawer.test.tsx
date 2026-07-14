@@ -39,3 +39,18 @@ test("pick USDC → deposit through consent → drawer closes on success, no ris
   await waitFor(() => expect(onClose).toHaveBeenCalled());
   expect(screen.queryByText(/\b(risk|score|sentinel)\b/i)).toBeNull();
 });
+
+test("with no Horizon/API env the fixture balance renders and the faucet slot stays empty", async () => {
+  const user = userEvent.setup();
+  const fetchSpy = vi.fn();
+  vi.stubGlobal("fetch", fetchSpy);
+  setup();
+
+  await user.click(screen.getByRole("button", { name: /USDC/ }));
+
+  // The reserved faucet slot renders nothing off-network: no dead control, and no request either.
+  expect(screen.getByText("$9,076.00 USDC")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
+  expect(fetchSpy).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
+});
