@@ -38,6 +38,20 @@ const USD_ROW = {
   frozen: false,
 };
 
+/** The backend's EUR row: 4.90% — the fixture says 5.10%. */
+const EUR_ROW = {
+  currency: "EUR",
+  name: "Blend EURC pool",
+  venue: "Blend",
+  kind: "lending",
+  tags: ["Blend", "Fixed pool"],
+  apy: 4.9,
+  shares: "3000000000",
+  value: "3000000000",
+  valueUsd: 3435,
+  frozen: true,
+};
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -74,8 +88,13 @@ test("the funded hero shows the backend's rate for USD, not the fixture", async 
   expect(screen.queryByText(/8\.59% APY/)).toBeNull();
 });
 
-test("the EUR bucket has no /holdings row (unfunded there) and keeps the fixture rate", async () => {
+test("every funded bucket takes its rate from its own /holdings row — no fixture rate leaks (KTD4)", async () => {
   const user = userEvent.setup();
+  fetchMock.mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify([USD_ROW, EUR_ROW]), { status: 200, headers: { "content-type": "application/json" } }),
+    ),
+  );
   useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
   const client = new MockVaultClient();
   await seedVault(client, "GUSER");
@@ -90,7 +109,8 @@ test("the EUR bucket has no /holdings row (unfunded there) and keeps the fixture
   await user.click(screen.getByRole("button", { name: "Switch bucket" })); // EUR bucket
   await waitFor(() => expect(screen.getByText("EUR bucket")).toBeInTheDocument());
   const subline = screen.getByText(/balance · .* APY/).textContent!;
-  expect(subline).toMatch(/5\.10% APY/);
+  expect(subline).toMatch(/4\.90% APY/); // the backend's rate…
+  expect(subline).not.toMatch(/5\.10% APY/); // …not BUCKET_META's
   expect(subline).not.toMatch(/NaN|0\.00% APY/);
 });
 

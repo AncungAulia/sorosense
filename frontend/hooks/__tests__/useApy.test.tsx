@@ -8,14 +8,16 @@
  * The offline half of the contract (API unset ⇒ every surface renders the fixture, zero fetches) is
  * guarded by every *other* test file in the suite, which runs with the var absent — see
  * `earn-empty.test.tsx` asserting the 8.59% fixture hero.
+ *
+ * Scope: this file owns the **rate**, i.e. what `useApy` resolves for a bucket with or without a
+ * `/holdings` row. How `useBuckets` sources a whole row in real mode (KTD4) is pinned next door, in
+ * `useBuckets.api.test.tsx`.
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { MockVaultClient } from "@sorosense/vault-client";
 import type { Currency } from "@sorosense/vault-client";
 import { VaultProvider } from "../../providers/VaultProvider";
-import { seedVault } from "../../lib/vault/seed";
 import { useApy } from "../useApy";
-import { useBuckets } from "../useBuckets";
 
 const BASE = "http://localhost:8787";
 vi.hoisted(() => {
@@ -65,20 +67,6 @@ function ApyProbe({ currency }: { currency: Currency }) {
   return <span data-testid="apy">{useApy(currency).toFixed(2)}</span>;
 }
 
-function BucketProbe() {
-  const { loading, buckets } = useBuckets();
-  if (loading) return <span>loading</span>;
-  return (
-    <ul>
-      {buckets.map((b) => (
-        <li key={b.currency}>
-          {b.currency}:{b.apy.toFixed(2)}:{b.value.toString()}:{b.frozen ? "frozen" : "active"}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 test("a funded bucket takes its APY from GET /holdings, not the fixture", async () => {
   fetchMock.mockImplementation(holdingsAlways([USD_ROW]));
   render(
@@ -121,25 +109,14 @@ test("a /holdings read that 502s falls back to the fixture, logs, and still rend
   expect(screen.getByTestId("apy").textContent).toBe("8.59"); // the fixture, not a blank
 });
 
-test("useBuckets keeps shares/value/frozen on the SEAM and takes only the APY from HTTP", async () => {
-  fetchMock.mockImplementation(holdingsAlways([USD_ROW]));
-  const client = new MockVaultClient();
-  await seedVault(client, "GUSER"); // funds USD + EUR in the browser's own mock vault
+test("an unfunded bucket's rate never comes from a funded bucket's row", async () => {
+  fetchMock.mockImplementation(holdingsAlways([USD_ROW])); // USD funded, EUR not
   render(
-    <VaultProvider client={client}>
-      <BucketProbe />
+    <VaultProvider client={new MockVaultClient()}>
+      <ApyProbe currency="EUR" />
     </VaultProvider>,
   );
 
-  // USD: backend rate (8.20), seam value (1116.00 = 1024.30 deposited + 92 simulated yield, minus dust).
-  await waitFor(() => expect(screen.getByText(/^USD:8\.20:/)).toBeInTheDocument());
-  const usd = screen.getByText(/^USD:/).textContent!;
-  expect(usd).toMatch(/:active$/);
-  // Value comes from the seam, NOT from the row's `value` string — the mock-mode backend is a
-  // different in-memory vault, so a Home screen sourced from /holdings would be empty.
-  expect(usd.split(":")[2]).not.toBe(USD_ROW.value);
-  expect(BigInt(usd.split(":")[2]!)).toBeGreaterThan(0n);
-
-  // EUR: no backend row → fixture rate, and the seam's frozen flag survives untouched.
-  expect(screen.getByText(/^EUR:5\.10:.*:frozen$/)).toBeInTheDocument();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+  expect(screen.getByTestId("apy").textContent).toBe("5.10"); // EUR's fixture, not USD's 8.20
 });
