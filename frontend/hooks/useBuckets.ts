@@ -5,6 +5,7 @@ import { useWallet } from "./useWallet";
 import { useVault } from "./useVault";
 import { apyFrom } from "./useApy";
 import { useHoldings } from "./useHoldings";
+import { useRates } from "./useRates";
 import { apiEnabled } from "../lib/api/config";
 import { toBigInt } from "../lib/api/client";
 import type { Holding } from "../lib/api/types";
@@ -62,6 +63,9 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
   const { address } = useWallet();
   const { client, version } = useVault();
   const { loading: holdingsLoading, holdings } = useHoldings();
+  // Only reached on the seam path below: a bucket the browser's mock funded this session has no
+  // `/holdings` row in a mock-mode backend (KTD4), and `/rates` is the honest rate for it.
+  const { rates } = useRates();
   const [state, setState] = useState<{ loading: boolean; error: string | null; buckets: BucketView[] }>({
     loading: true,
     error: null,
@@ -100,10 +104,11 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
   const buckets = useMemo(() => {
     // Real mode: the backend's rows verbatim.
     if (apiEnabled() && holdings !== null) return holdings.map(rowFromHolding);
-    // Offline: the seam's rows, whose `meta.apy` is the fixture. `apyFrom(null, …)` resolves to that
-    // same fixture, so this stays byte-for-byte today's behavior.
-    return state.buckets.map((b) => ({ ...b, apy: apyFrom(holdings, b.currency) }));
-  }, [state.buckets, holdings]);
+    // Offline: the seam's rows, whose `meta.apy` is the fixture. With the API off `rates` is `null`
+    // too, so `apyFrom(null, null, …)` resolves to that same fixture and this stays byte-for-byte
+    // today's behavior.
+    return state.buckets.map((b) => ({ ...b, apy: apyFrom(holdings, rates, b.currency) }));
+  }, [state.buckets, holdings, rates]);
 
   const totalUsd = buckets.reduce((sum, b) => sum + b.valueUsd, 0);
   // A real-mode surface waits for the read it is going to render. Showing the seam's rows first and

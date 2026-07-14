@@ -104,7 +104,11 @@ test("the Overview renders a funded vault without throwing, and draws no wobble"
 });
 
 test("an unfunded vault renders the Overview flat — no buckets, no chart, no crash", async () => {
-  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  // No address → no buckets, and `VaultProvider` never runs the dev seed (same idiom as
+  // `earn-empty.test.tsx`). Handing it an address instead would have the provider seed the vault out
+  // from under the assertions — the empty state would then only render until the seed landed, which is
+  // a race, not a test.
+  useWallet.mockReturnValue({ address: null, isConnected: false });
   render(
     <VaultProvider client={new MockVaultClient()}>
       <ToastProvider>

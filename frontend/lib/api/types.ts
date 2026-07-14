@@ -161,6 +161,45 @@ export interface EarningsResponse {
   monthly: MonthlyEarned[];
 }
 
+/**
+ * The rate card for one currency bucket — mirrors `Rate` in `backend/src/api/rates.ts`.
+ *
+ * It answers what a `/holdings` row cannot: `getHoldings` omits a zero-share bucket by design, so an
+ * **unfunded** bucket (the Earn empty-state hero, the simulator) has no row and still has to quote a
+ * rate. The fields are the funded row's, minus the per-user ones — so a funded row and a rate card can
+ * feed the same component. No risk/label/score field.
+ */
+export interface Rate {
+  currency: Currency;
+  /** Venue full name, e.g. "DeFindex USDC vault". */
+  name: string;
+  /** Provider, e.g. "DeFindex". */
+  venue: string;
+  kind: "lending" | "vault" | "rwa";
+  /** `[venue, kindLabel]` — the same display tags a funded bucket carries. */
+  tags: string[];
+  /** The best safe venue's APY — what the agent would allocate this bucket to today. */
+  apy: number;
+}
+
+/** `GET /rates` — one card per currency, user-independent (no depositor). */
+export type RatesResponse = Rate[];
+
+/**
+ * One vetted pool — mirrors `Pool` in `backend/src/api/pools.ts`. The exit-approval sheet's target:
+ * when the Sentinel freezes a pool it proposes a safe one, and the sheet names and rates it before the
+ * user signs. An unknown id is a 404, never a 200 carrying `null`.
+ */
+export interface Pool {
+  /** The seam's `PoolId` slug, e.g. "blend-eurc". */
+  id: string;
+  /** Venue full name, e.g. "Blend EURC". */
+  name: string;
+  /** Provider, e.g. "Blend". */
+  venue: string;
+  apy: number;
+}
+
 /** A fundable stablecoin — mirrors `Stablecoin` in `backend/src/api/funding.ts`. */
 export interface Stablecoin {
   sym: "USDC" | "EURC" | "CETES";
