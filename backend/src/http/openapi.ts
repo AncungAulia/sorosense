@@ -91,6 +91,43 @@ const earningsResponse = {
   required: ['hasDeposit', 'balanceUsd', 'apy', 'earnedUsd', 'buckets', 'chart', 'monthly'],
 } as const;
 
+/**
+ * The rate card (`getRates`), documented field-by-field because it is what the Earn empty-state hero and
+ * the simulator quote for a bucket the user has not funded — the last number that used to come from a
+ * frontend constant. No risk/label/score field exists here by design.
+ */
+const ratesResponse = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      currency: { type: 'string', enum: [...CURRENCIES] },
+      name: { type: 'string', description: 'Venue full name, e.g. "DeFindex USDC vault".' },
+      venue: { type: 'string', description: 'Provider, e.g. "DeFindex".' },
+      kind: { type: 'string', enum: ['lending', 'vault', 'rwa'] },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Display tags `[venue, kindLabel]` — the same pair a funded /holdings row carries.',
+      },
+      apy: { type: 'number', description: "The best safe venue's APY — what the agent would allocate to." },
+    },
+    required: ['currency', 'name', 'venue', 'kind', 'tags', 'apy'],
+  },
+} as const;
+
+/** One vetted pool (`getPool`) — an exit proposal's target, named and rated. Unknown id → 404. */
+const poolResponse = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', description: "The seam's PoolId slug, e.g. \"blend-eurc\"." },
+    name: { type: 'string', description: 'Venue full name, e.g. "Blend EURC".' },
+    venue: { type: 'string', description: 'Provider, e.g. "Blend".' },
+    apy: { type: 'number' },
+  },
+  required: ['id', 'name', 'venue', 'apy'],
+} as const;
+
 /** The OpenAPI 3.1 document. `/faucet` is documented but env-gated (present only when faucet env is set). */
 export const openApiSpec = {
   openapi: '3.1.0',
@@ -173,6 +210,38 @@ export const openApiSpec = {
         summary: 'Add-funds list (stablecoins + RWA).',
         responses: {
           '200': { description: 'funding options', content: { 'application/json': { schema: jsonObject } } },
+        },
+      },
+    },
+    '/rates': {
+      get: {
+        operationId: 'getRates',
+        summary: 'Rate card per currency — the venue the agent would allocate an UNFUNDED bucket to, and its APY.',
+        description:
+          'User-independent (no depositor). `/holdings` omits a zero-share bucket by design, so this is ' +
+          'the rate the Earn empty-state hero and the simulator quote. Catalog-derived; a currency with ' +
+          'no vetted venue is omitted rather than quoted at 0%.',
+        responses: {
+          '200': { description: 'rate cards', content: { 'application/json': { schema: ratesResponse } } },
+        },
+      },
+    },
+    '/pools/{id}': {
+      get: {
+        operationId: 'getPool',
+        summary: "One vetted pool's name + APY (an exit proposal's target).",
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: "The seam's PoolId slug, e.g. `blend-eurc`.",
+            schema: { type: 'string', minLength: 1 },
+          },
+        ],
+        responses: {
+          '200': { description: 'pool', content: { 'application/json': { schema: poolResponse } } },
+          '404': errorResponse,
         },
       },
     },

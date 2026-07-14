@@ -173,6 +173,49 @@ describe('U1 Hono read surface — e2e against the mock vault', () => {
     assertNoForbiddenKey(body);
   });
 
+  it('GET /rates → one catalog-derived row per currency, no depositor, no risk field', async () => {
+    const vault = new MockVaultClient();
+    const app = createApp(await buildDeps(vault, okFx()));
+    const res = await app.request('/rates'); // no query parameter: the rate card is user-independent
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Array<{ currency: string; apy: number; tags: string[]; kind: string }>;
+
+    expect(body.map((r) => r.currency)).toEqual(['USD', 'EUR', 'MXN']);
+    // The unfunded USD hero quotes the agent's default target — DeFindex, not the fixture's guess.
+    const usd = body.find((r) => r.currency === 'USD');
+    expect(usd?.apy).toBe(8.59);
+    expect(usd?.tags).toEqual(['DeFindex', 'Vault']);
+    // An RWA-only currency reports the RWA venue and its kind, not a vault.
+    const mxn = body.find((r) => r.currency === 'MXN');
+    expect(mxn?.kind).toBe('rwa');
+    expect(mxn?.tags).toEqual(['Etherfuse', 'CETES']);
+    assertNoForbiddenKey(body);
+  });
+
+  it('GET /pools/:id → the exit target named and rated; unknown → shaped 404, never a null body', async () => {
+    const vault = new MockVaultClient();
+    const app = createApp(await buildDeps(vault, okFx()));
+
+    const found = await app.request('/pools/blend-eurc');
+    expect(found.status).toBe(200);
+    const pool = (await found.json()) as Record<string, unknown>;
+    expect(pool).toEqual({ id: 'blend-eurc', name: 'Blend EURC', venue: 'Blend', apy: 5.1 });
+    assertNoForbiddenKey(pool);
+
+    // A blank exit sheet is worse than an error: the user would be approving a move to a pool with no
+    // name. So an unknown id is a 404 with a shaped body, not a 200 carrying `null`.
+    const missing = await app.request('/pools/pool-that-does-not-exist');
+    expect(missing.status).toBe(404);
+    const body = (await missing.json()) as { error?: { code: string; message: string } };
+    expect(body.error?.code).toBe('not_found');
+    expect(body.error?.message).toContain('pool-that-does-not-exist');
+    expect(body).not.toHaveProperty('name');
+
+    // A trap venue is never a safe exit target — it resolves like an unknown id.
+    const trap = await app.request('/pools/mgusd');
+    expect(trap.status).toBe(404);
+  });
+
   it('a typed FX failure for earnings → non-200 shaped error, not a silent 200', async () => {
     const vault = new MockVaultClient();
     await seedFunded(vault);
@@ -208,6 +251,8 @@ describe('U1 Hono read surface — e2e against the mock vault', () => {
     await app.request('/activity?depositor=alice');
     await app.request('/earnings?depositor=alice');
     await app.request('/funding');
+    await app.request('/rates');
+    await app.request('/pools/blend-eurc');
     await app.request('/health');
 
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
