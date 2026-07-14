@@ -23,8 +23,9 @@ import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { MockVaultClient, mockSigner } from "@sorosense/vault-client";
 
+import { itemFromEntry } from "../../activity/map";
 import { UNIT } from "../../vault/units";
-import type { FundingOptions, HealthResponse, Holding } from "../types";
+import type { FeedEntry, FundingOptions, HealthResponse, Holding } from "../types";
 
 // NOTE: `../client` is imported *dynamically*, inside each test. It reads its base URL at module scope
 // (Next inlines the var), so a static import here would freeze it to "" — the API off — before the
@@ -61,11 +62,22 @@ async function boot(): Promise<Booted | null> {
       .deposit(DEPOSITOR, "USD", USD_DEPOSIT)
       .signAndSubmit(mockSigner("depositor", DEPOSITOR));
 
+    // One row from each source, so `/activity` returns a real merged feed: an agent action the log
+    // recorded, and a user action derived from an on-chain event. Both actors, and a `froze` kind —
+    // the one the UI turns into a flag.
+    const log = new ActivityLog();
+    log.append({ currency: "EUR", kind: "froze", detail: "Paused EURC pool for safety", ts: 1_000 });
+
     app = createApp({
       vault,
       fx: async (currency) => ({ ok: true, value: STUB_RATES[currency] ?? 1 }),
       earnings: { events: [], snapshots: new InMemorySnapshotStore() },
-      activity: { log: new ActivityLog(), userEvents: [] },
+      activity: {
+        log,
+        userEvents: [
+          { kind: "deposit", depositor: DEPOSITOR, currency: "USD", amount: USD_DEPOSIT, seq: 2, ts: 2_000 },
+        ],
+      },
     });
   } catch (cause) {
     console.warn("[contract] backend workspace unavailable — skipping:", cause);
@@ -150,6 +162,54 @@ describeContract("the backend read surface, through the real client", () => {
     for (const key of ["risk", "label", "score", "tier"]) {
       expect(usd).not.toHaveProperty(key);
     }
+  });
+
+  it("GET /activity decodes as FeedEntry[], and the real rows map to real feed items", async () => {
+    const { apiGet } = await import("../client");
+
+    const result = await apiGet<FeedEntry[]>("/activity", { depositor: DEPOSITOR });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Both sources are really there: the agent's own log, and the user action derived from an event.
+    const agent = result.value.find((e) => e.actor === "agent");
+    const user = result.value.find((e) => e.actor === "you");
+    expect(agent).toBeDefined();
+    expect(user).toBeDefined();
+    if (!agent || !user) return;
+
+    // Every field of the declared shape, with the declared type.
+    for (const entry of [agent, user]) {
+      expect(typeof entry.seq).toBe("number");
+      expect(["you", "agent"]).toContain(entry.actor);
+      expect(typeof entry.kind).toBe("string");
+      expect(typeof entry.detail).toBe("string");
+      // Safety is invisible: the backend exposes no risk/label/score/tier field, and neither do we.
+      for (const key of ["risk", "label", "score", "tier"]) {
+        expect(entry).not.toHaveProperty(key);
+      }
+    }
+    expect(user.depositor).toBe(DEPOSITOR); // present on user rows only
+    expect(agent.depositor).toBeUndefined();
+
+    // The feed arrives most-recent-first, by the backend's monotonic seq — the order we render in.
+    expect([...result.value].map((e) => e.seq)).toEqual(
+      [...result.value].map((e) => e.seq).sort((a, b) => b - a),
+    );
+
+    // And the real rows, through the real mapper, are the rows the list renders: the agent's freeze is
+    // flagged and lands in Automated; the user's deposit lands in Yours.
+    const now = 3_600_000 + 2_000;
+    expect(itemFromEntry(agent, now)).toEqual({
+      id: agent.seq,
+      cat: "auto",
+      kind: "froze",
+      detail: "Paused EURC pool for safety",
+      when: "1h ago",
+      flag: true,
+    });
+    expect(itemFromEntry(user, now)).toMatchObject({ cat: "you", kind: "deposit", when: "1h ago" });
   });
 
   it("GET /funding decodes as FundingOptions, with RWA options carrying no apy", async () => {
