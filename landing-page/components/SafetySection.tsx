@@ -75,12 +75,41 @@ export function SafetySection() {
             <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
               We check every pool constantly and move your funds out the moment one turns unsafe.
             </p>
-            <div className="mt-6 flex flex-1 items-center justify-center rounded-md bg-gradient-to-b from-cloud to-[#e9e9e5] py-14">
-              <div className="sfy-radar">
-                <span className="sfy-ring" />
-                <span className="sfy-ring" />
-                <span className="sfy-ring" />
-                <span className="sfy-dot" />
+            {/* the guard acting — a recreation of the app's "Approve safe exit" sheet,
+                white + shadow so it lifts off the grey card (fits the frame, not a screenshot) */}
+            <div className="mt-6 flex flex-1 items-end justify-center">
+              <div className="w-full max-w-[320px] rounded-2xl bg-white p-4 shadow-[0_18px_44px_-20px_rgba(11,11,12,0.32)] ring-1 ring-black/[0.04]">
+                <p className="text-[15px] font-semibold tracking-tight text-ink">Approve safe exit</p>
+                <p className="mt-1 text-[11px] leading-snug text-muted">
+                  We paused your EURC pool after we detected unusual activity in the pool. Approve moving your funds to another EURC pool.
+                </p>
+                <div className="mt-3 rounded-xl bg-[#f4f4f2] p-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#fbf1e2] text-[#b45309]">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-muted">From</div>
+                      <div className="text-[13px] font-semibold text-ink">Paused EURC pool</div>
+                    </div>
+                    <span className="ml-auto text-[13px] font-semibold text-ink">€1,004.09</span>
+                  </div>
+                  <div className="my-1.5 flex justify-center text-muted">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v13M7 13l5 5 5-5" /></svg>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#edf0f3] text-ink">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15l5-5 4 4 7-7" /><path d="M17 7h4v4" /></svg>
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-muted">To</div>
+                      <div className="text-[13px] font-semibold text-ink">DeFindex EURC</div>
+                    </div>
+                    <span className="ml-auto text-[13px] font-semibold text-[#16a34a]">5.90% APY</span>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-full bg-ink py-2.5 text-center text-[13px] font-semibold text-cloud">Approve and sign in wallet</div>
+                <div className="mt-2 rounded-full border border-line py-2.5 text-center text-[13px] font-medium text-ink">Keep it paused</div>
               </div>
             </div>
           </article>

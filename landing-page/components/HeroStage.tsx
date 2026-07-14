@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- R3F canvases mount client-only via a mount flag */
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Center, ContactShadows, useGLTF, useTexture } from "@react-three/drei";
@@ -160,25 +161,105 @@ function Table() {
 }
 useGLTF.preload("/models/wooden_table.glb");
 
+// One app screenshot per section (Hero, Earn, Protect, Simulate). Each is
+// rounded-clipped on a canvas so it reads as a masked screen inside the bezel —
+// never spilling past it.
+const SCREENS = ["/images/Hero.png", "/images/Earn.png", "/images/Protect.png", "/images/Simulate.png"];
+
+function roundShot(img: CanvasImageSource): THREE.CanvasTexture | null {
+  const cw = 786;
+  const ch = 1698;
+  const r = 96; // rounded screen corners (in screenshot px)
+  const c = document.createElement("canvas");
+  c.width = cw;
+  c.height = ch;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.arcTo(cw, 0, cw, ch, r);
+  ctx.arcTo(cw, ch, 0, ch, r);
+  ctx.arcTo(0, ch, 0, 0, r);
+  ctx.arcTo(0, 0, cw, 0, r);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(img, 0, 0, cw, ch);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function smoothstep(x: number): number {
+  const t = clamp(x, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+// Which screenshot (and how much crossfade) to show at scroll-progress p.
+// Transitions are centred on the .5 midpoints: 0.5 (Hero→Earn) and 2.5
+// (Protect→Simulate) land on the phone's mid-spin — screen facing away — so the
+// swap is hidden; 1.5 (Earn→Protect) has no spin, so it reads as a plain fade.
+const SCREEN_CENTERS = [0.5, 1.5, 2.5];
+const SCREEN_FADE = 0.18;
+function screenBlend(p: number): { a: number; b: number; mix: number } {
+  for (let i = 0; i < SCREEN_CENTERS.length; i++) {
+    const t = SCREEN_CENTERS[i];
+    if (p < t - SCREEN_FADE) return { a: i, b: i, mix: 0 };
+    if (p <= t + SCREEN_FADE) return { a: i, b: i + 1, mix: smoothstep((p - (t - SCREEN_FADE)) / (2 * SCREEN_FADE)) };
+  }
+  return { a: SCREEN_CENTERS.length, b: SCREEN_CENTERS.length, mix: 0 };
+}
+
 function Phone({ progress }: { progress: { current: number } }) {
   const { scene } = useGLTF("/models/iphone.glb");
-  const screen = useTexture("/images/mock-app.png");
-  screen.colorSpace = THREE.SRGBColorSpace;
-  screen.anisotropy = 8;
+  const shots = useTexture(SCREENS);
+  const rounded = useMemo(() => {
+    const imgs = shots.map((t) => t.image as (HTMLImageElement | ImageBitmap) & { width?: number });
+    if (imgs.some((i) => !i || !i.width)) return null;
+    const texs = imgs.map((img) => roundShot(img as CanvasImageSource));
+    if (texs.some((t) => !t)) return null;
+    return texs as THREE.CanvasTexture[];
+  }, [shots]);
   const group = useRef<THREE.Group>(null);
+  const matA = useRef<THREE.MeshBasicMaterial>(null);
+  const matB = useRef<THREE.MeshBasicMaterial>(null);
   useEffect(() => setShadow(scene, true, false), [scene]);
   useFrame(() => {
     if (group.current) applyPhonePose(group.current, progress.current);
+    if (!rounded) return;
+    // base layer = screen a, top layer = screen b crossfading in by `mix`
+    const { a, b, mix } = screenBlend(progress.current);
+    if (matA.current) matA.current.map = rounded[a];
+    if (matB.current) {
+      matB.current.map = rounded[b];
+      matB.current.opacity = mix;
+    }
   });
   return (
     <group ref={group}>
       <Center>
         <group>
           <primitive object={scene} />
-          <mesh position={SCREEN_POS} rotation={[0, Math.PI, 0]}>
-            <planeGeometry args={SCREEN_SIZE} />
-            <meshBasicMaterial map={screen} toneMapped={false} />
-          </mesh>
+          {rounded ? (
+            <>
+              {/* two stacked layers, both masked-off from writing depth so they
+                  crossfade instead of z-fighting; still depth-tested, so the phone
+                  body hides them when it spins away */}
+              <mesh position={SCREEN_POS} rotation={[0, Math.PI, 0]}>
+                <planeGeometry args={SCREEN_SIZE} />
+                <meshBasicMaterial ref={matA} map={rounded[0]} transparent depthWrite={false} toneMapped={false} />
+              </mesh>
+              <mesh position={SCREEN_POS} rotation={[0, Math.PI, 0]} renderOrder={2}>
+                <planeGeometry args={SCREEN_SIZE} />
+                <meshBasicMaterial ref={matB} map={rounded[1]} transparent depthWrite={false} toneMapped={false} opacity={0} />
+              </mesh>
+            </>
+          ) : (
+            <mesh position={SCREEN_POS} rotation={[0, Math.PI, 0]}>
+              <planeGeometry args={SCREEN_SIZE} />
+              <meshBasicMaterial color="#0b0b0c" toneMapped={false} />
+            </mesh>
+          )}
         </group>
       </Center>
     </group>
