@@ -30,8 +30,13 @@ pub fn require_token(env: &Env, currency: Currency) -> Address {
 }
 
 /// Push `amount` of `currency`'s stablecoin from the vault into `pool` and book it.
-/// Enforces the shared inbound guards — allowlist, frozen flag, per-pool cap — and
-/// writes state before the external calls (checks-effects-interactions).
+/// Enforces the shared inbound guards — allowlist, frozen flag, per-pool cap, and
+/// that the bucket actually holds `amount` idle — and writes state before the
+/// external calls (checks-effects-interactions).
+///
+/// Moves the funds out of `idle` and into the pool: NAV is unchanged the instant it
+/// runs (the pool's `balance(vault)` gains exactly what idle lost), and the pool is
+/// entered into the bucket's NAV list so its future accrual counts.
 pub fn supply_to_pool(env: &Env, pool: &Address, currency: Currency, amount: i128) {
     if !storage::is_pool_allowed(env, pool) {
         panic_with_error!(env, Error::PoolNotAllowed);
@@ -43,8 +48,17 @@ pub fn supply_to_pool(env: &Env, pool: &Address, currency: Currency, amount: i12
     if new_holdings > storage::get_config(env).per_pool_cap {
         panic_with_error!(env, Error::CapExceeded);
     }
-    // Effects before interactions: book holdings + active pool first, so a
-    // re-entrant call cannot observe a stale cap.
+    let idle = storage::get_total_assets(env, currency);
+    if amount > idle {
+        panic_with_error!(env, Error::InsufficientIdle);
+    }
+    // Effects before interactions: move idle→pool, book holdings + active pool, and
+    // enter the NAV list first, so a re-entrant call cannot observe a stale cap or a
+    // pool missing from NAV.
+    if !storage::add_to_pool_list(env, currency, pool) {
+        panic_with_error!(env, Error::TooManyPools);
+    }
+    storage::set_total_assets(env, currency, idle - amount);
     storage::set_pool_holdings(env, currency, pool, new_holdings);
     storage::set_active_pool(env, currency, pool);
     // Interactions.
@@ -53,16 +67,49 @@ pub fn supply_to_pool(env: &Env, pool: &Address, currency: Currency, amount: i12
     PoolClient::new(env, pool).supply(&vault, &amount);
 }
 
-/// Pull `amount` of `currency` back from `pool` to the vault; clear the active
-/// pool when the bucket's holdings in it reach zero.
+/// Pull `amount` of `currency` back from `pool` to the vault, crediting `idle`. The
+/// per-pool holdings counter (bucket exposure, capped) drops by `amount` but floors
+/// at 0 — a freeze-exit pulls the pool's whole *value* (principal + interest), which
+/// can exceed booked principal. A pool leaves the NAV list only once its
+/// `balance(vault)` reads 0 (its accrued interest outlives its principal, KTD5).
 pub fn withdraw_from_pool(env: &Env, pool: &Address, currency: Currency, amount: i128) {
-    let remaining = storage::get_pool_holdings(env, currency, pool) - amount;
+    let booked = storage::get_pool_holdings(env, currency, pool);
+    let remaining = if amount > booked { 0 } else { booked - amount };
     storage::set_pool_holdings(env, currency, pool, remaining);
-    if remaining == 0 && storage::get_active_pool(env, currency).as_ref() == Some(pool) {
-        storage::clear_active_pool(env, currency);
-    }
+    storage::set_total_assets(env, currency, storage::get_total_assets(env, currency) + amount);
     let vault = env.current_contract_address();
     PoolClient::new(env, pool).withdraw(&vault, &amount);
+    // Drop from NAV / active only when nothing of the position remains.
+    if PoolClient::new(env, pool).balance(&vault) == 0 {
+        storage::remove_from_pool_list(env, currency, pool);
+        if storage::get_active_pool(env, currency).as_ref() == Some(pool) {
+            storage::clear_active_pool(env, currency);
+        }
+    }
+}
+
+/// Pull `needed` of `currency` back into idle by draining the bucket's pools in list
+/// order (KTD5 — so `withdraw` can pay out a depositor's grown value without an
+/// operator deallocating first). Panics `InsufficientLiquidity` if the pools cannot
+/// together cover it. Snapshots the list up front: `withdraw_from_pool` mutates it.
+pub fn pull_from_pools(env: &Env, currency: Currency, needed: i128) {
+    let vault = env.current_contract_address();
+    let mut outstanding = needed;
+    for pool in storage::get_pool_list(env, currency).iter() {
+        if outstanding <= 0 {
+            break;
+        }
+        let available = PoolClient::new(env, &pool).balance(&vault);
+        if available <= 0 {
+            continue;
+        }
+        let take = if available < outstanding { available } else { outstanding };
+        withdraw_from_pool(env, &pool, currency, take);
+        outstanding -= take;
+    }
+    if outstanding > 0 {
+        panic_with_error!(env, Error::InsufficientLiquidity);
+    }
 }
 
 /// Find the pending exit carrying `exit_id`, returning its currency + proposal.
@@ -84,7 +131,12 @@ pub fn execute_exit(env: &Env, currency: Currency, proposal: &ExitProposal) {
     if !storage::is_frozen(env, &proposal.from_pool) {
         panic_with_error!(env, Error::SourceNotFrozen);
     }
-    let amount = storage::get_pool_holdings(env, currency, &proposal.from_pool);
+    // Move the pool's whole *value* — principal **plus accrued interest** — not just
+    // booked principal (KTD6), so a depositor's yield is never stranded in the
+    // frozen pool. `withdraw_from_pool` credits idle by this amount; `supply_to_pool`
+    // then debits idle and re-books it in the safe pool, so idle nets unchanged.
+    let vault = env.current_contract_address();
+    let amount = PoolClient::new(env, &proposal.from_pool).balance(&vault);
     if amount <= 0 {
         panic_with_error!(env, Error::InsufficientHoldings);
     }
