@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
@@ -28,6 +28,15 @@ test("the amount clamps at 500 and never goes to zero", async () => {
   await user.click(screen.getByRole("button", { name: "Decrease" }));
   await user.click(screen.getByRole("button", { name: "Decrease" }));
   expect(screen.getByTestId("amount").textContent).toBe("$500");
+});
+
+test("R3 — the picker offers USD and EUR only; MXN has no control in the DOM", () => {
+  render(<Harness />);
+  const picker = within(screen.getByRole("group", { name: "Currency" }));
+  expect(picker.getAllByRole("button").map((b) => b.textContent)).toEqual(["USD", "EUR"]);
+  // Nowhere else either — the symbol map still carries MXN, but no control may render it.
+  expect(screen.queryByRole("button", { name: "MXN" })).toBeNull();
+  expect(document.body.textContent).not.toMatch(/MXN|MX\$/);
 });
 
 test("switching currency changes the symbol and the projection", async () => {

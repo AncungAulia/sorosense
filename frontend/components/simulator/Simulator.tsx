@@ -5,14 +5,19 @@ import { Card, Segmented } from "../ui";
 import { Bars } from "../earn/Bars";
 import { PERIOD_DAYS, simulate, simulateCurve, type PeriodName } from "../../lib/earn/simulate";
 
-const CURRENCIES: readonly Currency[] = ["USD", "EUR", "MXN"];
+/** The picker offers USD and EUR only (R3) — MXN has no user-facing control on any surface. */
+const CURRENCIES: readonly Currency[] = ["USD", "EUR"];
 const PERIODS: readonly PeriodName[] = ["day", "week", "month", "year"];
 /**
  * Labels are capitalized in the DOM, not with a `capitalize` class: CSS text-transform does not
  * change a button's accessible name, so `getByRole("button", { name: "Month" })` would never match.
  */
 const PERIOD_LABEL: Record<PeriodName, string> = { day: "Day", week: "Week", month: "Month", year: "Year" };
-/** Simulator symbols disambiguate MXN from USD; `lib/vault/units.ts` renders both as "$". */
+/**
+ * MXN keeps its entry even though the picker no longer offers it: the map is `Record<Currency, string>`
+ * and `Currency` still carries MXN, so dropping the key is a type error, not a cleanup. It also
+ * disambiguates MXN from USD, which `lib/vault/units.ts` renders as the same "$".
+ */
 const SYMBOL: Record<Currency, string> = { USD: "$", EUR: "€", MXN: "MX$" };
 
 const STEP = 500;
