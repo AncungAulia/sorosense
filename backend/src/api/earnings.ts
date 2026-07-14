@@ -208,8 +208,10 @@ export async function getEarnings(user: Address, deps: EarningsDeps): Promise<Re
     const rate = rates.get(c) ?? 0; // only ever 0 for an untouched bucket, whose terms are all 0 anyway
     const usdValue = toUsd(nativeValue, rate);
     const contributed = allBases.get(bucketKey(user, c))?.contributed ?? 0n;
-    // Native yield only (value − contributions); FX is not part of earned (R7).
-    const bucketEarnedUsd = toUsd(nativeValue - contributed, rate);
+    // Native yield only (value − contributions); FX is not part of earned (R7). Clamp at 0: mint floors
+    // shares toward the vault (KTD10), so right after a deposit `value` can sit a sub-share below
+    // `contributed` — a rounding dust, never a real loss. A deposit is never negative earnings.
+    const bucketEarnedUsd = Math.max(0, toUsd(nativeValue - contributed, rate));
 
     buckets.push({ currency: c, nativeValue, usdValue, earnedUsd: bucketEarnedUsd });
     balanceUsd += usdValue;
@@ -230,10 +232,17 @@ export async function getEarnings(user: Address, deps: EarningsDeps): Promise<Re
   const snapshotTimes = currencies.flatMap((c) => deps.snapshots.series(c).map((s) => s.ts));
   const times = [...new Set([...snapshotTimes, ...eventTimes])].sort((a, b) => a - b);
 
-  const chart: ChartPoint[] = times.map((t) => ({
-    ts: t,
-    ...stateAt(user, t, deps.events, deps.snapshots, currencies, rates),
-  }));
+  // Yield only accumulates, so the earned line is monotonic non-decreasing: clamp each point to the
+  // running max. A dip would only ever be mint-rounding/FX dust around a deposit (KTD10 rounds toward
+  // the vault), and rendering it as a "you lost $0.01" wobble on the growth chart is a lie the running
+  // max removes without inventing any growth (a real gain still rises exactly as computed). `valueUsd`
+  // is left untouched — it legitimately steps up on a deposit and curves with accrual.
+  let earnedFloor = 0;
+  const chart: ChartPoint[] = times.map((t) => {
+    const state = stateAt(user, t, deps.events, deps.snapshots, currencies, rates);
+    earnedFloor = Math.max(earnedFloor, state.earnedUsd);
+    return { ts: t, valueUsd: state.valueUsd, earnedUsd: earnedFloor };
+  });
 
   // Per-month deltas of the cumulative earned (last sample in each month wins).
   const cumByMonth = new Map<string, number>();
