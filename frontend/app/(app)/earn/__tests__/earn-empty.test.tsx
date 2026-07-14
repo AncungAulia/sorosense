@@ -30,9 +30,14 @@ test("the hero APY tracks the simulator's currency", async () => {
   const user = userEvent.setup();
   await renderEmpty();
   expect(screen.getByTestId("hero-apy").textContent).toBe("8.59% APY");
-  await user.click(screen.getByRole("button", { name: "MXN" }));
-  expect(screen.getByTestId("hero-apy").textContent).toBe("5.57% APY");
-  expect(screen.getByTestId("projection").textContent).toBe("MX$55.70");
+  await user.click(screen.getByRole("button", { name: "EUR" }));
+  expect(screen.getByTestId("hero-apy").textContent).toBe("5.10% APY");
+  expect(screen.getByTestId("projection").textContent).toBe("€51.00");
+});
+
+test("R3 — the empty state offers no MXN currency control", async () => {
+  await renderEmpty();
+  expect(screen.queryByRole("button", { name: "MXN" })).toBeNull();
 });
 
 test("R11 — no risk label, tier, or score is rendered in the empty state", async () => {

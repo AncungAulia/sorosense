@@ -30,7 +30,11 @@ test("desktop overlays: add-funds drawer, move-to-wallet, account dropdown, acti
   await page.getByRole("button", { name: "Account" }).click();
   const menu = page.getByRole("menu", { name: "Account" });
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole("switch", { name: "Auto reinvest rewards" })).toHaveAttribute("aria-disabled", "true");
+  // A live control since STE-38: pressable, and ON by default (the seam returns true for an unset
+  // preference). It was `aria-disabled` while it was still a read-only consent display.
+  const autoCompound = menu.getByRole("switch", { name: "Auto reinvest rewards" });
+  await expect(autoCompound).toBeEnabled();
+  await expect(autoCompound).toHaveAttribute("aria-checked", "true");
   await shot(page, "desktop-04-account-dropdown");
 
   // 4. Activity drawer + filter (from the account dropdown's Activity row).

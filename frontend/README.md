@@ -20,6 +20,36 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Talking to the backend
+
+The frontend runs **offline by default**: with no `NEXT_PUBLIC_API_URL` set it uses its local
+derivations (`lib/vault/data.ts`) and issues no request at all. That is what keeps `pnpm test` and
+Playwright network-free, and it means a backend that dies mid-demo degrades the app to fixtures
+instead of breaking it.
+
+To wire it to the backend's read surface, boot the backend in **mock mode** (in-memory vault,
+deterministic offline stub FX — no network, no testnet):
+
+```bash
+pnpm -C backend exec tsx src/http/server.ts   # http://localhost:8787
+```
+
+then copy `.env.example` to `.env.local` and set:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8787
+```
+
+All requests go through `lib/api/client.ts`. It never throws — every call returns
+`{ ok: true, value }` or `{ ok: false, code, message }`, so a caller falls back to its local value
+instead of blanking the screen. The backend sends `bigint` as a decimal string; decode it with
+`toBigInt()` at the edge. `lib/api/types.ts` re-declares the wire shapes (the frontend must not depend
+on `backend`), and `lib/api/__tests__/http.contract.test.ts` boots the real mock-mode server and
+decodes them off it, so the two cannot drift silently.
+
+Every var in `.env.example` is `NEXT_PUBLIC_*` and therefore public. Secrets (`KEEPER_SECRET`,
+`FAUCET_ISSUER_SECRET`) are backend-only and never reach the client.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

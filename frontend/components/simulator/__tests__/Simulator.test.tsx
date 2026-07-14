@@ -1,12 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
+import { getBucketMeta } from "../../../lib/vault/data";
 import { Simulator } from "../Simulator";
 
+/**
+ * The rate is now the *caller's* to resolve (R5): the Earn page passes `useApy(currency)`, which reads
+ * the backend's `/holdings` row for a funded bucket and this fixture for an unfunded one (KTD3). The
+ * harness stands in for the page with the fixture rate, so the projections below are unchanged.
+ */
 function Harness() {
   const [currency, setCurrency] = useState<Currency>("USD");
-  return <Simulator currency={currency} onCurrencyChange={setCurrency} />;
+  return (
+    <Simulator currency={currency} apy={getBucketMeta(currency).apy} onCurrencyChange={setCurrency} />
+  );
 }
 
 test("projects a year of USD by default", () => {
@@ -28,6 +36,15 @@ test("the amount clamps at 500 and never goes to zero", async () => {
   await user.click(screen.getByRole("button", { name: "Decrease" }));
   await user.click(screen.getByRole("button", { name: "Decrease" }));
   expect(screen.getByTestId("amount").textContent).toBe("$500");
+});
+
+test("R3 — the picker offers USD and EUR only; MXN has no control in the DOM", () => {
+  render(<Harness />);
+  const picker = within(screen.getByRole("group", { name: "Currency" }));
+  expect(picker.getAllByRole("button").map((b) => b.textContent)).toEqual(["USD", "EUR"]);
+  // Nowhere else either — the symbol map still carries MXN, but no control may render it.
+  expect(screen.queryByRole("button", { name: "MXN" })).toBeNull();
+  expect(document.body.textContent).not.toMatch(/MXN|MX\$/);
 });
 
 test("switching currency changes the symbol and the projection", async () => {

@@ -5,14 +5,19 @@ import { Card, Segmented } from "../ui";
 import { Bars } from "../earn/Bars";
 import { PERIOD_DAYS, simulate, simulateCurve, type PeriodName } from "../../lib/earn/simulate";
 
-const CURRENCIES: readonly Currency[] = ["USD", "EUR", "MXN"];
+/** The picker offers USD and EUR only (R3) — MXN has no user-facing control on any surface. */
+const CURRENCIES: readonly Currency[] = ["USD", "EUR"];
 const PERIODS: readonly PeriodName[] = ["day", "week", "month", "year"];
 /**
  * Labels are capitalized in the DOM, not with a `capitalize` class: CSS text-transform does not
  * change a button's accessible name, so `getByRole("button", { name: "Month" })` would never match.
  */
 const PERIOD_LABEL: Record<PeriodName, string> = { day: "Day", week: "Week", month: "Month", year: "Year" };
-/** Simulator symbols disambiguate MXN from USD; `lib/vault/units.ts` renders both as "$". */
+/**
+ * MXN keeps its entry even though the picker no longer offers it: the map is `Record<Currency, string>`
+ * and `Currency` still carries MXN, so dropping the key is a type error, not a cleanup. It also
+ * disambiguates MXN from USD, which `lib/vault/units.ts` renders as the same "$".
+ */
 const SYMBOL: Record<Currency, string> = { USD: "$", EUR: "€", MXN: "MX$" };
 
 const STEP = 500;
@@ -36,24 +41,27 @@ const money = (n: number, currency: Currency) =>
 
 /**
  * The deterministic earnings simulator (R15). The user picks a CURRENCY — never a pool, never a risk
- * tier. `currency` is controlled by the Earn page because the empty-state hero shows the same APY.
+ * tier. `currency` is controlled by the Earn page because the empty-state hero shows the same APY, and
+ * `apy` is resolved there through `useApy` (R5): the math module takes the rate, it never looks it up.
  */
 export function Simulator({
   currency,
+  apy,
   onCurrencyChange,
 }: {
   currency: Currency;
+  apy: number;
   onCurrencyChange: (c: Currency) => void;
 }) {
   const [amount, setAmount] = useState(1000);
   const [period, setPeriod] = useState<PeriodName>("year");
 
   const periodDays = PERIOD_DAYS[period];
-  const { projectedEarnings } = simulate({ currency, amount, periodDays });
+  const { projectedEarnings } = simulate({ currency, amount, periodDays, apy });
   // Samples of the projection's own growth curve, one per bar. <Bars> normalizes against the series
   // maximum, but the curve is not self-similar under time rescaling — a one-year horizon is visibly
   // convex where a one-day horizon is near-linear — so the bars redraw, not just re-count.
-  const curve = simulateCurve({ currency, amount, periodDays }, BAR_COUNT[period]);
+  const curve = simulateCurve({ currency, amount, periodDays, apy }, BAR_COUNT[period]);
   const step = (delta: number) => setAmount((a) => Math.min(MAX, Math.max(MIN, a + delta)));
 
   return (

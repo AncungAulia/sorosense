@@ -5,21 +5,24 @@ import { Switch } from "../ui";
 import { Identicon } from "../account/Identicon";
 import { LogoutSheet } from "../account/LogoutSheet";
 import { useWallet } from "../../hooks/useWallet";
-import { useConsent } from "../../hooks/useConsent";
+import { useAutoCompound } from "../../hooks/useAutoCompound";
 import { useNav } from "../../hooks/useNav";
 import { usePanel } from "../../hooks/usePanel";
+import { useToast } from "../../hooks/useToast";
 
 const truncate = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
 /**
  * Desktop account dropdown — the pieces of account/page.tsx (interface-map §7) assembled into the
- * mockup's `.dropdown` (§14): copy-address pill, Activity row → activity drawer, read-only auto-
- * reinvest Switch (STAYS read-only — a live toggle is STE-38/39/40, deferred), Log out → LogoutSheet
- * → disconnect. The mockup's logout row was a placeholder close(); here it wires the real confirm.
+ * mockup's `.dropdown` (§14): copy-address pill, Activity row → activity drawer, the live
+ * auto-reinvest Switch (STE-38 — same hook, same behavior as the mobile Account row; desktop
+ * redirects `/account` to Home, so this is the only desktop surface for it), Log out → LogoutSheet →
+ * disconnect. The mockup's logout row was a placeholder close(); here it wires the real confirm.
  */
 export function AccountMenu() {
   const { address, walletName, disconnect } = useWallet();
-  const { enabled } = useConsent();
+  const { show } = useToast();
+  const { enabled, loading, pending, toggle } = useAutoCompound(show);
   const nav = useNav();
   const { open: openPanel } = usePanel();
   const [open, setOpen] = useState(false);
@@ -70,7 +73,7 @@ export function AccountMenu() {
         <div className="flex w-full items-center gap-[13px] px-3 py-2.5">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-ink-2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M21 21v-5h-5" /></svg>
           <span className="grow"><span className="block text-sm font-semibold">Auto reinvest rewards</span><span className="block text-xs text-muted">Yield rewards flow back into your pool</span></span>
-          <span data-testid="consent-state" data-state={enabled ? "on" : "off"}><Switch checked={enabled} label="Auto reinvest rewards" readOnly /></span>
+          <span data-testid="auto-compound-state" data-state={enabled ? "on" : "off"}><Switch checked={enabled} label="Auto reinvest rewards" readOnly={loading || pending} onChange={() => void toggle()} /></span>
         </div>
         <div className="mx-2 my-1.5 h-px bg-line" />
         <button role="menuitem" onClick={() => setConfirming(true)} className="flex w-full items-center gap-[13px] rounded-xl px-3 py-2.5 text-left font-semibold text-neg hover:bg-pill">

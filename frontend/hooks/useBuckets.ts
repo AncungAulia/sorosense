@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
 import { useWallet } from "./useWallet";
 import { useVault } from "./useVault";
+import { useApyResolver } from "./useApy";
 import { getBucketMeta, getFxRateToUsd } from "../lib/vault/data";
 import { UNIT } from "../lib/vault/units";
 
@@ -20,9 +21,17 @@ export interface BucketView {
   frozen: boolean; // active pool paused
 }
 
+/**
+ * Home's bucket rows. **Shares / value / frozen come from the seam, never from `GET /holdings`** — they
+ * are per-user vault state that the browser's own client owns, and in mock mode the backend's vault is
+ * a *different in-memory instance* with none of this session's deposits in it (sourcing them over HTTP
+ * would blank the demo's Home screen). Only the APY — catalog-derived and user-independent — crosses
+ * the HTTP seam, through `useApyResolver` (KTD3).
+ */
 export function useBuckets(): { loading: boolean; error: string | null; buckets: BucketView[]; totalUsd: number } {
   const { address } = useWallet();
   const { client, version } = useVault();
+  const apyOf = useApyResolver();
   const [state, setState] = useState<{ loading: boolean; error: string | null; buckets: BucketView[] }>({
     loading: true,
     error: null,
@@ -58,6 +67,12 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
     };
   }, [address, client, version]);
 
-  const totalUsd = state.buckets.reduce((sum, b) => sum + b.valueUsd, 0);
-  return { ...state, totalUsd };
+  // The seam's rows carry `meta.apy` (the fixture) as their fallback; the resolver overrides it with the
+  // backend's rate the moment `/holdings` lands, with no second read of the vault.
+  const buckets = useMemo(
+    () => state.buckets.map((b) => ({ ...b, apy: apyOf(b.currency) })),
+    [state.buckets, apyOf],
+  );
+  const totalUsd = buckets.reduce((sum, b) => sum + b.valueUsd, 0);
+  return { loading: state.loading, error: state.error, buckets, totalUsd };
 }
