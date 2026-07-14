@@ -39,4 +39,9 @@ test("aria-checked tracks `checked` in both modes", () => {
 
   rerender(<Switch checked label="Auto reinvest rewards" readOnly />);
   expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true");
+
+  // The real case for this leg: a revoked depositor whose row is still loading (checked=false,
+  // readOnly=true). `aria-checked` must follow `checked`, never the readOnly flag.
+  rerender(<Switch checked={false} label="Auto reinvest rewards" readOnly />);
+  expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
 });

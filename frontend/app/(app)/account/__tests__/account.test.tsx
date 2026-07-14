@@ -58,7 +58,11 @@ test("Activity routes to the central activity page", async () => {
 
 test("auto-reinvest reads ON for a fresh user — the seam's default is enabled (unset = on)", async () => {
   renderAccount();
-  await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
+  const control = await screen.findByRole("switch");
+  // Wait for the seam read to land *first* (the switch is disabled while loading) — asserting
+  // aria-checked alone would pass on the hook's initial state even if the read never fired.
+  await waitFor(() => expect(control).toBeEnabled());
+  expect(control).toHaveAttribute("aria-checked", "true");
 });
 
 test("auto-reinvest reads OFF for a depositor who revoked it", async () => {

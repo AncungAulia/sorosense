@@ -129,6 +129,69 @@ test("a failed write (not a cancellation) toasts the wallet's message", async ()
   expect(screen.getByTestId("state").textContent).toBe("true");
 });
 
+test("a read that fails AFTER a successful revoke keeps OFF — fail-open never discards a known answer", async () => {
+  // The write is followed by bump(), which re-reads. If that re-read flakes, falling back to the
+  // seam's ON default would snap the switch back to On while the chain says Off — a lie about the
+  // user's funds. Fail-open means "ON when nothing is known", not "ON whenever a read fails".
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  const user = userEvent.setup();
+  const client = new MockVaultClient();
+  renderProbe(client);
+  await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("true"));
+
+  // Installed only now, so a call to it can only be the re-read the write's bump() triggers — this
+  // also pins bump() itself: drop it and the spy is never called, failing the waitFor below.
+  const read = vi.spyOn(client, "autoCompoundEnabled").mockRejectedValue(new Error("network down"));
+  await user.click(screen.getByRole("button", { name: "toggle" }));
+
+  await waitFor(() => expect(read).toHaveBeenCalled()); // the post-bump re-read fired and rejected
+  expect(screen.getByTestId("state").textContent).toBe("false"); // and did not clobber the write
+  consoleError.mockRestore();
+});
+
+test("a double-press fires exactly one transaction and the switch is pending in between", async () => {
+  const user = userEvent.setup();
+  let release!: (xdr: string) => void;
+  useWallet.mockReturnValue({
+    address: ADDRESS,
+    isConnected: true,
+    signTransaction: vi.fn(() => new Promise<string>((resolve) => { release = resolve; })),
+  });
+  const client = new MockVaultClient();
+  const setAutoCompound = vi.spyOn(client, "setAutoCompound");
+  renderProbe(client);
+  await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("true"));
+
+  const button = screen.getByRole("button", { name: "toggle" });
+  await user.click(button);
+  await waitFor(() => expect(screen.getByTestId("pending").textContent).toBe("true"));
+  await user.click(button); // second press while the signature is still open
+
+  release("signed");
+  await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("false"));
+  expect(setAutoCompound).toHaveBeenCalledTimes(1); // never two transactions
+});
+
+test("a submitted-but-rejected transaction does not move the switch", async () => {
+  // The seam reports an on-chain rejection as `success: false` rather than throwing, so a resolved
+  // promise is not proof the write landed.
+  const user = userEvent.setup();
+  const onError = vi.fn();
+  const client = new MockVaultClient();
+  vi.spyOn(client, "setAutoCompound").mockReturnValue({
+    xdr: "mock-xdr-rejected",
+    requiredSigner: "depositor",
+    signAndSubmit: async () => ({ hash: "mock-tx-rejected", success: false }),
+  });
+  renderProbe(client, onError);
+  await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("true"));
+
+  await user.click(screen.getByRole("button", { name: "toggle" }));
+
+  await waitFor(() => expect(onError).toHaveBeenCalledWith("Could not save that. Nothing changed."));
+  expect(screen.getByTestId("state").textContent).toBe("true");
+});
+
 test("KTD4 fail-open — a rejected read renders ON and logs, never Off", async () => {
   // Fail-closed here would misreport a user whose preference is actually ON (the seam's default) and
   // invite a pointless write. The error is logged, not swallowed — spy so it isn't test-run noise.

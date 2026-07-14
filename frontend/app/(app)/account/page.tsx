@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Switch, Toast } from "../../../components/ui";
 import { Identicon } from "../../../components/account/Identicon";
 import { LogoutSheet } from "../../../components/account/LogoutSheet";
@@ -18,15 +18,21 @@ const truncate = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 export default function AccountPage() {
   const nav = useNav();
   const { address, walletName, disconnect } = useWallet();
-  const [toast, setToast] = useState("");
+  // An object, not a bare string — the same reason ToastProvider uses one: a second message must
+  // restart the dismiss timer, and the timer must be torn down (a bare setTimeout per notify() let an
+  // earlier toast's timer wipe a later message, and outlived unmount).
+  const [toast, setToast] = useState<{ message: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const notify = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(""), 2000);
-  };
+  const notify = (message: string) => setToast({ message });
   const { enabled, loading, pending, toggle } = useAutoCompound(notify);
   // Account is a mobile-only surface; on desktop the avatar dropdown replaces it — redirect visitors.
   const redirecting = useRedirectDesktopToHome();
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // Hydration (KTD7): wallet/vault reads resolve after mount, so bail out cleanly until an
   // address exists rather than rendering with an undefined identity.
@@ -131,7 +137,7 @@ export default function AccountPage() {
       </Button>
 
       <LogoutSheet open={confirming} onClose={() => setConfirming(false)} onConfirm={logout} />
-      <Toast open={!!toast} message={toast} />
+      <Toast open={!!toast} message={toast?.message ?? ""} />
     </div>
   );
 }
