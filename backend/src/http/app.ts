@@ -23,11 +23,14 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import type { Currency, VaultClient } from '@sorosense/vault-client';
 
-import type { Err, Result } from '../lib/result.js';
+import { type Err, type Result } from '../lib/result.js';
 import { getActivity, type ActivityFeedDeps } from '../api/activity-feed.js';
 import { getEarnings, type FxSource } from '../api/earnings.js';
 import { getFundingOptions } from '../api/funding.js';
 import { getHoldings } from '../api/holdings.js';
+import { getPool } from '../api/pools.js';
+import { getRates } from '../api/rates.js';
+import { catalogApy, type ApySource } from '../api/venue-meta.js';
 import type { VaultEvent } from '../earnings/cost-basis.js';
 import type { SnapshotStore } from '../earnings/snapshotter.js';
 import { mountDocs } from './openapi.js';
@@ -43,6 +46,8 @@ export interface HttpAppDeps {
   vault: VaultClient;
   /** FX per currency (display-only), shared by holdings + earnings. */
   fx: FxSource;
+  /** APY per pool — live on-chain `rate_bps()` when set; the catalog figure when omitted (mock mode). */
+  apy?: ApySource;
   /** Earnings history sources (real event reader deferred to integration). */
   earnings: {
     events: readonly VaultEvent[];
@@ -107,16 +112,17 @@ function parseCurrency(raw: string | undefined): Currency | undefined | 'invalid
  */
 export function createApp(deps: HttpAppDeps, options: HttpAppOptions = {}): Hono {
   const app = new Hono();
+  const apy = deps.apy ?? catalogApy;
 
   app.use('*', cors({ origin: options.corsOrigin ?? 'http://localhost:3000' }));
 
   app.get('/health', (c) => jsonBig(c, { status: 'ok' }));
 
-  // GET /holdings?depositor=… — per-bucket holdings (Result: FX failure → non-200).
+  // GET /holdings?depositor=… — per-bucket holdings (Result: FX or APY failure → non-200).
   app.get('/holdings', async (c) => {
     const depositor = c.req.query('depositor');
     if (!depositor) return badRequest(c, 'missing required query parameter: depositor');
-    const result: Result<unknown> = await getHoldings(depositor, { vault: deps.vault, fx: deps.fx });
+    const result: Result<unknown> = await getHoldings(depositor, { vault: deps.vault, fx: deps.fx, apy });
     if (!result.ok) return jsonErr(c, result);
     return jsonBig(c, result.value);
   });
@@ -160,6 +166,24 @@ export function createApp(deps: HttpAppDeps, options: HttpAppOptions = {}): Hono
 
   // GET /funding — the Add-funds list (pure; no Result, no seam, no FX).
   app.get('/funding', (c) => jsonBig(c, getFundingOptions()));
+
+  // GET /rates — the per-currency rate card for an UNFUNDED bucket, which `/holdings` omits by design
+  // (R13). The APY is the live on-chain rate (or catalog offline); a failed read → shaped non-200.
+  app.get('/rates', async (c) => {
+    const result = await getRates(undefined, apy);
+    if (!result.ok) return jsonErr(c, result);
+    return jsonBig(c, result.value);
+  });
+
+  // GET /pools/:id — one vetted pool's name + rate (the exit-approval sheet's target). An unknown or
+  // trap id is a shaped 404, never a 200 carrying `null`; a failed live rate read is a shaped non-200,
+  // never a stale figure the user approves a move against.
+  app.get('/pools/:id', async (c) => {
+    const id = c.req.param('id');
+    const result = await getPool(id, apy);
+    if (!result.ok) return jsonErr(c, result);
+    return jsonBig(c, result.value);
+  });
 
   // OpenAPI spec (GET /openapi.json) + Swagger UI (GET /docs). Read-only, no secret.
   mountDocs(app);

@@ -1,9 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useBuckets } from "../../hooks/useBuckets";
-import { useEarnings } from "../../hooks/useEarnings";
+import { useEarnings, type ChartPoint } from "../../hooks/useEarnings";
 import { usePanel } from "../../hooks/usePanel";
 import { formatCurrency, UNIT } from "../../lib/vault/units";
+import { netApyOf, feeLabel } from "../../lib/vault/fee";
 import { Button, Card, CountUp, Segmented, Skeleton } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
 import { usePendingExit } from "../../hooks/usePendingExit";
@@ -22,28 +23,39 @@ type Range = (typeof RANGES)[number];
 const MODES = ["Total", "Earned"] as const;
 type Mode = (typeof MODES)[number];
 
-/** Range → (how far below the current value the series starts, point count, wobble amplitude). */
-const RANGE_SHAPE: Record<Range, { drop: number; n: number; vol: number }> = {
-  Day: { drop: 0.002, n: 48, vol: 0.9 },
-  Week: { drop: 0.007, n: 60, vol: 1.8 },
-  Month: { drop: 0.019, n: 40, vol: 3.2 },
-  Year: { drop: 0.086, n: 52, vol: 7.0 },
+const DAY = 86_400_000;
+/** How far back each range looks. `Year` spans whatever history exists. */
+const RANGE_MS: Record<Range, number | "all"> = {
+  Day: DAY,
+  Week: 7 * DAY,
+  Month: 30 * DAY,
+  Year: "all",
 };
 
-/** Deterministic organic series ending exactly at `hi` (mock's genSeries, minus the random term). */
-function organicSeries(n: number, lo: number, hi: number, vol: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const t = n === 1 ? 1 : i / (n - 1);
-    const base = lo + (hi - lo) * t;
-    const w = (Math.sin(i * 0.7) * 0.5 + Math.sin(i * 1.9 + 1) * 0.3 + Math.sin(i * 3.3) * 0.2) * vol;
-    out.push(base + w);
-  }
-  if (n > 0) {
-    out[0] = lo;
-    out[n - 1] = hi;
-  }
-  return out;
+/**
+ * The value-over-time series the hero chart plots: the backend's own `valueUsd` timeline, clipped to
+ * the selected range (R9).
+ *
+ * The series used to be synthesized here — a sum of three sine waves anchored to the current total,
+ * drawn identically whether the user had moved money that week or not. Nothing like it may come back:
+ * what the chart draws now is a **step function** on real deposits and withdrawals, flat in between,
+ * because that is what the money actually did. Someone who moves money sees the step; someone who moves
+ * nothing sees a flat line, which is the truth.
+ *
+ * A window holding fewer than two points did not *move* — so it renders as a flat two-point line at the
+ * value we actually hold, never as an invented curve. Points outside the window are excluded (their
+ * value survives as the line's level, not as a foreign timestamp).
+ */
+export function rangeSeries(chart: readonly ChartPoint[], range: Range, fallbackUsd: number): number[] {
+  const ms = RANGE_MS[range];
+  const now = chart[chart.length - 1]?.ts ?? 0;
+  const inWindow = ms === "all" ? [...chart] : chart.filter((p) => p.ts >= now - ms);
+  if (inWindow.length >= 2) return inWindow.map((p) => p.valueUsd);
+
+  // Nothing moved inside this window — or there is no history at all (a fresh vault, a server that just
+  // booted). Draw the level, flat. `ValueChart` needs two points to draw a line.
+  const level = inWindow[inWindow.length - 1]?.valueUsd ?? chart[chart.length - 1]?.valueUsd ?? fallbackUsd;
+  return [level, level];
 }
 
 const money = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -94,13 +106,8 @@ export function DesktopOverview() {
   const lastMonth = view.monthly.at(-1);
   const earnedThisMonth = lastMonth ? lastMonth.earnedUsd : 0;
 
-  // Value-over-time series for the chart, anchored to the live total value.
-  const series = useMemo(() => {
-    const hi = totalUsd > 0 ? totalUsd : 0;
-    const shape = RANGE_SHAPE[range];
-    const lo = hi * (1 - shape.drop);
-    return organicSeries(shape.n, lo, hi, shape.vol);
-  }, [totalUsd, range]);
+  // Value-over-time series for the chart — the real timeline, clipped to the range.
+  const series = useMemo(() => rangeSeries(view.chart, range, totalUsd), [view.chart, range, totalUsd]);
 
   const headlineNum = mode === "Total" ? sel.valueNum : sel.earnedUsd;
   const headlineFmt = mode === "Total" ? sel.fmt : money;
@@ -139,7 +146,9 @@ export function DesktopOverview() {
           <>
             <div className="flex flex-wrap items-center gap-3">
               <CountUp value={headlineNum} format={headlineFmt} className="text-[clamp(38px,3.4vw,50px)] font-semibold leading-none tracking-[-.025em] [font-variant-numeric:tabular-nums]" />
-              {mode === "Total" && (
+              {/* The gain pill appears only when there IS a gain. A green "+$0.00" under an up-arrow
+                  reads as growth that happened; until the vault accrues, nothing has. */}
+              {mode === "Total" && sel.earnedUsd > 0 && (
                 <span className="inline-flex h-6 items-center gap-1 rounded-full bg-[rgba(22,163,74,.12)] px-[9px] text-[12.5px] font-semibold text-pos [font-variant-numeric:tabular-nums]">
                   <svg viewBox="0 0 24 24" className="w-[13px] fill-none stroke-current [stroke-width:2]" aria-hidden><path d="M7 17 17 7M9 7h8v8" /></svg>
                   +{money(sel.earnedUsd)}
@@ -159,6 +168,9 @@ export function DesktopOverview() {
               <span className="text-pos">{sel.apy.toFixed(2)}% APY</span>
               <span className="text-muted">{sel.sub}</span>
               {sel.isAll && <span className="text-faint"> ≈ USD</span>}
+            </div>
+            <div className="mt-0.5 text-[12px] text-faint [font-variant-numeric:tabular-nums]">
+              {netApyOf(sel.apy).toFixed(2)}% after {feeLabel} performance fee
             </div>
 
             <div className="mt-[22px] flex flex-col" aria-label="Breakdown">
@@ -238,10 +250,10 @@ export function DesktopOverview() {
           )}
         </Card>
 
-        {/* Agent activity */}
-        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent activity">
+        {/* Agent */}
+        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-muted">Agent activity</h2>
+            <h2 className="text-[13px] font-semibold text-muted">Agent</h2>
             <button
               type="button"
               onClick={() => open("activity")}

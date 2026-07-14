@@ -21,7 +21,7 @@ export type {
   TxResult,
   VaultClient,
 } from './interface';
-export { SHARE_PRICE_SCALE } from './interface';
+export { SHARE_PRICE_SCALE, DEFAULT_YIELD_RATE_BPS } from './interface';
 
 export { MockVaultClient, mockSigner } from './mock';
 

@@ -4,7 +4,7 @@
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "vaultContractId": "CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y",
   "upgradable": true,
-  "binver": "1.2.0",
+  "binver": "1.3.0",
   "admin": "GAZ4HB2ALI75SQ4B6WPBEFHYZGXBIZSWUV53YFLAZWWMO4XB6V6HIRXV",
   "keeper": "GAB5UOJLZWZUXVUB3POD3RBQTD53PQGVOVKVAONBDFXCOO2IY3LIDFJB",
   "config": {
@@ -22,6 +22,22 @@
     "note": "STE-46: mock_pool test-doubles, one per currency (real Blend testnet rejects non-Circle assets, so the demo uses these; real Blend is post-hackathon). Each is init'd with its SAC, allowlisted, and set as the bucket's configured pool. Recorded under the BLEND_POOL_* env names the backend/deploy.ts already read.",
     "BLEND_POOL_USD": "CAO5SJRDBZFBE357BOPBT2HSLDPJFNE64M76J2C45GTN4IPN2R6ZHFDW",
     "BLEND_POOL_EUR": "CCFGUZNJ2VQAI4LTA4X4JHGNQOIRVZI3EUFR2HVDVKFRCHTEVOGDGI5E"
+  },
+  "yieldPools": {
+    "note": "U5: real accruing yield_pool (contracts/yield_pool), one per currency, deployed + allowlisted + set as the bucket's configured pool. Additive rate-index accrual at 1000 bps (10%), read on-chain as rate_bps() — the display APY is this number, not a hardcoded catalog constant. Backed by the YIELD_POOL_<CCY> env names (buildPoolRegistry falls back to legacy BLEND_POOL_*). Recorded here; the SoroSense pool is the keeper's demo allocation target (slug sorosense-usd/sorosense-eur).",
+    "wasmHash": "e10a53cfec15197f95e118d5b43caf9f2550ccabaff658ea01fc2521b6a8b7c9",
+    "rateBps": 1000,
+    "YIELD_POOL_USD": "CAQWUMGQAQRILPUEAOUI6ATPCW4VRKW77NW47NC7GPJKZSB7NKVXLQ7N",
+    "YIELD_POOL_EUR": "CDDTTJUB5JEMTXFDDJIQXF5VOPOHALDGTGUBWLEIRTRAQJFXURSSV3UU",
+    "deployUsdTx": "b71cbc947778111dd6f365644f430a8f18b879fd27296a6f6c34cdabd2edf5ae",
+    "deployEurTx": "0be0a07067d68548d06953fa539448d9c9ab4f99a26083cc5fb7627a7ac4cd5b",
+    "liveSmokeTest": {
+      "verifiedAt": "2026-07-14",
+      "note": "rate_bps() reads 1000 on both pools. Funded the USD pool with 500 USDC surplus (issuer mint, R11 — liquidity() reads 5000000000) so it can pay accrued interest on withdrawal. Keeper allocated 1200 USDC of idle USD into the USD pool (tx 473d8ad92e52f3d9ca247fa5145bbd0efffca5d09ae289f9ce8206ff4739dcd4); active_pool(Usd) then reads the pool, not null. share_price(Usd) rose 1000000063 → 1000000443 and pool.balance(vault) 12000000761 → 12000005327 across a ~2-minute window — the mark-to-market NAV lift, live, with no poke.",
+      "allocateTx": "473d8ad92e52f3d9ca247fa5145bbd0efffca5d09ae289f9ce8206ff4739dcd4",
+      "usdPoolLiquidity": "5000000000",
+      "eur": "EUR seeded too: demo depositor added the EURC trustline, faucet-minted 1000 EURC, deposited it, the EUR pool was funded with 500 EURC surplus, and the keeper allocated 1000 EURC (tx c511b662c8af6ffd31789b6c2637757a80c86df92990a51a73f56a2c121b4f54). active_pool(Eur) reads the pool, share_price(Eur) rose above 1000000000, EUR pool liquidity 15000000000."
+    }
   },
   "faucetSmokeTest": {
     "note": "STE-46 verification: minted 1000 USDC to a trustline'd account, then deposit(100 USDC) into the vault succeeded live (no zero-balance panic). SAC transfer + vault Deposit event fired; balance_of and value_of both read 1000000000.",
@@ -45,6 +61,14 @@
       "wasmHash": "021b85bf6fb63985ece867d672b1c76d9595cfe030abf45a3fdab75450686f11",
       "upgradeTx": "ff0eeca759d8319064f595c8400ec3d8e9cf4d43f335a19fe86457276b38f8b4",
       "note": "STE-51: emit `ConsentSet { depositor }` on the first `set_policy_consent` (absent→set), so the one-time safety mandate becomes a derivable \"Yours\" activity row like AutoCompoundSet. Emitted once — a re-call is a silent no-op. Same contract id, storage preserved. Verified live: tx 4b41fdf0154f12a8161930e3f0dd738a394f09236be870d6cbc17aaeea52b6f8 emitted `Event: ConsentSet (consent_set)` and has_consent read true."
+    },
+    {
+      "binver": "1.3.0",
+      "upgradedAt": "2026-07-14",
+      "wasmHash": "914d6e8bf7c6f85bf1f4dc28cccd80cd6886ecc3e72af2b47c78582ad382ed82",
+      "uploadTx": "262b61a44945631626975bbc675e79b829075295ab70e762fee436b1aea48742",
+      "upgradeTx": "8a7069caa3f4eedaafa3ea058a7753a29d46d1990920825477953ee7c9c9f827",
+      "note": "Mark-to-market NAV (U2): `share_price = (nav+V)·SCALE/(TS+V)` where `nav(ccy) = idle + Σ_{p∈PoolList} pool.balance(vault)`, so once a bucket is allocated into an accruing yield_pool its price rises with ledger time — no poke. Storage preserved; upgrade done FIRST and verified inert (pre-flight: active_pool(Usd/Eur) null, share_price(Usd) exactly 1000000000). Post-upgrade binver reads 1.3.0. Then allocated 1200 USDC into the USD yield_pool and watched it move: share_price(Usd) 1000000063 → 1000000443 minutes apart (the number that had never moved since deploy), pool.balance(vault) 12000000761 → 12000005327. See yieldPools below."
     }
   ],
   "previousDeployments": [

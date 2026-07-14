@@ -53,6 +53,153 @@ export interface Holding {
 /** `GET /holdings?depositor=…` — funded buckets only (zero-share buckets are omitted). */
 export type HoldingsResponse = Holding[];
 
+/**
+ * Who took the action — mirrors `Actor` in `backend/src/api/activity.ts`. Drives the feed's
+ * All / Yours / Automated tabs; it is not a risk signal.
+ */
+export type Actor = "you" | "agent";
+
+/**
+ * What happened — the union of the agent's `ActivityKind` (`backend/src/api/activity.ts`) and the
+ * user's `UserActionKind` (`backend/src/api/user-activity.ts`), which the backend merges into one feed.
+ */
+export type FeedKind =
+  | "allocated"
+  | "compounded"
+  | "rebalanced"
+  | "froze"
+  | "proposed-exit"
+  | "deposit"
+  | "withdraw"
+  | "sign-mandate"
+  | "approve-exit"
+  | "auto-compound";
+
+/**
+ * One merged feed row — mirrors `FeedEntry` in `backend/src/api/activity-feed.ts`.
+ *
+ * `seq` is the backend's monotonic ordering key (rows arrive most-recent-first); it is the row's
+ * identity, not a timestamp. `ts` is optional because the agent log does not require one, so the
+ * relative "3h ago" a row renders may be absent — a row without a time is still a real row.
+ * `depositor` appears only on user rows (agent rows are pool-level).
+ */
+export interface FeedEntry {
+  seq: number;
+  actor: Actor;
+  currency?: Currency;
+  kind: FeedKind;
+  detail: string;
+  ts?: number;
+  depositor?: string;
+}
+
+/** `GET /activity?depositor=&actor=&currency=&limit=` — the merged feed, most-recent-first. */
+export type ActivityResponse = FeedEntry[];
+
+/**
+ * One point on the value/earned timeline — mirrors `ChartPoint` in `backend/src/api/earnings.ts`.
+ *
+ * Both figures come from ONE replay of the user's cost basis at `ts`, so they are always consistent
+ * with each other:
+ *  - `valueUsd` **steps** on every real deposit and withdrawal, and **curves up** with accrual once the
+ *    bucket is allocated into an accruing `yield_pool`. A real chart of real money.
+ *  - `earnedUsd` is cumulative yield. It is **0** only while the bucket has no accruing pool position
+ *    (`share_price` == `SHARE_PRICE_SCALE`) — a flat-at-zero growth chart is the honest rendering of that.
+ *    Once the vault accrues (binver 1.3.0, mark-to-market NAV), it rises with `share_price`.
+ *
+ * The offline fixture (`lib/earnings/fixtures.ts`) emits this same shape, so one chart component feeds
+ * from both modes.
+ */
+export interface ChartPoint {
+  ts: number;
+  /** Blended-USD asset value at `ts`. Steps on each deposit/withdrawal; never a fabricated curve. */
+  valueUsd: number;
+  /** Cumulative earned (USD) at `ts`. Zero in real mode until NAV accrual ships — honestly flat. */
+  earnedUsd: number;
+}
+
+/** Earned during one calendar month (UTC) — mirrors `MonthlyEarned` in `backend/src/api/earnings.ts`. */
+export interface MonthlyEarned {
+  /** `YYYY-MM`. */
+  label: string;
+  earnedUsd: number;
+}
+
+/**
+ * Per-bucket drill-down — mirrors `BucketBreakdown` in `backend/src/api/earnings.ts`.
+ * `nativeValue` is the vault's `bigint` base units, on the wire as a decimal string.
+ */
+export interface EarningsBucket {
+  currency: Currency;
+  /** bigint as decimal string — decode with `toBigInt`. */
+  nativeValue: string;
+  /** Display-only USD conversion of `nativeValue` (never a fund conversion). */
+  usdValue: number;
+  /** This bucket's native yield blended to USD. FX movement is never earnings. */
+  earnedUsd: number;
+}
+
+/**
+ * `GET /earnings?depositor=…` — mirrors `EarningsView` in `backend/src/api/earnings.ts`.
+ *
+ * The backend already blends to USD with the live oracle and reconstructs cost basis from chain
+ * events, so in real mode this response **is** the Earn screen: the frontend re-derives none of it
+ * (`lib/vault/contributions.ts`, a browser-memory ledger that does not survive a reload, is not
+ * consulted at all).
+ */
+export interface EarningsResponse {
+  /** Whether any bucket holds value — drives the 2-state Earn screen. */
+  hasDeposit: boolean;
+  balanceUsd: number;
+  /** Value-weighted blended APY across the funded buckets. */
+  apy: number;
+  /** Total earned to date, blended to USD. Sums the buckets' `earnedUsd`. */
+  earnedUsd: number;
+  buckets: EarningsBucket[];
+  chart: ChartPoint[];
+  /** Oldest→newest; the last entry is the current month. */
+  monthly: MonthlyEarned[];
+}
+
+/**
+ * The rate card for one currency bucket — mirrors `Rate` in `backend/src/api/rates.ts`.
+ *
+ * It answers what a `/holdings` row cannot: `getHoldings` omits a zero-share bucket by design, so an
+ * **unfunded** bucket (the Earn empty-state hero, the simulator) has no row and still has to quote a
+ * rate. The fields are the funded row's, minus the per-user ones — so a funded row and a rate card can
+ * feed the same component. No risk/label/score field.
+ */
+export interface Rate {
+  currency: Currency;
+  /** Venue full name, e.g. "DeFindex USDC vault". */
+  name: string;
+  /** Provider, e.g. "DeFindex". */
+  venue: string;
+  kind: "lending" | "vault" | "rwa";
+  /** `[venue, kindLabel]` — the same display tags a funded bucket carries. */
+  tags: string[];
+  /** The best safe venue's APY — what the agent would allocate this bucket to today. */
+  apy: number;
+}
+
+/** `GET /rates` — one card per currency, user-independent (no depositor). */
+export type RatesResponse = Rate[];
+
+/**
+ * One vetted pool — mirrors `Pool` in `backend/src/api/pools.ts`. The exit-approval sheet's target:
+ * when the Sentinel freezes a pool it proposes a safe one, and the sheet names and rates it before the
+ * user signs. An unknown id is a 404, never a 200 carrying `null`.
+ */
+export interface Pool {
+  /** The seam's `PoolId` slug, e.g. "blend-eurc". */
+  id: string;
+  /** Venue full name, e.g. "Blend EURC". */
+  name: string;
+  /** Provider, e.g. "Blend". */
+  venue: string;
+  apy: number;
+}
+
 /** A fundable stablecoin — mirrors `Stablecoin` in `backend/src/api/funding.ts`. */
 export interface Stablecoin {
   sym: "USDC" | "EURC" | "CETES";

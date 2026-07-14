@@ -23,8 +23,17 @@ import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { MockVaultClient, mockSigner } from "@sorosense/vault-client";
 
+import { itemFromEntry } from "../../activity/map";
 import { UNIT } from "../../vault/units";
-import type { FundingOptions, HealthResponse, Holding } from "../types";
+import type {
+  EarningsResponse,
+  FeedEntry,
+  FundingOptions,
+  HealthResponse,
+  Holding,
+  Pool,
+  Rate,
+} from "../types";
 
 // NOTE: `../client` is imported *dynamically*, inside each test. It reads its base URL at module scope
 // (Next inlines the var), so a static import here would freeze it to "" — the API off — before the
@@ -61,11 +70,38 @@ async function boot(): Promise<Booted | null> {
       .deposit(DEPOSITOR, "USD", USD_DEPOSIT)
       .signAndSubmit(mockSigner("depositor", DEPOSITOR));
 
+    // One row from each source, so `/activity` returns a real merged feed: an agent action the log
+    // recorded, and a user action derived from an on-chain event. Both actors, and a `froze` kind —
+    // the one the UI turns into a flag.
+    const log = new ActivityLog();
+    log.append({ currency: "EUR", kind: "froze", detail: "Paused EURC pool for safety", ts: 1_000 });
+
     app = createApp({
       vault,
       fx: async (currency) => ({ ok: true, value: STUB_RATES[currency] ?? 1 }),
-      earnings: { events: [], snapshots: new InMemorySnapshotStore() },
-      activity: { log: new ActivityLog(), userEvents: [] },
+      // The deposit above, as the chain reports it — so `/earnings` reconstructs a real cost basis and
+      // `earned = value − contributions` comes out at **0**. Handing this route an empty event list (as
+      // `server.ts` used to) is what made it report a user's entire principal as profit.
+      earnings: {
+        events: [
+          {
+            kind: "deposit" as const,
+            depositor: DEPOSITOR,
+            currency: "USD" as const,
+            amount: USD_DEPOSIT,
+            shares: await vault.balanceOf(DEPOSITOR, "USD"),
+            seq: 1,
+            ts: 2_000,
+          },
+        ],
+        snapshots: new InMemorySnapshotStore(),
+      },
+      activity: {
+        log,
+        userEvents: [
+          { kind: "deposit", depositor: DEPOSITOR, currency: "USD", amount: USD_DEPOSIT, seq: 2, ts: 2_000 },
+        ],
+      },
     });
   } catch (cause) {
     console.warn("[contract] backend workspace unavailable — skipping:", cause);
@@ -152,6 +188,54 @@ describeContract("the backend read surface, through the real client", () => {
     }
   });
 
+  it("GET /activity decodes as FeedEntry[], and the real rows map to real feed items", async () => {
+    const { apiGet } = await import("../client");
+
+    const result = await apiGet<FeedEntry[]>("/activity", { depositor: DEPOSITOR });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Both sources are really there: the agent's own log, and the user action derived from an event.
+    const agent = result.value.find((e) => e.actor === "agent");
+    const user = result.value.find((e) => e.actor === "you");
+    expect(agent).toBeDefined();
+    expect(user).toBeDefined();
+    if (!agent || !user) return;
+
+    // Every field of the declared shape, with the declared type.
+    for (const entry of [agent, user]) {
+      expect(typeof entry.seq).toBe("number");
+      expect(["you", "agent"]).toContain(entry.actor);
+      expect(typeof entry.kind).toBe("string");
+      expect(typeof entry.detail).toBe("string");
+      // Safety is invisible: the backend exposes no risk/label/score/tier field, and neither do we.
+      for (const key of ["risk", "label", "score", "tier"]) {
+        expect(entry).not.toHaveProperty(key);
+      }
+    }
+    expect(user.depositor).toBe(DEPOSITOR); // present on user rows only
+    expect(agent.depositor).toBeUndefined();
+
+    // The feed arrives most-recent-first, by the backend's monotonic seq — the order we render in.
+    expect([...result.value].map((e) => e.seq)).toEqual(
+      [...result.value].map((e) => e.seq).sort((a, b) => b - a),
+    );
+
+    // And the real rows, through the real mapper, are the rows the list renders: the agent's freeze is
+    // flagged and lands in Automated; the user's deposit lands in Yours.
+    const now = 3_600_000 + 2_000;
+    expect(itemFromEntry(agent, now)).toEqual({
+      id: agent.seq,
+      cat: "auto",
+      kind: "froze",
+      detail: "Paused EURC pool for safety",
+      when: "1h ago",
+      flag: true,
+    });
+    expect(itemFromEntry(user, now)).toMatchObject({ cat: "you", kind: "deposit", when: "1h ago" });
+  });
+
   it("GET /funding decodes as FundingOptions, with RWA options carrying no apy", async () => {
     const { apiGet } = await import("../client");
 
@@ -169,6 +253,98 @@ describeContract("the backend read surface, through the real client", () => {
       expect(typeof rwa.id).toBe("string");
       expect(rwa).not.toHaveProperty("apy");
     }
+  });
+
+  it("GET /earnings decodes as EarningsResponse — and earned is zero for an unaccrued bucket", async () => {
+    const { apiGet, toBigInt } = await import("../client");
+
+    const result = await apiGet<EarningsResponse>("/earnings", { depositor: DEPOSITOR });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const view = result.value;
+
+    // Every field of the declared shape is really there, with the declared type.
+    expect(view.hasDeposit).toBe(true);
+    expect(typeof view.balanceUsd).toBe("number");
+    expect(typeof view.apy).toBe("number");
+    expect(typeof view.earnedUsd).toBe("number");
+
+    const usd = view.buckets.find((b) => b.currency === "USD");
+    expect(usd).toBeDefined();
+    if (!usd) return;
+    expect(typeof usd.usdValue).toBe("number");
+    // The bigint boundary: a decimal string on the wire, decoded losslessly at the edge.
+    expect(typeof usd.nativeValue).toBe("string");
+    expect(toBigInt(usd.nativeValue)).toBe(USD_DEPOSIT);
+
+    // The chart carries BOTH figures per point, from one replay — this is what U1b added and what the
+    // desktop value chart plots. `valueUsd` steps on the deposit; `earnedUsd` does not.
+    for (const p of view.chart) {
+      expect(typeof p.ts).toBe("number");
+      expect(typeof p.valueUsd).toBe("number");
+      expect(typeof p.earnedUsd).toBe("number");
+    }
+
+    // **The honest zero for an unaccrued bucket (R10).** This fixture's bucket has no accruing pool
+    // position, so `share_price` reads exactly `SHARE_PRICE_SCALE` and the cost basis reconstructed from
+    // the deposit event equals the current value — earned is 0 at the headline, in every bucket, month
+    // and chart point. A nonzero number *here* would mean the whole deposit is reported as profit again.
+    // (Accrual is not flat: the backend realtime suite's `accrual lifts earned` twin proves that path.)
+    expect(view.earnedUsd).toBe(0);
+    expect(usd.earnedUsd).toBe(0);
+    for (const m of view.monthly) expect(m.earnedUsd).toBe(0);
+    for (const p of view.chart) expect(p.earnedUsd).toBe(0);
+    // …while the value is real, and matches what /holdings reports for the same bucket.
+    expect(view.balanceUsd).toBeGreaterThan(0);
+
+    // Safety is invisible: no risk/label/score/tier field, on the view or on a bucket.
+    for (const key of ["risk", "label", "score", "tier"]) {
+      expect(view).not.toHaveProperty(key);
+      expect(usd).not.toHaveProperty(key);
+    }
+  });
+
+  it("GET /rates decodes as Rate[] — one card per currency, no depositor needed", async () => {
+    const { apiGet } = await import("../client");
+
+    // No query parameter: the rate card is user-independent, which is what lets the Earn empty-state
+    // hero quote a real rate before a wallet is ever connected.
+    const result = await apiGet<Rate[]>("/rates");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.map((r) => r.currency)).toEqual(["USD", "EUR", "MXN"]);
+    for (const rate of result.value) {
+      expect(typeof rate.name).toBe("string");
+      expect(typeof rate.venue).toBe("string");
+      expect(["lending", "vault", "rwa"]).toContain(rate.kind);
+      expect(Array.isArray(rate.tags)).toBe(true);
+      expect(typeof rate.apy).toBe("number");
+      expect(rate.apy).toBeGreaterThan(0); // never a 0.00% hero
+      // Safety is invisible: the backend exposes no risk/label/score/tier field, and neither do we.
+      for (const key of ["risk", "label", "score", "tier"]) {
+        expect(rate).not.toHaveProperty(key);
+      }
+    }
+  });
+
+  it("GET /pools/:id decodes as Pool; an unknown id is the shaped 404 arm, never a null body", async () => {
+    const { apiGet } = await import("../client");
+
+    const found = await apiGet<Pool>("/pools/blend-eurc");
+    expect(found.ok).toBe(true);
+    if (!found.ok) return;
+    expect(found.value).toEqual({ id: "blend-eurc", name: "Blend EURC", venue: "Blend", apy: 5.1 });
+
+    // The exit sheet must never be asked to render a pool with no name: an unresolvable id comes back
+    // through the client's error arm, not as a 200 the caller would have to null-check.
+    const missing = await apiGet<Pool>("/pools/pool-that-does-not-exist");
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.code).toBe("not_found");
+    expect(missing.status).toBe(404);
   });
 
   it("a missing required parameter comes back as the shaped error arm, not a throw", async () => {

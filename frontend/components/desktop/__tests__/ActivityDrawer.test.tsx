@@ -13,7 +13,7 @@ function setup(onReview = vi.fn()) {
   return userEvent.setup();
 }
 
-test("tabs filter the list by cat; Yours hides agent rows, Automated hides user rows", async () => {
+test("tabs filter the list by cat; Yours hides agent rows, Agent hides user rows", async () => {
   const user = setup();
   // getActivity() fixture: "you" rows include "Moved $500...", "auto" rows include "Switched to DeFindex..."
   expect(screen.getByText(/Switched to DeFindex/)).toBeInTheDocument();
@@ -23,7 +23,7 @@ test("tabs filter the list by cat; Yours hides agent rows, Automated hides user 
   expect(screen.queryByText(/Switched to DeFindex/)).toBeNull();
   expect(screen.getByText(/Moved \$500/)).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Automated" }));
+  await user.click(screen.getByRole("button", { name: "Agent" }));
   expect(screen.getByText(/Switched to DeFindex/)).toBeInTheDocument();
   expect(screen.queryByText(/Moved \$500/)).toBeNull();
 

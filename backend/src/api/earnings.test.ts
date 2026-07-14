@@ -4,7 +4,7 @@ import type { Address, Currency } from '@sorosense/vault-client';
 import { ok, err } from '../lib/result.js';
 import { InMemorySnapshotStore, type Snapshot } from '../earnings/snapshotter.js';
 import type { VaultEvent } from '../earnings/cost-basis.js';
-import { getEarnings, type EarningsDeps, type FxSource } from './earnings.js';
+import { getEarnings, type ChartPoint, type EarningsDeps, type FxSource } from './earnings.js';
 
 const USER: Address = 'alice';
 const SCALE = 1_000_000_000n; // SHARE_PRICE_SCALE
@@ -35,6 +35,20 @@ const dep = (currency: Currency, amount: bigint, shares: bigint, seq: number, ts
   seq,
   ts,
 });
+
+const wd = (currency: Currency, amount: bigint, shares: bigint, seq: number, ts = 0): VaultEvent => ({
+  kind: 'withdraw',
+  depositor: USER,
+  currency,
+  amount,
+  shares,
+  seq,
+  ts,
+});
+
+/** The chart point at exactly `ts` (the timeline samples every event and snapshot timestamp). */
+const at = (chart: readonly ChartPoint[], ts: number): ChartPoint | undefined =>
+  chart.find((p) => p.ts === ts);
 
 const deps = (over: Partial<EarningsDeps> & Pick<EarningsDeps, 'vault' | 'fx'>): EarningsDeps => ({
   events: [],
@@ -144,8 +158,8 @@ describe('getEarnings — blended APY (R5)', () => {
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    // best Safe APY: USD 8.59 (defindex), EUR 5.1 (blend-eurc); equal USD weights → mean 6.845
-    expect(res.value.apy).toBeCloseTo((8.59 + 5.1) / 2, 6);
+    // best Safe APY: USD 10 (sorosense-usd), EUR 10 (sorosense-eur); equal weights → mean 10
+    expect(res.value.apy).toBeCloseTo((10 + 10) / 2, 6);
   });
 });
 
@@ -169,7 +183,8 @@ describe('getEarnings — chart + monthly breakdown (AE3, R8, R9)', () => {
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.value.chart).toHaveLength(2);
+    // Sampled at the union of event + snapshot timestamps: the deposit (jan1) plus both snapshots.
+    expect(res.value.chart.map((p) => p.ts)).toEqual([jan1, jan15, feb15]);
     expect(res.value.monthly.map((m) => m.label)).toEqual(['2026-01', '2026-02']);
     expect(res.value.monthly[0]?.earnedUsd).toBeCloseTo(0, 6); // no yield in Jan
     expect(res.value.monthly[1]?.earnedUsd).toBeCloseTo(100, 6); // 1000 shares × 10% = 100
@@ -197,11 +212,139 @@ describe('getEarnings — chart + monthly breakdown (AE3, R8, R9)', () => {
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    const [before, after] = res.value.chart;
+    // Compare the snapshots either side of the deposit (the timeline also samples the deposit itself).
+    const before = at(res.value.chart, feb5);
+    const after = at(res.value.chart, feb15);
     // Earned is ~unchanged by the deposit (both ≈ 100), NOT inflated toward the 500 deposited.
     expect(Math.abs((after?.earnedUsd ?? 0) - (before?.earnedUsd ?? 0))).toBeLessThanOrEqual(2);
     expect(after?.earnedUsd).toBeGreaterThan(90);
     expect(after?.earnedUsd).toBeLessThan(110);
+    // …while the value chart DOES step on the deposit: 1100 before → 1599.4 after (454 shares at 1.1).
+    expect(before?.valueUsd).toBeCloseTo(1100, 6);
+    expect(after?.valueUsd).toBeCloseTo(1599.4, 6);
+  });
+});
+
+describe('getEarnings — value-over-time + per-bucket earned (U1b, R8, R10)', () => {
+  const t0 = Date.UTC(2026, 2, 1); // deposit
+  const t1 = Date.UTC(2026, 2, 2); // snapshot; this bucket has no accruing pool, so price is the scale
+  const t2 = Date.UTC(2026, 2, 3); // second deposit / withdrawal
+
+  it('a deposit is a real step in value with zero growth (the honest real-mode chart)', async () => {
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(1000n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, t0)],
+        snapshots: store([{ currency: 'USD', price: SCALE, ts: t1 }]),
+        fx: okFx(),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    // The event time is sampled too, so the deposit is visible BEFORE the next snapshot tick.
+    expect(res.value.chart.map((p) => p.ts)).toEqual([t0, t1]);
+    expect(at(res.value.chart, t0)?.valueUsd).toBeCloseTo(1000, 6);
+    expect(at(res.value.chart, t0)?.earnedUsd).toBeCloseTo(0, 6);
+    // Flat from t0 to t1: the step is real, the growth is zero.
+    expect(at(res.value.chart, t1)?.valueUsd).toBeCloseTo(1000, 6);
+    expect(at(res.value.chart, t1)?.earnedUsd).toBeCloseTo(0, 6);
+  });
+
+  it('a second deposit steps value up and leaves earned at zero (a deposit is never profit)', async () => {
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(1500n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, t0), dep('USD', U(500n), U(500n), 2, t2)],
+        snapshots: store([{ currency: 'USD', price: SCALE, ts: t1 }]),
+        fx: okFx(),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    expect(at(res.value.chart, t0)?.valueUsd).toBeCloseTo(1000, 6);
+    expect(at(res.value.chart, t2)?.valueUsd).toBeCloseTo(1500, 6); // steps up on the deposit
+    expect(res.value.chart.every((p) => Math.abs(p.earnedUsd) < 1e-6)).toBe(true);
+    expect(res.value.earnedUsd).toBeCloseTo(0, 6);
+  });
+
+  it('a withdrawal steps value down and leaves earned at zero', async () => {
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(600n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, t0), wd('USD', U(400n), U(400n), 2, t2)],
+        snapshots: store([{ currency: 'USD', price: SCALE, ts: t1 }]),
+        fx: okFx(),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    expect(at(res.value.chart, t0)?.valueUsd).toBeCloseTo(1000, 6);
+    expect(at(res.value.chart, t2)?.valueUsd).toBeCloseTo(600, 6); // steps DOWN on the withdrawal
+    expect(res.value.chart.every((p) => Math.abs(p.earnedUsd) < 1e-6)).toBe(true);
+  });
+
+  it('when the price rises, earned rises and value rises with it (forward-compat with NAV accrual)', async () => {
+    const risen = (SCALE * 12n) / 10n; // +20% NAV per share — what U5 (mark-to-market) would produce
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(1200n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, t0)],
+        snapshots: store([
+          { currency: 'USD', price: SCALE, ts: t1 },
+          { currency: 'USD', price: risen, ts: t2 },
+        ]),
+        fx: okFx(),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const flat = at(res.value.chart, t1);
+    const grown = at(res.value.chart, t2);
+    expect(flat?.valueUsd).toBeCloseTo(1000, 6);
+    expect(flat?.earnedUsd).toBeCloseTo(0, 6);
+    expect(grown?.valueUsd).toBeCloseTo(1200, 6); // value follows the price
+    expect(grown?.earnedUsd).toBeCloseTo(200, 6); // …and so does earned, one-for-one
+  });
+
+  it('per-bucket earnedUsd sums to the headline earnedUsd (R4)', async () => {
+    const res = await getEarnings(
+      USER,
+      deps({
+        vault: stubVault({ USD: U(1050n), EUR: U(220n) }),
+        events: [dep('USD', U(1000n), U(1000n), 1, t0), dep('EUR', U(200n), U(200n), 2, t0)],
+        fx: okFx({ EUR: 1.5 }),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const usd = res.value.buckets.find((b) => b.currency === 'USD');
+    const eur = res.value.buckets.find((b) => b.currency === 'EUR');
+    expect(usd?.earnedUsd).toBeCloseTo(50, 6); // (1050 − 1000) × 1
+    expect(eur?.earnedUsd).toBeCloseTo(30, 6); // (220 − 200) × 1.5 — native yield, then displayed in USD
+    const sum = res.value.buckets.reduce((a, b) => a + b.earnedUsd, 0);
+    expect(sum).toBeCloseTo(res.value.earnedUsd, 6);
+    expect(res.value.earnedUsd).toBeCloseTo(80, 6);
+  });
+
+  it('a fresh vault (no events, no snapshots) yields an empty chart, not a crash', async () => {
+    const res = await getEarnings(USER, deps({ vault: stubVault({}), fx: okFx() }));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    expect(res.value.chart).toEqual([]);
+    expect(res.value.monthly).toEqual([]);
+    expect(res.value.earnedUsd).toBe(0);
+    expect(res.value.hasDeposit).toBe(false);
+    expect(res.value.buckets.every((b) => b.earnedUsd === 0)).toBe(true);
   });
 });
 
@@ -223,6 +366,38 @@ describe('getEarnings — invariants', () => {
       USER,
       deps({ vault: stubVault({ USD: 100n, EUR: 100n }), fx: failingFx }),
     );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.code).toBe('unavailable');
+  });
+
+  it('needs no rate for an untouched bucket — an unpriceable MXN cannot 503 a funded USD view (U1c)', async () => {
+    // The Reflector feed carries no MXN symbol, so its rate is permanently unavailable. A bucket with no
+    // value and no history contributes 0 × rate = 0 to every figure, so the view must not ask for one.
+    const asked: Currency[] = [];
+    const fx: FxSource = async (c) => {
+      asked.push(c);
+      return c === 'MXN' ? err('unavailable', 'no Reflector symbol configured for MXN') : ok(1);
+    };
+
+    const res = await getEarnings(
+      USER,
+      deps({ vault: stubVault({ USD: U(100n) }), events: [dep('USD', U(100n), U(100n), 1)], fx }),
+    );
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.balanceUsd).toBeCloseTo(100, 6);
+    expect(asked).toEqual(['USD']); // EUR and MXN are untouched — neither was priced
+    expect(res.value.buckets.find((b) => b.currency === 'MXN')?.usdValue).toBe(0);
+  });
+
+  it('still fails closed when the unpriceable bucket HOLDS money (fail-closed where it matters)', async () => {
+    const fx: FxSource = async (c) =>
+      c === 'MXN' ? err('unavailable', 'no Reflector symbol configured for MXN') : ok(1);
+
+    const res = await getEarnings(USER, deps({ vault: stubVault({ USD: 100n, MXN: 100n }), fx }));
+
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.code).toBe('unavailable');

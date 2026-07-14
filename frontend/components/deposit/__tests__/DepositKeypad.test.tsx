@@ -4,6 +4,8 @@ import { MockVaultClient } from "@sorosense/vault-client";
 import { VaultProvider } from "../../../providers/VaultProvider";
 import { ToastProvider } from "../../../providers/ToastProvider";
 import { DepositKeypad } from "../DepositKeypad";
+import { getContributions, resetContributions } from "../../../lib/vault/contributions";
+import { UNIT } from "../../../lib/vault/units";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, back: vi.fn() }) }));
@@ -25,6 +27,7 @@ function setup(sym: string) {
 afterEach(() => {
   fetchSpy.mockClear();
   vi.unstubAllGlobals();
+  resetContributions(); // the ledger is a module singleton — keep each test's cost basis its own
 });
 
 test("no risk-tier control is present", () => {
@@ -70,4 +73,64 @@ test("first deposit signs consent then deposit (two signatures)", async () => {
   await waitFor(() => expect(screen.getByText("Deposit sent")).toBeInTheDocument());
   await user.click(screen.getByRole("button", { name: "Done" }));
   expect(push).toHaveBeenCalledWith("/home");
+});
+
+/**
+ * R5 / KTD4 — the seam resolves a chain-rejected write as `success: false` instead of throwing, so
+ * awaiting one proves nothing. `simulateFailure()` is the mock's honest stand-in for that (no
+ * hand-patched `signAndSubmit`): the UI must show a failure, record no cost basis, and never say
+ * "sent". Each test settles the dev seed first, so the assertions read a deposit's effect and not the
+ * seed's still-in-flight one.
+ */
+async function settledSeed(client: MockVaultClient) {
+  await waitFor(async () => expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(0n));
+  return { shares: await client.balanceOf("GNEW", "USD"), basis: getContributions("USD") };
+}
+
+async function enterTen(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "1" }));
+  await user.click(screen.getByRole("button", { name: "0" }));
+  await user.click(screen.getByRole("button", { name: "Deposit fund" }));
+  await user.click(screen.getByRole("button", { name: /agree & sign/i })); // consent, then deposit
+}
+
+test("a rejected deposit shows a failure — no cost basis, no success screen", async () => {
+  const user = userEvent.setup();
+  const { client } = setup("usdc");
+  const before = await settledSeed(client);
+  client.simulateFailure();
+
+  await enterTen(user);
+
+  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  expect(screen.queryByText("Deposit sent")).toBeNull();
+  expect(await client.balanceOf("GNEW", "USD")).toBe(before.shares); // nothing minted
+  expect(getContributions("USD")).toBe(before.basis); // recordDeposit never ran
+});
+
+test("a rejected consent stops the chain — the deposit is never attempted", async () => {
+  const user = userEvent.setup();
+  const { sign, client } = setup("usdc");
+  await settledSeed(client);
+  client.simulateFailure();
+  const deposit = vi.spyOn(client, "deposit");
+
+  await enterTen(user);
+
+  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  // Depositing on a mandate that never landed is the chain's NoConsent panic. Don't go there.
+  expect(deposit).not.toHaveBeenCalled();
+  expect(sign).toHaveBeenCalledTimes(1); // the consent signature, and nothing after it
+});
+
+test("the happy path still records cost basis exactly once", async () => {
+  const user = userEvent.setup();
+  const { client } = setup("usdc");
+  const before = await settledSeed(client);
+
+  await enterTen(user);
+
+  await waitFor(() => expect(screen.getByText("Deposit sent")).toBeInTheDocument());
+  expect(getContributions("USD") - before.basis).toBe(10n * UNIT);
+  expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(before.shares);
 });

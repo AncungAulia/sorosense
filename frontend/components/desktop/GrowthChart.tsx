@@ -19,6 +19,12 @@ const CHART_H = 132;
  * bars, the last bar (this month, in progress) is the bright accent, sparse axis labels, and a hover
  * tooltip "{month} · +${earned}". Each bar is a focusable button whose aria-label carries the value —
  * the bars themselves are decorative. Replaces the mobile `Bars` reuse on desktop.
+ *
+ * **Zero-state (R10).** With no earnings — the honest state of the live vault, whose `share_price` is
+ * pinned to the scale until NAV accrual ships — this renders an explicit "no earnings yet" panel. It
+ * must not render nine minimum-height bars: a row of stubs reads as a chart that is broken or still
+ * loading, when in fact it is a correct picture of zero. Deposits are safe and earning; the yield has
+ * simply not accrued on-chain yet.
  */
 export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -26,9 +32,23 @@ export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
   const max = monthly.reduce((m, x) => (x.earnedUsd > m ? x.earnedUsd : m), 0) || 1;
   const hv = hover !== null ? monthly[hover] : undefined;
 
+  if (!monthly.some((m) => m.earnedUsd > 0)) {
+    return (
+      <div
+        data-testid="growth-zero"
+        className="flex flex-1 flex-col items-center justify-center gap-1.5 py-6 text-center"
+      >
+        <span className="text-[13.5px] font-semibold">No earnings yet</span>
+        <span className="max-w-[190px] text-[12.5px] leading-snug text-muted">
+          Your buckets are allocated and safe. Yield shows up here as it accrues.
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="relative mt-2">
-      <div data-testid="bars" className="flex items-end gap-[5px]" style={{ height: CHART_H }} onMouseLeave={() => setHover(null)}>
+      <div data-testid="bars" className="flex items-end justify-start gap-[5px]" style={{ height: CHART_H }} onMouseLeave={() => setHover(null)}>
         {monthly.map((m, i) => {
           const isLast = i === n - 1;
           const grad = isLast
@@ -45,14 +65,14 @@ export function GrowthChart({ monthly }: { monthly: MonthlyEarned[] }) {
               onFocus={() => setHover(i)}
               onBlur={() => setHover(null)}
               style={{ height: `${Math.max(6, (m.earnedUsd / max) * CHART_H)}px`, animationDelay: `${i * 40}ms` }}
-              className={`grow-bar min-h-[6px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
+              className={`grow-bar min-h-[6px] w-full max-w-[52px] flex-1 rounded-t-[4px] rounded-b-[2px] transition-opacity hover:opacity-[.82] ${grad}`}
             />
           );
         })}
       </div>
-      <div className="mt-2 flex gap-[5px]">
+      <div className="mt-2 flex justify-start gap-[5px]">
         {monthly.map((m, i) => (
-          <span key={m.label} className="flex-1 text-center text-[10px] font-medium text-faint">
+          <span key={m.label} className="w-full max-w-[52px] flex-1 text-center text-[10px] font-medium text-faint">
             {i % 3 === 0 || i === n - 1 ? (SHORT[monthIdx(m.label)] ?? "") : ""}
           </span>
         ))}

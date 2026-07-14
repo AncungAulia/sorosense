@@ -32,7 +32,11 @@ function smooth(p: Pt[]): string {
 
 const money = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function ValueChart({ data }: { data: number[] }) {
+export function ValueChart({ data: raw }: { data: number[] }) {
+  // A non-finite point would put `NaN` straight into the SVG path and blank the chart. The series now
+  // comes from the backend's value timeline rather than from a generator we control, so it is filtered
+  // at the edge rather than trusted.
+  const data = raw.filter((v) => Number.isFinite(v));
   const wrapRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<SVGPathElement>(null);
   const [size, setSize] = useState({ w: 600, h: 210 });
@@ -61,9 +65,15 @@ export function ValueChart({ data }: { data: number[] }) {
 
   const min = Math.min(...data);
   const max = Math.max(...data);
-  const span = max - min || 1;
+  // A flat series is the *expected* real-mode picture on a vault nobody has moved money in (and the
+  // whole picture until NAV accrual ships). Drawing it against a zero span would divide by zero; pinning
+  // it to `min` would slam an honest flat line to the floor, where it reads as "your value fell to
+  // nothing". It is drawn through the middle instead — a level line, which is what happened.
+  const flat = max === min;
+  const span = flat ? 1 : max - min;
+  const mid = padT + (h - padT - padB) / 2;
   const xAt = (i: number) => padL + (i / (data.length - 1)) * (w - padL - padR);
-  const yAt = (v: number) => padT + (1 - (v - min) / span) * (h - padT - padB);
+  const yAt = (v: number) => (flat ? mid : padT + (1 - (v - min) / span) * (h - padT - padB));
   const pts: Pt[] = data.map((v, i) => ({ x: xAt(i), y: yAt(v) }));
   const line = smooth(pts);
   const first = pts[0]!;

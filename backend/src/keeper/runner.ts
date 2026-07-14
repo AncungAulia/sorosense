@@ -60,6 +60,8 @@ export interface KeeperRunnerOptions {
   poolFor?: (currency: Currency) => PoolId;
   /** Amount source for rebalance/compound. Omit → those effects refuse with a clear message. */
   moveAmount?: MoveAmount;
+  /** Wall-clock (ms) for the anti-churn dwell guard. Defaults to `Date.now`; injectable in tests. */
+  clock?: () => number;
 }
 
 /** Inputs for a single operator-driven tick — the live/operator side of the pure classify. */
@@ -71,8 +73,16 @@ export interface RunTickInput {
   activeRay?: number | null;
   /** True when yield accrued on the active pool since last tick. Default false. */
   yieldAccrued?: boolean;
-  /** Sustained-delta threshold in APY percentage points (R6). Default {@link DEFAULT_THRESHOLD_PCT}. */
+  /** Risk-adjusted APY edge (pp) a rival must clear to switch (R6). Default {@link DEFAULT_THRESHOLD_PCT}. */
   thresholdPct?: number;
+  /** Minimum time to hold a pool before switching again (ms). Omit → {@link DEFAULT_MIN_DWELL_MS}. */
+  minDwellMs?: number;
+  /** Bucket value (USD) for the switching-cost gate — omit to leave the cost gate off. */
+  positionValueUsd?: number;
+  /** Estimated switch cost (USD): gas + any reward forfeited by leaving early. Omit → cost gate off. */
+  switchCostUsd?: number;
+  /** Horizon (days) the cost gate amortizes the extra yield over. Omit → {@link DEFAULT_DWELL_HORIZON_DAYS}. */
+  dwellHorizonDays?: number;
   /**
    * Durable store. Omit → a fresh {@link InMemoryBucketStore} seeded from the client's live
    * `activePool` / `pendingExit` reads (so a real tick decides against on-chain state). Supply one
@@ -83,12 +93,23 @@ export interface RunTickInput {
   effects?: AllocatorEffects;
 }
 
-/** Default sustained-delta threshold (APY pp) when the caller supplies none. */
-export const DEFAULT_THRESHOLD_PCT = 0.5;
+/**
+ * Default risk-adjusted APY edge (pp) a rival pool must clear to justify a switch. Set to 1.5 — high
+ * enough that the agent holds a pool through normal rate wiggle and only moves for a materially better
+ * venue (anti-churn, so daily rewards aren't lost to gas on a marginal chase).
+ */
+export const DEFAULT_THRESHOLD_PCT = 1.5;
 
 export interface KeeperRunner {
   /** The real, keeper-signing effects — exposed for a `tick` and for inspection/tests. */
   readonly effects: AllocatorEffects;
+  /**
+   * Move `amount` (base units) of a bucket's **idle** funds into its demo pool — the first-time
+   * allocation that makes `active_pool(ccy)` stop reading `null` and starts the yield accruing. The
+   * `compound` effect re-allocates *accrued* rewards; this is the operator entrypoint that seeds the
+   * position. Refuses in mock mode (never fakes a testnet write).
+   */
+  allocate(currency: Currency, amount: Amount): Promise<TxResult>;
   /** Keeper-freeze the currency's demo pool (protective; moves no funds). Refuses in mock mode. */
   freezePool(currency: Currency): Promise<TxResult>;
   /** Lift a keeper freeze on the currency's demo pool. Refuses in mock mode. */
@@ -108,6 +129,8 @@ export function makeKeeperRunner(options: KeeperRunnerOptions = {}): KeeperRunne
   const client = options.client ?? getVaultClient();
   const poolFor = options.poolFor ?? demoPoolFor;
   const moveAmount = options.moveAmount;
+  // The effect layer may read wall-clock time (the dwell guard); injectable so tests stay deterministic.
+  const clock = options.clock ?? (() => Date.now());
 
   let keeperSigner: Signer | undefined = options.signer;
   /**
@@ -160,6 +183,10 @@ export function makeKeeperRunner(options: KeeperRunnerOptions = {}): KeeperRunne
     },
   };
 
+  async function allocate(currency: Currency, amount: Amount): Promise<TxResult> {
+    return submit(() => client.allocate(poolFor(currency), currency, amount));
+  }
+
   async function freezePool(currency: Currency): Promise<TxResult> {
     return submit(() => client.freeze(poolFor(currency)));
   }
@@ -187,8 +214,15 @@ export function makeKeeperRunner(options: KeeperRunnerOptions = {}): KeeperRunne
       thresholdPct: input.thresholdPct ?? DEFAULT_THRESHOLD_PCT,
       store,
       effects: input.effects ?? effects,
+      // Anti-churn: a real clock enables the minimum-dwell guard; the cost gate engages when the caller
+      // supplies the bucket's value + a switch-cost estimate. All deterministic — no LLM, no AI cost.
+      clock,
+      minDwellMs: input.minDwellMs,
+      positionValueUsd: input.positionValueUsd,
+      switchCostUsd: input.switchCostUsd,
+      dwellHorizonDays: input.dwellHorizonDays,
     });
   }
 
-  return { effects, freezePool, unfreezePool, runTick };
+  return { effects, allocate, freezePool, unfreezePool, runTick };
 }

@@ -18,4 +18,9 @@ pub trait BlendPool {
     fn supply(env: Env, from: Address, amount: i128);
     /// Return `amount` of the custodied stablecoin to `to` (the vault).
     fn withdraw(env: Env, to: Address, amount: i128);
+    /// What `of`'s position in this pool is currently worth — principal **plus any
+    /// accrued interest** (a `yield_pool` grows this with ledger time; the test-double
+    /// returns booked holdings). Mark-to-market NAV sums this across the bucket's
+    /// pools, so it is the load-bearing read for `share_price` (KTD-SC3, R6).
+    fn balance(env: Env, of: Address) -> i128;
 }

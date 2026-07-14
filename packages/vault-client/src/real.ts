@@ -96,6 +96,18 @@ export interface RealVaultClientOptions {
    * when provided but a slug can't be resolved, the pool-taking method throws a clear `unknown pool`.
    */
   resolvePool?: (poolId: PoolId) => Address;
+  /**
+   * The inverse of {@link RealVaultClientOptions.resolvePool}: decodes a pool {@link Address} the
+   * contract *returns* (`active_pool`, `pending_exit`) back to its seam {@link PoolId} slug, so the
+   * value can be fed straight back into a pool-taking method (`poolStatus`, `allocate`) without
+   * tripping `unknown pool` — the round trip `useBuckets` performs (R7, KTD5).
+   *
+   * Built from the SAME map as `resolvePool` by the caller, so a pool cannot resolve one way and not
+   * the other. Unlike the forward direction, an address the registry does not know decodes to
+   * **itself** rather than throwing: an unrecognized pool is a display concern, never a reason to
+   * blank the user's balance. Omitted ⇒ addresses pass through unchanged (today's behavior).
+   */
+  poolIdFor?: (address: Address) => PoolId;
 }
 
 // ── Encoding helpers (seam ⇄ contract) ──────────────────────────────────────
@@ -124,11 +136,18 @@ const fromBindingsCurrency = (c: BindingsCurrency): Currency => {
 const fromBindingsPoolStatus = (s: BindingsPoolStatus): PoolStatus =>
   s.tag === 'Frozen' ? 'frozen' : 'active';
 
-const fromBindingsExitProposal = (p: BindingsExitProposal): ExitProposal => ({
+/**
+ * Decode a contract exit proposal, running both pool addresses back through `decodePool` so the
+ * proposal's `fromPool`/`toPool` are seam slugs a caller can pass to `poolStatus` (R7).
+ */
+const fromBindingsExitProposal = (
+  p: BindingsExitProposal,
+  decodePool: (address: Address) => PoolId,
+): ExitProposal => ({
   id: String(p.id),
   currency: fromBindingsCurrency(p.currency),
-  fromPool: p.from_pool,
-  toPool: p.to_pool,
+  fromPool: decodePool(p.from_pool),
+  toPool: decodePool(p.to_pool),
 });
 
 /** Adapt the seam {@link Signer} to the SDK's `signTransaction` shape used by `signAndSend`. */
@@ -140,9 +159,11 @@ const toSignTransaction = (signer: Signer) => async (xdr: string) => ({
 export class RealVaultClient implements VaultClient {
   private readonly client: BindingsVaultClient;
   private readonly resolvePool?: (poolId: PoolId) => Address;
+  private readonly poolIdFor?: (address: Address) => PoolId;
 
   constructor(options: RealVaultClientOptions) {
     this.resolvePool = options.resolvePool;
+    this.poolIdFor = options.poolIdFor;
     this.client =
       options.client ??
       new BindingsClient({
@@ -172,6 +193,25 @@ export class RealVaultClient implements VaultClient {
     }
     if (!resolved) throw new Error(`unknown pool: ${pool}`);
     return resolved;
+  }
+
+  /**
+   * The inverse of {@link RealVaultClient.poolAddress}: decode a pool {@link Address} the contract
+   * returned back to its seam {@link PoolId} slug, so the value round-trips into `poolStatus` and the
+   * pool-taking writes (R7 — `useBuckets` reads `activePool` and hands the result straight to
+   * `poolStatus`; without this the forward resolver rejects the address as an unknown slug).
+   *
+   * Never throws: an address the registry does not know (a pool the keeper allocated to outside this
+   * config) decodes to itself, so the caller still gets a usable id and the user still sees a balance.
+   * One helper, used by every read that returns a pool (DRY).
+   */
+  private poolId(address: Address): PoolId {
+    if (!this.poolIdFor) return address;
+    try {
+      return this.poolIdFor(address) || address;
+    } catch {
+      return address; // an unknown pool is a display concern, not a failed read
+    }
   }
 
   /**
@@ -273,6 +313,10 @@ export class RealVaultClient implements VaultClient {
     return tx.result;
   }
 
+  // As of vault binver 1.3.0 this is a mark-to-market read: the price rises as the
+  // bucket's pools accrue interest on-chain (NAV = idle + Σ pool.balance(vault)), so a
+  // repeated call returns a growing number even with no deposit — no longer pinned to
+  // SHARE_PRICE_SCALE until yield "ships".
   async sharePrice(currency: Currency): Promise<PriceRay> {
     const tx = await this.client.share_price({ currency: toBindingsCurrency(currency) });
     return tx.result;
@@ -300,11 +344,15 @@ export class RealVaultClient implements VaultClient {
 
   async activePool(currency: Currency): Promise<PoolId | null> {
     const tx = await this.client.active_pool({ currency: toBindingsCurrency(currency) });
-    return tx.result ?? null;
+    const address = tx.result ?? null;
+    // Decode the returned Address back to a seam slug so the caller can pass it to poolStatus (R7).
+    return address === null ? null : this.poolId(address);
   }
 
   async pendingExit(currency: Currency): Promise<ExitProposal | null> {
     const tx = await this.client.pending_exit({ currency: toBindingsCurrency(currency) });
-    return tx.result ? fromBindingsExitProposal(tx.result) : null;
+    return tx.result
+      ? fromBindingsExitProposal(tx.result, (address) => this.poolId(address))
+      : null;
   }
 }

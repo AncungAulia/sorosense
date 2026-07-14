@@ -28,14 +28,18 @@ const usd = (n: number) => `$${Math.abs(n).toLocaleString("en-US", { minimumFrac
 /**
  * Per-month earned, newest first. The backend sends `monthly` oldest→newest.
  *
- * `earnedUsd` is rendered sign-aware (`+` green / `−` red) even though `useEarnings` currently clamps
- * every month at 0 — a down month is unreachable today but not a contract this component should
- * assume away.
+ * `earnedUsd` is rendered sign-aware: `+` green for a gain, `−` red for a loss, and a **neutral, unsigned
+ * grey** for exactly zero — a green "+$0.00" claims a gain that did not happen, which is the whole class
+ * of lie this unit removes (R10). An all-zero month list is the live vault's honest state today; the
+ * caller (`GrowthCard`) replaces the whole card with a zero-state before it gets here, and a month list
+ * with nothing in it renders nothing rather than an empty rule.
  */
 export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; now: number }) {
   const [shown, setShown] = useState(PAGE);
   const rows = [...monthly].reverse();
   const visible = rows.slice(0, shown);
+
+  if (rows.length === 0) return null;
 
   return (
     <div className="mt-4">
@@ -47,9 +51,11 @@ export function MonthlyBreakdown({ monthly, now }: { monthly: MonthlyEarned[]; n
         >
           <span>{formatMonthLabel(m.label, now)}</span>
           <span
-            className={`[font-variant-numeric:tabular-nums] ${m.earnedUsd < 0 ? "text-neg" : "text-pos"}`}
+            className={`[font-variant-numeric:tabular-nums] ${
+              m.earnedUsd < 0 ? "text-neg" : m.earnedUsd > 0 ? "text-pos" : "text-muted"
+            }`}
           >
-            {m.earnedUsd < 0 ? "−" : "+"}
+            {m.earnedUsd < 0 ? "−" : m.earnedUsd > 0 ? "+" : ""}
             {usd(m.earnedUsd)}
           </span>
         </div>

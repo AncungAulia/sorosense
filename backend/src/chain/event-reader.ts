@@ -18,6 +18,7 @@ import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
 import type { Address, Currency } from '@sorosense/vault-client';
 import type { VaultEvent } from '../earnings/cost-basis.js';
 import type { UserActionEvent } from '../api/user-activity.js';
+import type { AgentActionEvent } from '../api/agent-activity.js';
 
 /**
  * One raw contract event, mirroring `stellar-sdk`'s parsed `rpc.Api.EventResponse`: `topic` is the
@@ -49,12 +50,18 @@ export interface EventSource {
   getEvents(cursor?: string): Promise<EventPage>;
 }
 
-/** The reader's output: both decoded streams, plus the paging watermarks for a follow-up poll. */
-export interface DecodedVaultEvents {
+/** Both decoded streams over one ledger-ordered event set. The shape the poller hands to the holder. */
+export interface DecodedEvents {
   /** Deposit/withdraw rows for cost-basis reconstruction, seq-ordered. */
   vaultEvents: VaultEvent[];
   /** Deposit/withdraw/sign-mandate/auto-compound rows for activity, seq-ordered. */
   userEvents: UserActionEvent[];
+  /** Keeper actions (allocate/deallocate/freeze/propose-exit) → the "Agent" tab, seq-ordered. */
+  agentEvents: AgentActionEvent[];
+}
+
+/** The reader's output: both decoded streams, plus the paging watermarks for a follow-up poll. */
+export interface DecodedVaultEvents extends DecodedEvents {
   /** RPC latest-ledger watermark from the final page. */
   latestLedger: number;
   /** Cursor after the last drained page — a follow-up poll resumes here. */
@@ -72,6 +79,12 @@ const TOPIC = {
   consentSet: 'consent_set',
   autoCompoundSet: 'auto_compound_set',
   exitApproved: 'exit_approved',
+  // Agent (keeper) actions → the Activity "Agent" tab.
+  allocated: 'allocated',
+  deallocated: 'deallocated',
+  frozen: 'frozen',
+  unfrozen: 'unfrozen',
+  exitProposed: 'exit_proposed',
 } as const;
 
 /** Safety cap so a misbehaving source (always returning a cursor) can't loop forever. */
@@ -108,23 +121,43 @@ export async function readVaultEvents(source: EventSource): Promise<DecodedVault
     cursor = result.cursor;
   }
 
-  // Stable sort by ledger so events keep their within-ledger arrival order; then assign seq.
+  // Stable sort by ledger so events keep their within-ledger arrival order; then decode.
   const ordered = [...raw].sort((a, b) => a.ledger - b.ledger);
 
+  return { ...decodeEvents(ordered), latestLedger, cursor };
+}
+
+/**
+ * Decode a ledger-ordered event set into the two derivation streams. Pure: same input, same output —
+ * no network, no clock. `seq` is the 0-based position in `ordered`, so it is monotonic across the
+ * WHOLE set, not per page. That is why the poller re-decodes its accumulated store on every tick
+ * rather than decoding each page and concatenating: a per-page seq would restart at 0 each poll and
+ * scramble the feed's ordering.
+ *
+ * Precondition: `ordered` is ledger-ascending (the poller's store guarantees it via
+ * `EventStore.raw()`; `readVaultEvents` sorts before calling). Unknown topics are ignored, never
+ * mis-decoded.
+ */
+export function decodeEvents(ordered: readonly RawEvent[]): DecodedEvents {
   const vaultEvents: VaultEvent[] = [];
   const userEvents: UserActionEvent[] = [];
+  const agentEvents: AgentActionEvent[] = [];
 
   ordered.forEach((ev, index) => {
     const decoded = decodeEvent(ev, index);
     if (decoded.vault) vaultEvents.push(decoded.vault);
     if (decoded.user) userEvents.push(decoded.user);
+    if (decoded.agent) agentEvents.push(decoded.agent);
   });
 
-  return { vaultEvents, userEvents, latestLedger, cursor };
+  return { vaultEvents, userEvents, agentEvents };
 }
 
 /** Decode one raw event into the row(s) it maps to. Returns `{}` for unknown/unattributable events. */
-function decodeEvent(ev: RawEvent, seq: number): { vault?: VaultEvent; user?: UserActionEvent } {
+function decodeEvent(
+  ev: RawEvent,
+  seq: number,
+): { vault?: VaultEvent; user?: UserActionEvent; agent?: AgentActionEvent } {
   const name = topicSymbol(ev.topic);
   if (name === undefined) return {};
 
@@ -170,9 +203,40 @@ function decodeEvent(ev: RawEvent, seq: number): { vault?: VaultEvent; user?: Us
       // topic here keeps it from being mistaken for an unknown event.
       return {};
 
+    // ── Agent (keeper) actions → the "Agent" tab ──
+    case TOPIC.allocated:
+    case TOPIC.deallocated: {
+      // `Allocated`/`Deallocated { currency (topic), pool, amount }`.
+      const currency = toCurrency(topicNative(ev.topic, 1));
+      const amount = toBigint(dataMap(ev.value).amount);
+      if (currency === undefined || amount === undefined) return {};
+      const kind = name === TOPIC.allocated ? 'allocate' : 'deallocate';
+      return { agent: { kind, currency, amount, seq, ts } };
+    }
+
+    case TOPIC.frozen:
+      // `Frozen { pool (topic) }` — pool-level, no currency shown.
+      return { agent: { kind: 'freeze', seq, ts } };
+
+    case TOPIC.unfrozen:
+      return { agent: { kind: 'unfreeze', seq, ts } };
+
+    case TOPIC.exitProposed: {
+      // `ExitProposed { currency (topic), id }`.
+      const currency = toCurrency(topicNative(ev.topic, 1));
+      if (currency === undefined) return {};
+      return { agent: { kind: 'propose-exit', currency, seq, ts } };
+    }
+
     default:
       return {};
   }
+}
+
+/** Decode the topic at `index` to its native value (a Currency enum decodes to `['Usd']`, etc.). */
+function topicNative(topic: xdr.ScVal[], index: number): unknown {
+  const scv = topic[index];
+  return scv === undefined ? undefined : scValToNative(scv);
 }
 
 /** The event-name symbol at topic[0], or `undefined` if absent / not a symbol. */

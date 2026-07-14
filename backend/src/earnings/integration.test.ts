@@ -65,10 +65,16 @@ describe('EH-U6 — earnings end-to-end against the mock vault', () => {
     // Earned ~= 200 injected yield (minus a stroop of virtual-offset rounding).
     expect(view.earnedUsd).toBeGreaterThan(195);
     expect(view.earnedUsd).toBeLessThanOrEqual(200);
-    // Timeline rises from ~0 (Jan) to ~200 (Feb).
-    expect(view.chart).toHaveLength(2);
+    // Sampled at the union of event + snapshot times: the deposit (Jan 1) plus the two ticks.
+    expect(view.chart.map((p) => p.ts)).toEqual([Date.UTC(2026, 0, 1), Date.UTC(2026, 0, 15), Date.UTC(2026, 1, 15)]);
+    // Earned rises from ~0 (Jan, base price) to ~200 (Feb, after the injected yield)…
     expect(view.chart[0]?.earnedUsd).toBeCloseTo(0, 4);
-    expect(view.chart[1]?.earnedUsd).toBeGreaterThan(195);
+    expect(view.chart[1]?.earnedUsd).toBeCloseTo(0, 4);
+    expect(view.chart[2]?.earnedUsd).toBeGreaterThan(195);
+    // …and value rises with it: 1000 deposited, ~1200 once the NAV carries the yield (U5 forward-compat).
+    expect(view.chart[0]?.valueUsd).toBeCloseTo(1000, 4);
+    expect(view.chart[2]?.valueUsd).toBeGreaterThan(1195);
+    expect(view.chart[2]?.valueUsd).toBeLessThanOrEqual(1200);
     expect(view.monthly.map((m) => m.label)).toEqual(['2026-01', '2026-02']);
   });
 
@@ -136,9 +142,14 @@ describe('EH-U6 — earnings end-to-end against the mock vault', () => {
 
     const view = unwrap(await getEarnings('alice', { vault, events, snapshots: store, fx: okFx() }));
 
-    const [before, after] = view.chart;
+    // Compare the two snapshot ticks either side of the deposit (the timeline samples the deposit too).
+    const before = view.chart.find((p) => p.ts === Date.UTC(2026, 1, 5));
+    const after = view.chart.find((p) => p.ts === Date.UTC(2026, 1, 15));
     // The 500 deposit adds value AND contributions equally → earned barely moves (not toward +500).
     expect(Math.abs((after?.earnedUsd ?? 0) - (before?.earnedUsd ?? 0))).toBeLessThanOrEqual(2);
     expect(after?.earnedUsd).toBeGreaterThan(195);
+    // The value chart, in contrast, DOES step on the deposit: ~1200 → ~1700.
+    expect(before?.valueUsd).toBeGreaterThan(1195);
+    expect(after?.valueUsd).toBeGreaterThan((before?.valueUsd ?? 0) + 495);
   });
 });

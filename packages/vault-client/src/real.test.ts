@@ -296,3 +296,127 @@ describe('RealVaultClient pool registry (resolvePool)', () => {
     expect(share_price).toHaveBeenCalledWith({ currency: { tag: 'Usd', values: undefined } });
   });
 });
+
+describe('RealVaultClient reverse pool registry (poolIdFor) — R7 round trip', () => {
+  const POOL_ADDR = 'CBLENDUSDCPOOLADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+  const SAFE_ADDR = 'CBLENDSAFEPOOLADDRESSYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY';
+  // Both directions come from ONE map, so a pool cannot resolve one way and not the other (KTD5).
+  const registry: Record<string, string> = { 'blend-usdc': POOL_ADDR, 'blend-safe': SAFE_ADDR };
+  const resolvePool = (poolId: string) => registry[poolId] as string;
+  const poolIdFor = (address: string) =>
+    Object.keys(registry).find((slug) => registry[slug] === address) ?? address;
+
+  it('activePool decodes the returned Address back to its seam slug', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(POOL_ADDR)) }),
+      resolvePool,
+      poolIdFor,
+    });
+
+    expect(await v.activePool('USD')).toBe('blend-usdc');
+  });
+
+  it('the exact useBuckets round trip: activePool → poolStatus resolves without throwing', async () => {
+    const pool_status = vi.fn(() => readTx({ tag: 'Frozen', values: undefined }));
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(POOL_ADDR)), pool_status }),
+      resolvePool,
+      poolIdFor,
+    });
+
+    // Without the reverse decode this second call throws `unknown pool: C…` — the address is not a
+    // slug the forward registry knows, and Home would blank the user's bucket.
+    const pool = await v.activePool('USD');
+    expect(await v.poolStatus(pool as string)).toBe('frozen');
+    // The address, not the slug, is what actually reached the contract on the way back in.
+    expect(pool_status).toHaveBeenCalledWith({ pool: POOL_ADDR });
+  });
+
+  it('pendingExit decodes fromPool and toPool through the same reverse map', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({
+        pending_exit: vi.fn(() =>
+          readTx({
+            currency: { tag: 'Usd', values: undefined },
+            from_pool: POOL_ADDR,
+            id: 3n,
+            to_pool: SAFE_ADDR,
+          }),
+        ),
+      }),
+      resolvePool,
+      poolIdFor,
+    });
+
+    expect(await v.pendingExit('USD')).toEqual({
+      id: '3',
+      currency: 'USD',
+      fromPool: 'blend-usdc',
+      toPool: 'blend-safe',
+    });
+  });
+
+  it('an address absent from the registry decodes to itself and does not throw', async () => {
+    const UNKNOWN = 'CUNKNOWNPOOLADDRESSZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ';
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(UNKNOWN)) }),
+      resolvePool,
+      poolIdFor,
+    });
+
+    // A pool this config does not know about is a display concern, never a reason to fail the read.
+    expect(await v.activePool('USD')).toBe(UNKNOWN);
+  });
+
+  it('a throwing reverse resolver still yields the address rather than failing the read', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(POOL_ADDR)) }),
+      poolIdFor: (address) => {
+        throw new Error(`no slug for ${address}`);
+      },
+    });
+
+    expect(await v.activePool('USD')).toBe(POOL_ADDR);
+  });
+
+  it('the forward direction still encodes a slug to its Address for writes', async () => {
+    const client = makeClient();
+    const v = new RealVaultClient({ ...opts, client, resolvePool, poolIdFor });
+    const keeper = mockSigner('keeper', 'sentinel');
+
+    await v.allocate('blend-usdc', 'USD', 1_000n).signAndSubmit(keeper);
+    await v.freeze('blend-usdc').signAndSubmit(keeper);
+
+    expect(client.allocate).toHaveBeenCalledWith({
+      pool: POOL_ADDR,
+      currency: { tag: 'Usd', values: undefined },
+      amount: 1_000n,
+    });
+    expect(client.freeze).toHaveBeenCalledWith({ pool: POOL_ADDR });
+  });
+
+  it('without poolIdFor an address passes straight through (behavior unchanged)', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(POOL_ADDR)) }),
+    });
+
+    expect(await v.activePool('USD')).toBe(POOL_ADDR);
+  });
+
+  it('a bucket with no allocation still reads null (the state the demo starts in — A5)', async () => {
+    const v = new RealVaultClient({
+      ...opts,
+      client: makeClient({ active_pool: vi.fn(() => readTx(undefined)) }),
+      resolvePool,
+      poolIdFor,
+    });
+
+    expect(await v.activePool('USD')).toBeNull();
+  });
+});

@@ -21,9 +21,10 @@ describe('venue-meta', () => {
   });
 
   it('bestSafeVenue picks the highest-APY Safe venue per currency', () => {
-    // USD candidates: blend-usdc 6.6, defindex-usdc 8.59, ondo-usdy 4.65 → defindex wins.
-    expect(bestSafeVenue('USD')?.id).toBe('defindex-usdc');
-    expect(bestSafeVenue('EUR')?.id).toBe('blend-eurc');
+    // USD candidates: sorosense-usd 10, defindex-usdc 8.59, blend-usdc 6.6, ondo-usdy 4.65 → sorosense wins.
+    expect(bestSafeVenue('USD')?.id).toBe('sorosense-usd');
+    // EUR candidates: sorosense-eur 10, blend-eurc 5.1 → sorosense wins.
+    expect(bestSafeVenue('EUR')?.id).toBe('sorosense-eur');
     expect(bestSafeVenue('MXN')?.id).toBe('etherfuse-cetes');
   });
 

@@ -76,9 +76,9 @@ describe('getHoldings — unallocated bucket (AE3)', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const h = res.value[0]!;
-    // best-safe USD is defindex-usdc (8.59) — the agent's default target.
-    expect(h.venue).toBe('DeFindex');
-    expect(h.apy).toBe(8.59);
+    // best-safe USD is now sorosense-usd (10) — the agent's default target (its 10% out-ranks DeFindex).
+    expect(h.venue).toBe('SoroSense');
+    expect(h.apy).toBe(10);
     expect(h.frozen).toBe(false); // no pool → never frozen
   });
 });

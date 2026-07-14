@@ -15,9 +15,10 @@ import {
   type Address,
   type Currency,
   type PoolId,
+  type Signer,
   type VaultClient,
 } from '@sorosense/vault-client';
-import { makeKeeperSigner } from './keeper-signer.js';
+import { makeDepositorSigner, makeKeeperSigner } from './keeper-signer.js';
 
 let singleton: VaultClient | null = null;
 
@@ -37,13 +38,14 @@ export function isIntegrationEnv(env: NodeJS.ProcessEnv = process.env): boolean 
 
 /**
  * The demo pool slug the keeper drives per currency — the settled Fase B question. Each currency's
- * Blend pool is the demo pool; the registry below maps that slug to its `BLEND_POOL_<CCY>` on-chain
- * address. This is the ONE place a currency maps to a pool slug — no pool address is hardcoded here
- * or in `@sorosense/vault-client` (the registry, not the seam, carries addresses).
+ * SoroSense `yield_pool` (the one that actually accrues, U1) is the demo pool; the registry below maps
+ * that slug to its `YIELD_POOL_<CCY>` on-chain address (falling back to a legacy `BLEND_POOL_<CCY>` so
+ * an existing `.env` still boots). This is the ONE place a currency maps to a pool slug — no pool
+ * address is hardcoded here or in `@sorosense/vault-client` (the registry, not the seam, carries them).
  */
 const DEMO_POOL_SLUG: Partial<Record<Currency, PoolId>> = {
-  USD: 'blend-usdc',
-  EUR: 'blend-eurc',
+  USD: 'sorosense-usd',
+  EUR: 'sorosense-eur',
 };
 
 /** The demo pool slug the keeper drives for a currency. Throws for a currency with no demo pool. */
@@ -54,15 +56,14 @@ export function demoPoolFor(currency: Currency): PoolId {
 }
 
 /**
- * Build the pool registry (seam slug → on-chain {@link Address}) from env — `BLEND_POOL_USD` /
- * `BLEND_POOL_EUR` keyed by each currency's demo pool slug. Passed to {@link RealVaultClient} so its
- * pool-taking writes encode a real contract address. Returns `undefined` when no addresses are set
- * (the mock-default path is unchanged; the real client then passes slugs straight through).
+ * Build the pool registry (seam slug → on-chain {@link Address}) from env — `YIELD_POOL_USD` /
+ * `YIELD_POOL_EUR` keyed by each currency's demo pool slug, falling back to the legacy `BLEND_POOL_*`
+ * so an older `.env` still boots. Passed to {@link RealVaultClient} so its pool-taking writes encode a
+ * real contract address. Returns `undefined` when no addresses are set (the mock-default path is
+ * unchanged; the real client then passes slugs straight through).
  */
-function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Address) | undefined {
-  const entries: Array<[PoolId, Address]> = [];
-  if (env.BLEND_POOL_USD) entries.push([demoPoolFor('USD'), env.BLEND_POOL_USD]);
-  if (env.BLEND_POOL_EUR) entries.push([demoPoolFor('EUR'), env.BLEND_POOL_EUR]);
+export function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Address) | undefined {
+  const entries = poolRegistryEntries(env);
   if (entries.length === 0) return undefined;
   const registry = new Map<PoolId, Address>(entries);
   return (pool: PoolId): Address => {
@@ -70,6 +71,32 @@ function buildPoolRegistry(env: NodeJS.ProcessEnv): ((pool: PoolId) => Address) 
     if (!address) throw new Error(`unknown pool: ${pool}`);
     return address;
   };
+}
+
+/** The (slug → address) pairs for the configured demo pools — the ONE source both directions build from. */
+function poolRegistryEntries(env: NodeJS.ProcessEnv): Array<[PoolId, Address]> {
+  const entries: Array<[PoolId, Address]> = [];
+  const usd = env.YIELD_POOL_USD ?? env.BLEND_POOL_USD;
+  const eur = env.YIELD_POOL_EUR ?? env.BLEND_POOL_EUR;
+  if (usd) entries.push([demoPoolFor('USD'), usd]);
+  if (eur) entries.push([demoPoolFor('EUR'), eur]);
+  return entries;
+}
+
+/**
+ * The inverse of {@link buildPoolRegistry}: an on-chain pool {@link Address} the contract *returns*
+ * (`active_pool`, `pending_exit`) → its seam {@link PoolId} slug, so the value round-trips straight back
+ * into `poolStatus` and the pool-taking writes. Injected as `RealVaultClient.poolIdFor` — WITHOUT it,
+ * `getHoldings` reads `activePool` (an address), hands it to `poolStatus`, and the forward resolver
+ * rejects the address as an unknown slug (a 500 the instant a bucket is actually allocated). Built from
+ * the SAME entries as the forward registry, so a pool cannot resolve one way and not the other.
+ */
+export function buildPoolIdResolver(env: NodeJS.ProcessEnv): ((address: Address) => PoolId) | undefined {
+  const entries = poolRegistryEntries(env);
+  if (entries.length === 0) return undefined;
+  const inverse = new Map<Address, PoolId>(entries.map(([slug, address]) => [address, slug]));
+  // An address the registry does not know decodes to itself — a display concern, never a failed read.
+  return (address: Address): PoolId => inverse.get(address) ?? address;
 }
 
 /** Build the real client when every integration var is set; otherwise the mock. */
@@ -87,9 +114,49 @@ function create(env: NodeJS.ProcessEnv): VaultClient {
       networkPassphrase,
       signer,
       resolvePool: buildPoolRegistry(env),
+      poolIdFor: buildPoolIdResolver(env),
     });
   }
   return new MockVaultClient();
+}
+
+/** Options for {@link createDepositorVaultClient} — an explicit config, never read from env here. */
+export interface DepositorVaultClientOptions {
+  /** The depositor's Stellar secret (`DEMO_DEPOSITOR_SECRET`). Backend-only; never logged. */
+  secret: string;
+  /** The deployed vault contract address (C...). */
+  contractId: string;
+  /** Stellar RPC endpoint used to simulate and submit. */
+  rpcUrl: string;
+  /** Network passphrase the writes are assembled and signed on. */
+  networkPassphrase: string;
+  /** Env the pool registry (`BLEND_POOL_<CCY>`) is built from. Defaults to `process.env`. */
+  env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * A {@link RealVaultClient} whose source account and signer are the **depositor**, alongside the
+ * keeper-signed {@link getVaultClient} singleton. The demo seed script (U1) uses it to sign the
+ * depositor's own writes (`set_policy_consent`, `deposit`) — writes the keeper may not sign. Returns
+ * the signer too, since the seam's two-phase `PreparedTx.signAndSubmit(signer)` needs it at submit.
+ * The pool registry comes from the same `buildPoolRegistry` the keeper uses — one source of pool
+ * identity, no address hardcoded in the seam.
+ */
+export function createDepositorVaultClient(options: DepositorVaultClientOptions): {
+  client: VaultClient;
+  signer: Signer;
+} {
+  const env = options.env ?? process.env;
+  const signer = makeDepositorSigner(options.secret, options.networkPassphrase);
+  const client = new RealVaultClient({
+    contractId: options.contractId,
+    rpcUrl: options.rpcUrl,
+    networkPassphrase: options.networkPassphrase,
+    signer,
+    resolvePool: buildPoolRegistry(env),
+    poolIdFor: buildPoolIdResolver(env),
+  });
+  return { client, signer };
 }
 
 /** The process-wide vault client. Real (testnet) when integration env is set; mock otherwise. */

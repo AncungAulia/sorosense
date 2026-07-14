@@ -15,8 +15,9 @@
 import type { Address, Currency, VaultClient } from '@sorosense/vault-client';
 
 import { ok, type Result } from '../lib/result.js';
+import { netApy as toNetApy, performanceFeeBps } from '../tools/fee.js';
 import { ALL_CURRENCIES, makeReflectorFx, type FxSource } from './earnings.js';
-import { bestSafeVenue, kindLabel, resolveVenue } from './venue-meta.js';
+import { bestSafeVenue, catalogApy, kindLabel, resolveVenue, type ApySource } from './venue-meta.js';
 
 export { makeReflectorFx, type FxSource };
 
@@ -33,7 +34,12 @@ export interface Holding {
   kind: 'lending' | 'vault' | 'rwa';
   /** `[venue, kindLabel(kind, name)]` — matches the frontend's bucket tags. */
   tags: string[];
+  /** Gross APY the venue pays (the pool's on-chain rate). */
   apy: number;
+  /** APY the depositor keeps after the {@link feeBps} performance fee. */
+  netApy: number;
+  /** Performance fee in basis points (a share of yield, not principal). */
+  feeBps: number;
   shares: bigint;
   /** Native base-unit value of the bucket (from `assetValueOf`). */
   value: bigint;
@@ -49,6 +55,8 @@ export interface HoldingsDeps {
   vault: Pick<VaultClient, 'balanceOf' | 'assetValueOf' | 'activePool' | 'poolStatus'>;
   /** FX per currency (display-only). */
   fx: FxSource;
+  /** APY per pool — live on-chain `rate_bps()` in production, catalog figure offline. Default: catalog. */
+  apy?: ApySource;
   currencies?: readonly Currency[];
 }
 
@@ -59,38 +67,61 @@ export interface HoldingsDeps {
  */
 export async function getHoldings(depositor: Address, deps: HoldingsDeps): Promise<Result<Holding[]>> {
   const currencies = deps.currencies ?? ALL_CURRENCIES;
-  const holdings: Holding[] = [];
+  const apySource = deps.apy ?? catalogApy;
+  const feeBps = performanceFeeBps();
 
-  for (const currency of currencies) {
-    const shares = await deps.vault.balanceOf(depositor, currency);
-    if (shares <= 0n) continue; // empty bucket — not a holding
+  // Each currency is an independent read pipeline; run them all concurrently, and within one currency
+  // fire the mutually-independent reads together. Against a live RPC these calls are ~0.5-1s each, so a
+  // sequential version (one after another across USD/EUR/MXN) blew past the frontend's request timeout
+  // and the row silently fell back to the fixture venue — the "SoroSense pool shows as DeFindex" bug.
+  // Order is preserved (Promise.all keeps input order); a `null` marks a skipped/empty bucket.
+  const results = await Promise.all(
+    currencies.map(async (currency): Promise<Result<Holding | null>> => {
+      const shares = await deps.vault.balanceOf(depositor, currency);
+      if (shares <= 0n) return ok(null); // empty bucket — not a holding
 
-    const value = await deps.vault.assetValueOf(depositor, currency);
-    const pool = await deps.vault.activePool(currency);
-    const frozen = pool ? (await deps.vault.poolStatus(pool)) === 'frozen' : false;
+      const [value, pool, rate] = await Promise.all([
+        deps.vault.assetValueOf(depositor, currency),
+        deps.vault.activePool(currency),
+        deps.fx(currency), // display FX; a failure surfaces as an error (never a silent $0)
+      ]);
+      if (!rate.ok) return rate;
 
-    // Allocated → the pool's venue; unallocated → the currency's best-safe target (the agent's default).
-    const meta = pool ? resolveVenue(pool) : bestSafeVenue(currency);
-    if (!meta) continue; // no vetted venue for this currency — omit rather than emit a partial bucket
+      // Allocated → the pool's venue; unallocated → the currency's best-safe target (the agent's default).
+      const meta = pool ? resolveVenue(pool) : bestSafeVenue(currency);
+      if (!meta) return ok(null); // no vetted venue for this currency — omit rather than emit a partial
 
-    // Resolve FX before display; a failure surfaces as an error (never a silent $0).
-    const rate = await deps.fx(currency);
-    if (!rate.ok) return rate;
-    const valueUsd = (Number(value) / Number(UNIT)) * rate.value;
+      const [frozen, apy] = await Promise.all([
+        pool ? deps.vault.poolStatus(pool).then((s) => s === 'frozen') : Promise.resolve(false),
+        // The venue's APY: the live on-chain rate for a deployed pool, the catalog figure otherwise.
+        apySource(meta.id),
+      ]);
+      if (!apy.ok) return apy;
 
-    holdings.push({
-      currency,
-      name: meta.name,
-      venue: meta.venue,
-      kind: meta.kind,
-      tags: [meta.venue, kindLabel(meta.kind, meta.name)],
-      apy: meta.apy,
-      shares,
-      value,
-      valueUsd,
-      frozen,
-    });
+      const valueUsd = (Number(value) / Number(UNIT)) * rate.value;
+      return ok({
+        currency,
+        name: meta.name,
+        venue: meta.venue,
+        kind: meta.kind,
+        tags: [meta.venue, kindLabel(meta.kind, meta.name)],
+        apy: apy.value,
+        netApy: toNetApy(apy.value, feeBps),
+        feeBps,
+        shares,
+        value,
+        valueUsd,
+        frozen,
+      });
+    }),
+  );
+
+  // Fail-closed: any currency's failed FX/APY read fails the whole view (same posture as the loop).
+  for (const r of results) {
+    if (!r.ok) return r;
   }
-
+  const holdings = results
+    .map((r) => (r.ok ? r.value : null))
+    .filter((h): h is Holding => h !== null);
   return ok(holdings);
 }

@@ -17,8 +17,10 @@ const RAW_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 /** Backend read-surface origin, without a trailing slash. `""` when the API is not configured. */
 export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
 
-/** Deadline for every request, so a hung backend cannot wedge a render (KTD2). */
-export const API_TIMEOUT_MS = 5_000;
+/** Deadline for every request, so a hung backend cannot wedge a render (KTD2). Set with headroom for
+ *  `/holdings`, whose live-mode read fans out several RPC simulations — a tighter bound timed it out and
+ *  the row fell back to the fixture venue. The backend parallelizes those reads; this is the safety net. */
+export const API_TIMEOUT_MS = 10_000;
 
 /** True only when `NEXT_PUBLIC_API_URL` is set. Every caller checks this before reaching for the API. */
 export function apiEnabled(): boolean {

@@ -3,8 +3,10 @@ import {
   classifyBucket,
   InMemoryBucketStore,
   runAllocatorTick,
+  DEFAULT_MIN_DWELL_MS,
   type AllocatorEffects,
   type Candidate,
+  type ClassifyInput,
 } from './allocator.js';
 
 const spyEffects = () => {
@@ -88,6 +90,125 @@ describe('classifyBucket (pure)', () => {
       thresholdPct: 0.5,
     });
     expect(d.kind).toBe('noop');
+  });
+});
+
+describe('classifyBucket — anti-churn gate (threshold + dwell + switch cost)', () => {
+  // Active pool yields 8.1; the rival clears it by 2.4pp (> the 1.5 threshold) unless noted.
+  const rival: Candidate[] = [
+    { poolId: 'defindex-usdc', ray: 8.1 },
+    { poolId: 'sorosense-usd', ray: 10.5 },
+  ];
+  const allocated = (over: Partial<ClassifyInput> = {}): ClassifyInput => ({
+    currency: 'USD',
+    activePool: 'defindex-usdc',
+    activeAnomaly: false,
+    activeRay: 8.1,
+    candidates: rival,
+    yieldAccrued: false,
+    hasPendingExit: false,
+    thresholdPct: 1.5,
+    ...over,
+  });
+
+  it('holds when the rival edge is below the threshold (no marginal chase)', () => {
+    const d = classifyBucket(
+      allocated({ candidates: [{ poolId: 'defindex-usdc', ray: 8.1 }, { poolId: 'sorosense-usd', ray: 9.0 }] }),
+    );
+    expect(d.kind).toBe('noop'); // 0.9pp edge < 1.5pp — not worth the gas
+  });
+
+  it('switches when the rival clears the threshold and no dwell/cost is configured', () => {
+    expect(classifyBucket(allocated()).kind).toBe('rebalance');
+  });
+
+  it('within the minimum dwell, a materially better rival still does not switch', () => {
+    const now = 1_000_000_000_000;
+    const d = classifyBucket(
+      allocated({ nowMs: now, lastRebalanceAtMs: now - 24 * 60 * 60 * 1000, minDwellMs: DEFAULT_MIN_DWELL_MS }),
+    );
+    expect(d.kind).toBe('noop'); // moved 1 day ago; the 7-day dwell hasn't elapsed
+  });
+
+  it('past the dwell but the gain does not clear the switch cost → hold', () => {
+    const now = 1_000_000_000_000;
+    const d = classifyBucket(
+      allocated({
+        nowMs: now,
+        lastRebalanceAtMs: now - 8 * 24 * 60 * 60 * 1000, // dwell elapsed
+        minDwellMs: DEFAULT_MIN_DWELL_MS,
+        positionValueUsd: 100, // tiny bucket
+        switchCostUsd: 5,
+        dwellHorizonDays: 30,
+      }),
+    );
+    // 2.4% × $100 × 30/365 ≈ $0.20 < $5 gas → not worth moving.
+    expect(d.kind).toBe('noop');
+  });
+
+  it('past the dwell and the gain clears the switch cost → switch', () => {
+    const now = 1_000_000_000_000;
+    const d = classifyBucket(
+      allocated({
+        nowMs: now,
+        lastRebalanceAtMs: now - 8 * 24 * 60 * 60 * 1000,
+        minDwellMs: DEFAULT_MIN_DWELL_MS,
+        positionValueUsd: 100_000, // large bucket
+        switchCostUsd: 5,
+        dwellHorizonDays: 30,
+      }),
+    );
+    // 2.4% × $100k × 30/365 ≈ $197 > $5 → the move pays for itself.
+    expect(d.kind).toBe('rebalance');
+  });
+
+  it('seeding an unallocated bucket ignores dwell and cost (it is not a churn-prone switch)', () => {
+    const d = classifyBucket(
+      allocated({
+        activePool: null,
+        activeRay: null,
+        positionValueUsd: 1,
+        switchCostUsd: 999,
+        minDwellMs: DEFAULT_MIN_DWELL_MS,
+        nowMs: 1_000_000_000_000,
+        lastRebalanceAtMs: null,
+      }),
+    );
+    expect(d.kind).toBe('rebalance'); // initial allocation always proceeds
+  });
+});
+
+describe('runAllocatorTick — dwell clock persists across ticks', () => {
+  it('records the move time on rebalance so the next tick honours the dwell window', async () => {
+    const effects = spyEffects();
+    const store = new InMemoryBucketStore();
+    store.setActivePool('USD', 'defindex-usdc');
+    let now = 1_000_000_000_000;
+    const base = {
+      currency: 'USD' as const,
+      activeAnomaly: false,
+      activeRay: 8.1,
+      candidates: [{ poolId: 'defindex-usdc', ray: 8.1 }, { poolId: 'sorosense-usd', ray: 10.5 }],
+      yieldAccrued: false,
+      thresholdPct: 1.5,
+      store,
+      effects,
+      clock: () => now,
+    };
+
+    // First tick: clears the threshold, dwell clock unset → switch, and the move time is recorded.
+    const first = await runAllocatorTick(base);
+    expect(first.kind).toBe('rebalance');
+    expect(store.getLastRebalanceAt('USD')).toBe(now);
+
+    // One day later: still a better rival, but inside the 7-day dwell → hold.
+    now += 24 * 60 * 60 * 1000;
+    const second = await runAllocatorTick({
+      ...base,
+      candidates: [{ poolId: 'sorosense-usd', ray: 10.5 }, { poolId: 'ondo-usdy', ray: 13.0 }],
+    });
+    expect(second.kind).toBe('noop');
+    expect(effects.rebalance).toHaveBeenCalledTimes(1); // no second move
   });
 });
 

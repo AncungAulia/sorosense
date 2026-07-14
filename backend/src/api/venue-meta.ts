@@ -7,6 +7,7 @@
  */
 
 import type { Currency } from '@sorosense/vault-client';
+import { err, ok, type Result } from '../lib/result.js';
 import { getCatalog, getVenue, type CatalogEntry, type VenueKind } from '../tools/catalog.js';
 
 /** Display-ready venue metadata for one vetted pool. No risk field (safety is invisible). */
@@ -30,6 +31,25 @@ export function resolveVenue(poolId: string): VenueMeta | null {
   const v = getVenue(poolId);
   return v ? toMeta(v) : null;
 }
+
+/**
+ * The APY (percent) source for a pool id — the seam that lets a read surface quote the **live**
+ * on-chain rate instead of the catalog figure (R2, KTD7). `venue-meta.ts` stays pure: it declares the
+ * shape and the pure default, while the *live* implementation (which reads `rate_bps()` over RPC) is
+ * built in the HTTP server and injected, the way FX is. A failure is a typed `Result` — the route maps
+ * it to a shaped non-200, never a stale constant rendered as truth.
+ */
+export type ApySource = (poolId: string) => Promise<Result<number>>;
+
+/**
+ * The pure, offline default {@link ApySource}: the catalog's own figure for the pool. It touches no
+ * network, so the whole test suite and every mock-mode run resolve an APY without RPC. A live source
+ * (HTTP server) wraps this and overlays the real `rate_bps()` read for the pools that are deployed.
+ */
+export const catalogApy: ApySource = async (poolId: string): Promise<Result<number>> => {
+  const meta = resolveVenue(poolId);
+  return meta ? ok(meta.apy) : err('not_found', `unknown pool: ${poolId}`);
+};
 
 /** Highest-APY Safe venue for a currency — the agent's default target when a bucket is unallocated. */
 export function bestSafeVenue(currency: Currency): VenueMeta | null {

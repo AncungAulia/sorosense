@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { SHARE_PRICE_SCALE, type Currency } from "@sorosense/vault-client";
+import { SHARE_PRICE_SCALE, type Currency, type TxResult } from "@sorosense/vault-client";
 import { Drawer } from "../ui/Drawer";
 import { Button, CoinBadge, TransferStatus } from "../ui";
 import { useBuckets } from "../../hooks/useBuckets";
@@ -70,7 +70,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
     setAmount(fromAmount(BigInt(Math.floor(Number(active.value) * pct))));
   };
 
-  const doWithdraw = async () => {
+  const doWithdraw = async (): Promise<TxResult | undefined> => {
     if (!address || !active) return;
     const currency: Currency = active.currency;
     const enteredAmount = toAmount(amount);
@@ -80,8 +80,11 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
       ? await client.balanceOf(address, currency)
       : (enteredAmount * SHARE_PRICE_SCALE) / (await client.sharePrice(currency));
     if (shares <= 0n) return;
-    await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
-    recordWithdraw(currency, isMax ? active.value : enteredAmount);
+    const result = await client.withdraw(address, currency, shares).signAndSubmit(depositorSigner(address, signTransaction));
+    // Cost basis moves only for a burn the chain confirmed; a rejected one leaves the bucket intact,
+    // the flow in `error`, and the "Withdrawal submitted" toast unfired (R5).
+    if (result.success) recordWithdraw(currency, isMax ? active.value : enteredAmount);
+    return result;
   };
 
   const onConfirm = () => {
