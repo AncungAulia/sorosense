@@ -29,7 +29,7 @@ async function setup() {
 
 test("cycler shows with ≥2 buckets; over-balance disables the button and shows the hint", async () => {
   await setup();
-  await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("USD Bucket")).toBeInTheDocument());
   expect(screen.getByTestId("bucket-chevron")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "999999" } });
   expect(screen.getByText(/not enough balance/i)).toBeInTheDocument();
@@ -39,7 +39,7 @@ test("cycler shows with ≥2 buckets; over-balance disables the button and shows
 test("a valid withdraw signs, reduces the balance, and shows success status", async () => {
   const user = userEvent.setup();
   const { sign, client, onClose } = await setup();
-  await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("USD Bucket")).toBeInTheDocument());
   const before = await client.balanceOf("GUSER", "USD");
   fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "10" } });
   await user.click(screen.getByRole("button", { name: "Withdraw" }));
@@ -56,7 +56,7 @@ test("a valid withdraw signs, reduces the balance, and shows success status", as
 test("a rejected withdrawal keeps the drawer open, toasts nothing, and leaves the bucket intact", async () => {
   const user = userEvent.setup();
   const { client, onClose } = await setup();
-  await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("USD Bucket")).toBeInTheDocument());
   const shares = await client.balanceOf("GUSER", "USD");
   const basis = getContributions("USD");
   client.simulateFailure();

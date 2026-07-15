@@ -37,6 +37,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
   const statusPhase = flow.phase === "idle" ? null : flow.phase;
   const showStatus = statusPhase !== null;
   const title = statusPhase && statusPhase !== "sending" ? "Withdrawal Status" : "Withdraw";
+  const bucketName = active ? `${active.currency} Bucket` : "USD Bucket";
 
   const close = () => {
     onClose();
@@ -113,7 +114,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
               className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold transition-colors hover:bg-line-2"
             >
               <CoinBadge currency={active?.currency ?? "USD"} size={22} />
-              {active?.name ?? "USD bucket"}
+              {bucketName}
               {multi && (
                 <svg data-testid="bucket-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg>
               )}
@@ -126,6 +127,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
           <div className="flex items-center gap-1.5 rounded-2xl border border-line-2 bg-white px-4 py-3.5 [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]">
             <span className="text-[26px] font-semibold text-[#3f4448]">{cur}</span>
             <input
+              data-amount-input
               inputMode="decimal"
               aria-label="Amount"
               value={amount}
@@ -133,7 +135,7 @@ export function WithdrawDrawer({ open, onClose }: { open: boolean; onClose: () =
                 setMaxSelected(false);
                 setAmount(sanitizeAmount(e.target.value));
               }}
-              className="w-full min-w-0 flex-1 border-none bg-transparent text-[30px] font-semibold tracking-[-.02em] text-ink outline-none [font-variant-numeric:tabular-nums]"
+              className="w-full min-w-0 flex-1 appearance-none border-none bg-transparent text-[30px] font-semibold tracking-[-.02em] text-ink shadow-none outline-none ring-0 [font-variant-numeric:tabular-nums] focus:shadow-none focus:outline-none focus:ring-0 focus-visible:shadow-none focus-visible:outline-none focus-visible:outline-offset-0 focus-visible:ring-0"
             />
           </div>
           <div className="mt-3 flex gap-2.5">

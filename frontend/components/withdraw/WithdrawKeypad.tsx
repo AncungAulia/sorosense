@@ -39,6 +39,7 @@ export function WithdrawKeypad() {
   const entered = toAmount(amount);
   const available = active?.value ?? 0n;
   const exceeded = !!active && entered > available;
+  const bucketName = active ? `${active.currency} Bucket` : "USD Bucket";
 
   const chooseNextBucket = () => {
     if (!multi) return;
@@ -243,7 +244,7 @@ export function WithdrawKeypad() {
           className="inline-flex h-10 items-center gap-2.5 rounded-full bg-[#ECECEC] pl-2.5 pr-4 text-[15px] font-semibold"
         >
           <CoinBadge currency={active?.currency ?? "USD"} size={22} />
-          {active?.name ?? "USD bucket"}
+          {bucketName}
           {multi && (
             <svg
               data-testid="bucket-chevron"
