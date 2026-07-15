@@ -33,10 +33,14 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   button:disabled { cursor: not-allowed; }
   /* The outline follows each element's own border-radius, so a rounded-full pill keeps its shape
      while focused — do NOT set border-radius here (that would override the element's own). */
-  button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="menuitem"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="menuitem"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible, input:not([data-amount-input]):focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
     box-shadow: 0 0 0 5px rgba(17, 19, 22, 0.12);
+  }
+  input[data-amount-input]:focus, input[data-amount-input]:focus-visible {
+    outline: none;
+    box-shadow: none;
   }
 }
 
