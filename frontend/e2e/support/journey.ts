@@ -20,9 +20,21 @@ export async function connectWallet(page: Page): Promise<void> {
   const connect = page.getByRole("button", { name: "Connect wallet" });
   const showsButton = await Promise.race([
     connect.waitFor({ state: "visible" }).then(() => true),
+    page.getByRole("button", { name: "Skip" }).waitFor({ state: "visible" }).then(() => false),
     page.waitForURL(/\/home$/).then(() => false),
   ]).catch(() => false);
+
+  if (!showsButton && !/\/home$/.test(page.url())) {
+    const skip = page.getByRole("button", { name: "Skip" });
+    if (await skip.isVisible()) {
+      await skip.click();
+    }
+  }
+
   if (showsButton) {
+    await connect.click();
+  } else if (!/\/home$/.test(page.url())) {
+    await expect(connect).toBeVisible();
     await connect.click();
   }
   await expect(page).toHaveURL(/\/home$/);
@@ -30,7 +42,7 @@ export async function connectWallet(page: Page): Promise<void> {
 
 /**
  * Deposit `amount` EURC through the real UI: pick the coin → keypad → "Deposit fund" → the one-time
- * consent mandate. The caller must already be on `/add-funds`. The e2e vault starts empty and
+ * consent mandate. The caller must already be on `/deposit`. The e2e vault starts empty and
  * `seedVault` never granted consent anyway, so the very first deposit is what surfaces the sheet.
  */
 export async function depositEurc(page: Page, amount: string): Promise<void> {
@@ -50,9 +62,9 @@ export async function depositEurc(page: Page, amount: string): Promise<void> {
   await shot(page, "02-consent-sheet");
   await consent.getByRole("button", { name: "Agree & sign" }).click();
 
-  // Success is a status screen (STE-48), not an auto-redirect — confirm it, then Done returns home.
-  await expect(page.getByText("Deposit sent")).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
+  // Success is a status screen (STE-48), not an auto-redirect — confirm it, then return home.
+  await expect(page.getByText("Deposit Success")).toBeVisible();
+  await page.getByRole("button", { name: "Back to Home" }).click();
   await expect(page).toHaveURL(/\/home$/);
 }
 
@@ -65,23 +77,23 @@ export async function depositEurc(page: Page, amount: string): Promise<void> {
 export async function expectDesktopHome(page: Page): Promise<void> {
   await expect(page.getByText("SoroSense")).toBeVisible();          // desktop TopBar brand
   await expect(page.getByText(/your value/i)).toBeVisible();        // hero eyebrow
-  await expect(page.getByRole("button", { name: "Add funds" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Deposit" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Buckets" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Growth" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Agent activity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden(); // BottomNav CSS-hidden at lg
   await expect(page.getByText(/\b(risk|score|sentinel)\b/i)).toHaveCount(0);  // R11
 }
 
 /**
- * Desktop deposit: the hero "Add funds" opens a right drawer (role=dialog "Add funds"), not a route.
+ * Desktop deposit: the hero "Deposit" opens a right drawer (role=dialog "Deposit"), not a route.
  * Pick the coin inside the drawer, fill the <input> (not the numpad), Deposit → the one-time consent
- * Dialog → on success the drawer closes (no in-drawer done step) and a toast confirms. Caller must
- * already be on the desktop /home.
+ * Dialog → success stays in the drawer until the final action. Caller must already be on desktop
+ * /home.
  */
 export async function depositViaDrawer(page: Page, coin: "USDC" | "EURC" | "CETES", amount: string): Promise<void> {
-  await page.getByRole("button", { name: "Add funds" }).click();
-  const drawer = page.getByRole("dialog", { name: "Add funds" });
+  await page.getByRole("button", { name: "Deposit" }).click();
+  const drawer = page.getByRole("dialog", { name: "Deposit" });
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: new RegExp(`^${coin}`) }).click();
   await expect(drawer.getByText(`Deposit ${coin}`)).toBeVisible();
@@ -90,6 +102,7 @@ export async function depositViaDrawer(page: Page, coin: "USDC" | "EURC" | "CETE
   const consent = page.getByRole("dialog", { name: "Approve automatic earning" });
   await expect(consent).toBeVisible();
   await consent.getByRole("button", { name: "Agree & sign" }).click();
-  // Success closes the drawer (URL drops ?panel=) — the toast is the feedback.
+  await expect(drawer.getByText("Deposit Success")).toBeVisible();
+  await drawer.getByRole("button", { name: "Back to Home" }).click();
   await expect(drawer).toBeHidden();
 }

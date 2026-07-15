@@ -33,20 +33,23 @@ test("cycler shows with ≥2 buckets; over-balance disables the button and shows
   expect(screen.getByTestId("bucket-chevron")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "999999" } });
   expect(screen.getByText(/not enough balance/i)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Move to wallet" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Withdraw" })).toBeDisabled();
 });
 
-test("a valid withdraw signs, reduces the balance, and closes the drawer", async () => {
+test("a valid withdraw signs, reduces the balance, and shows success status", async () => {
   const user = userEvent.setup();
   const { sign, client, onClose } = await setup();
   await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
   const before = await client.balanceOf("GUSER", "USD");
   fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "10" } });
-  await user.click(screen.getByRole("button", { name: "Move to wallet" }));
+  await user.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() => expect(sign).toHaveBeenCalled());
   await waitFor(async () => expect(await client.balanceOf("GUSER", "USD")).toBeLessThan(before));
-  // Desktop: success closes the drawer + a toast (no in-drawer done screen).
-  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  // Desktop now mirrors mobile: success stays in the drawer until the final action.
+  await waitFor(() => expect(screen.getByText("Withdrawal Success")).toBeInTheDocument());
+  expect(onClose).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Back to Home" }));
+  expect(onClose).toHaveBeenCalled();
 });
 
 /** R5 / KTD4 — desktop mirror: a rejected burn must not close the drawer, toast, or move cost basis. */
@@ -59,9 +62,9 @@ test("a rejected withdrawal keeps the drawer open, toasts nothing, and leaves th
   client.simulateFailure();
 
   fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "10" } });
-  await user.click(screen.getByRole("button", { name: "Move to wallet" }));
+  await user.click(screen.getByRole("button", { name: "Withdraw" }));
 
-  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("Withdrawal Failed")).toBeInTheDocument());
   expect(onClose).not.toHaveBeenCalled();
   expect(screen.queryByText("Withdrawal submitted.")).toBeNull();
   expect(await client.balanceOf("GUSER", "USD")).toBe(shares);

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import FlowLayout from "../layout";
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => nav, usePathname: () => "/add-funds" }));
+vi.mock("next/navigation", () => ({ useRouter: () => nav, usePathname: () => "/deposit" }));
 vi.mock("next/link", () => ({ default: (props: ComponentProps<"a">) => <a {...props} /> }));
 const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
@@ -32,8 +32,8 @@ test("mobile: flow layout renders children and no bottom nav", () => {
 
 test("desktop: a flow-route visitor is redirected to the matching drawer, children not shown", async () => {
   useWallet.mockReturnValue({ isConnected: true, hydrated: true });
-  mockMatchMedia(true); // desktop viewport → /add-funds maps to the add-funds drawer
+  mockMatchMedia(true); // desktop viewport → /deposit maps to the deposit drawer
   render(<FlowLayout><p>flow body</p></FlowLayout>);
-  await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/home?panel=add-funds"));
+  await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/home?panel=deposit"));
   expect(screen.queryByText("flow body")).toBeNull();
 });

@@ -15,8 +15,8 @@ vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 /** The offline default: no NEXT_PUBLIC_API_URL, no Horizon env — every network branch is dead. */
 const fetchSpy = vi.fn();
 
-function setup(sym: string) {
-  const sign = vi.fn(async (xdr: string) => `sig:${xdr}`);
+function setup(sym: string, signImpl: (xdr: string) => Promise<string> = async (xdr: string) => `sig:${xdr}`) {
+  const sign = vi.fn(signImpl);
   useWallet.mockReturnValue({ address: "GNEW", isConnected: true, signTransaction: sign });
   const client = new MockVaultClient(); // fresh: hasConsent=false → consent required
   vi.stubGlobal("fetch", fetchSpy);
@@ -26,6 +26,7 @@ function setup(sym: string) {
 
 afterEach(() => {
   fetchSpy.mockClear();
+  push.mockClear();
   vi.unstubAllGlobals();
   resetContributions(); // the ledger is a module singleton — keep each test's cost basis its own
 });
@@ -38,7 +39,7 @@ test("no risk-tier control is present", () => {
 test("with no Horizon env the fixture balance renders, no faucet button, and nothing is fetched", async () => {
   setup("usdc");
   // The offline guarantee: neither the Horizon read nor the faucet exists without their env vars.
-  expect(screen.getByText("$9,076.00")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("$9,076.00")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
   await waitFor(() => expect(screen.getByRole("button", { name: "Deposit fund" })).toBeInTheDocument());
   expect(fetchSpy).not.toHaveBeenCalled();
@@ -70,8 +71,13 @@ test("first deposit signs consent then deposit (two signatures)", async () => {
   await waitFor(() => expect(sign).toHaveBeenCalledTimes(2)); // consent + deposit
   await waitFor(async () => expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(0n));
   // Success is a status screen, not an auto-redirect — the user taps Done to return home.
-  await waitFor(() => expect(screen.getByText("Deposit sent")).toBeInTheDocument());
-  await user.click(screen.getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(screen.getByText("Deposit Success")).toBeInTheDocument());
+  expect(screen.getByText("Transaction hash")).toBeInTheDocument();
+  const txLink = screen.getByRole("link", { name: "Open transaction hash in explorer" });
+  expect(txLink).toHaveTextContent(/mock-tx-\d+/);
+  expect(txLink).toHaveAttribute("href", expect.stringContaining("https://stellar.expert/explorer/testnet/tx/mock-tx-"));
+  expect(txLink).toHaveAttribute("target", "_blank");
+  await user.click(screen.getByRole("button", { name: "Back to Home" }));
   expect(push).toHaveBeenCalledWith("/home");
 });
 
@@ -102,8 +108,8 @@ test("a rejected deposit shows a failure — no cost basis, no success screen", 
 
   await enterTen(user);
 
-  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
-  expect(screen.queryByText("Deposit sent")).toBeNull();
+  await waitFor(() => expect(screen.getByText("Deposit Failed")).toBeInTheDocument());
+  expect(screen.queryByText("Deposit Success")).toBeNull();
   expect(await client.balanceOf("GNEW", "USD")).toBe(before.shares); // nothing minted
   expect(getContributions("USD")).toBe(before.basis); // recordDeposit never ran
 });
@@ -117,7 +123,7 @@ test("a rejected consent stops the chain — the deposit is never attempted", as
 
   await enterTen(user);
 
-  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("Deposit Failed")).toBeInTheDocument());
   // Depositing on a mandate that never landed is the chain's NoConsent panic. Don't go there.
   expect(deposit).not.toHaveBeenCalled();
   expect(sign).toHaveBeenCalledTimes(1); // the consent signature, and nothing after it
@@ -130,7 +136,22 @@ test("the happy path still records cost basis exactly once", async () => {
 
   await enterTen(user);
 
-  await waitFor(() => expect(screen.getByText("Deposit sent")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("Deposit Success")).toBeInTheDocument());
   expect(getContributions("USD") - before.basis).toBe(10n * UNIT);
   expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(before.shares);
+});
+
+test("failed deposit shows one return action back to deposit", async () => {
+  const user = userEvent.setup();
+  setup("usdc", async () => {
+    throw new Error("wallet rejected");
+  });
+  await user.click(screen.getByRole("button", { name: "1" }));
+  await user.click(screen.getByRole("button", { name: "Deposit fund" }));
+  await user.click(screen.getByRole("button", { name: /agree & sign/i }));
+
+  await waitFor(() => expect(screen.getByText("Deposit Failed")).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Back to Deposit" }));
+  expect(push).toHaveBeenCalledWith("/deposit");
 });
