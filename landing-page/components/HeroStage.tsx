@@ -1,10 +1,10 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- R3F canvases mount client-only via a mount flag */
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Center, ContactShadows, useGLTF, useTexture } from "@react-three/drei";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 /* ---- Camera (shared by both canvases so the phone lines up with the table) ---- */
 const CAM_FROM = new THREE.Vector3(-0.12, 2.19, 2.15);
@@ -152,14 +152,28 @@ function Lights() {
   );
 }
 
+function Centered({ children }: { children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+
+  useLayoutEffect(() => {
+    const group = ref.current;
+    if (!group) return;
+    const box = new THREE.Box3().setFromObject(group);
+    const center = box.getCenter(new THREE.Vector3());
+    group.position.sub(center);
+  }, []);
+
+  return <group ref={ref}>{children}</group>;
+}
+
 /* Static table — lives inside the hero frame and scrolls away with the section
    (no scroll-driven movement of its own). */
 function Table() {
-  const { scene } = useGLTF("/models/wooden_table.glb");
+  const gltf = useLoader(GLTFLoader, "/models/wooden_table.glb");
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
   useEffect(() => setShadow(scene, true, true), [scene]);
   return <primitive object={scene} />;
 }
-useGLTF.preload("/models/wooden_table.glb");
 
 // One app screenshot per section (Hero, Earn, Protect, Simulate). Each is
 // rounded-clipped on a canvas so it reads as a masked screen inside the bezel —
@@ -211,8 +225,9 @@ function screenBlend(p: number): { a: number; b: number; mix: number } {
 }
 
 function Phone({ progress }: { progress: { current: number } }) {
-  const { scene } = useGLTF("/models/iphone.glb");
-  const shots = useTexture(SCREENS);
+  const gltf = useLoader(GLTFLoader, "/models/iphone.glb");
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const shots = useLoader(THREE.TextureLoader, SCREENS) as THREE.Texture[];
   const rounded = useMemo(() => {
     const imgs = shots.map((t) => t.image as (HTMLImageElement | ImageBitmap) & { width?: number });
     if (imgs.some((i) => !i || !i.width)) return null;
@@ -237,7 +252,7 @@ function Phone({ progress }: { progress: { current: number } }) {
   });
   return (
     <group ref={group}>
-      <Center>
+      <Centered>
         <group>
           <primitive object={scene} />
           {rounded ? (
@@ -261,11 +276,10 @@ function Phone({ progress }: { progress: { current: number } }) {
             </mesh>
           )}
         </group>
-      </Center>
+      </Centered>
     </group>
   );
 }
-useGLTF.preload("/models/iphone.glb");
 
 /* An invisible duplicate of the phone that lives in the table canvas purely to
    cast a real shadow onto the table. Its mesh is never drawn (opacity 0), so
@@ -273,9 +287,9 @@ useGLTF.preload("/models/iphone.glb");
    phone's pose, so the shadow sits under the phone at the hero and recedes with
    the table as the phone lifts off. */
 function GhostPhone({ progress }: { progress: { current: number } }) {
-  const { scene } = useGLTF("/models/iphone.glb");
+  const gltf = useLoader(GLTFLoader, "/models/iphone.glb");
   const clone = useMemo(() => {
-    const c = scene.clone(true);
+    const c = gltf.scene.clone(true);
     c.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.isMesh) {
@@ -291,47 +305,42 @@ function GhostPhone({ progress }: { progress: { current: number } }) {
       }
     });
     return c;
-  }, [scene]);
+  }, [gltf.scene]);
   const group = useRef<THREE.Group>(null);
   useFrame(() => {
     if (group.current) applyPhonePose(group.current, progress.current);
   });
   return (
     <group ref={group}>
-      <Center>
+      <Centered>
         <primitive object={clone} />
-      </Center>
+      </Centered>
     </group>
   );
 }
 
 /* Soft grounding shadow — fades in and follows the phone as it reaches Earn. */
 function Shadow({ progress }: { progress: { current: number } }) {
-  const ref = useRef<THREE.Group>(null);
+  const ref = useRef<THREE.Mesh>(null);
+  const mat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
     const sp = progress.current;
-    const g = ref.current;
-    if (!g) return;
-    g.position.x = phoneXAt(sp);
+    const mesh = ref.current;
+    if (!mesh) return;
+    mesh.position.x = phoneXAt(sp);
     const op = lerp(0, 0.5, clamp(sp, 0, 1)); // fade in over hero -> Earn, then hold
-    g.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh && !Array.isArray(m.material)) {
-        (m.material as THREE.Material).opacity = op;
-      }
-    });
+    if (mat.current) mat.current.opacity = op;
   });
   return (
-    <ContactShadows
+    <mesh
       ref={ref}
       position={[0, 0.78, 0]}
-      opacity={0}
-      blur={2.6}
-      scale={3}
-      far={2}
-      resolution={512}
-      color="#1a1a2e"
-    />
+      rotation={[-Math.PI / 2, 0, 0]}
+      scale={[0.9, 0.32, 1]}
+    >
+      <circleGeometry args={[1, 64]} />
+      <meshBasicMaterial ref={mat} color="#1a1a2e" transparent opacity={0} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -400,8 +409,8 @@ export function PhoneStage({
   if (!mounted) return null;
 
   // No `shadows` here: nothing in this canvas receives a shadow map (the table
-  // lives in the other canvas), and the Earn grounding uses ContactShadows,
-  // which renders independently. Skipping the shadow pass is a big win.
+  // lives in the other canvas), and the Earn grounding is a lightweight
+  // transparent mesh. Skipping the shadow pass is a big win.
   return (
     <Canvas
       frameloop="demand"
