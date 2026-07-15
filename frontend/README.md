@@ -1,93 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SoroSense Frontend
+### The wallet app for depositing, earning, withdrawing, and reading SoroSense bucket state.
 
-## Getting Started
+This package is the user-facing app. It connects a Stellar wallet, shows USD/EUR buckets, reads the
+backend API, and submits wallet-signed vault transactions.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Folder structure
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Path | What's inside |
+| --- | --- |
+| `app/` | Next.js App Router pages, layouts, onboarding, global CSS |
+| `app/(app)/home` | Authenticated dashboard |
+| `app/(app)/earn` | Earn page, simulator, growth views |
+| `app/(app)/account` | Account, wallet, faucet, preferences |
+| `app/(flow)/add-funds` | Add-funds flow |
+| `app/(flow)/deposit/[sym]` | Mobile deposit flow |
+| `app/(flow)/withdraw` | Mobile withdraw flow |
+| `components/desktop/` | Desktop drawers for deposit, withdraw, activity, safe exit |
+| `components/deposit/` | Funding list, consent sheet, faucet button, deposit keypad |
+| `components/withdraw/` | Withdraw keypad |
+| `components/home/` | Dashboard hero, bucket list, value chart |
+| `components/earn/` | Growth chart and monthly breakdown |
+| `components/ui/` | Shared UI primitives |
+| `hooks/` | Bucket, earnings, activity, funding, wallet hooks |
+| `lib/api/` | Backend HTTP client and wire types |
+| `lib/vault/` | Vault client selection, units, signer, local fallback data |
+| `lib/wallet/` | Horizon balance and trustline helpers |
+| `e2e/` | Playwright demo flow |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Talking to the backend
-
-The frontend runs **offline by default**: with no `NEXT_PUBLIC_API_URL` set it uses its local
-derivations (`lib/vault/data.ts`) and issues no request at all. That is what keeps `pnpm test` and
-Playwright network-free, and it means a backend that dies mid-demo degrades the app to fixtures
-instead of breaking it.
-
-To wire it to the backend's read surface, boot the backend in **mock mode** (in-memory vault,
-deterministic offline stub FX — no network, no testnet):
-
-```bash
-pnpm -C backend exec tsx src/http/server.ts   # http://localhost:8787
-```
-
-then copy `.env.example` to `.env.local` and set:
+## Run locally
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8787
+pnpm install
+pnpm -C frontend dev
 ```
 
-All requests go through `lib/api/client.ts`. It never throws — every call returns
-`{ ok: true, value }` or `{ ok: false, code, message }`, so a caller falls back to its local value
-instead of blanking the screen. The backend sends `bigint` as a decimal string; decode it with
-`toBigInt()` at the edge. `lib/api/types.ts` re-declares the wire shapes (the frontend must not depend
-on `backend`), and `lib/api/__tests__/http.contract.test.ts` boots the real mock-mode server and
-decodes them off it, so the two cannot drift silently.
+Open `http://localhost:3000`.
 
-Every var in `.env.example` is `NEXT_PUBLIC_*` and therefore public. Secrets (`KEEPER_SECRET`,
-`FAUCET_ISSUER_SECRET`) are backend-only and never reach the client.
+Without env, the app runs in local demo mode.
 
-## Running against testnet
+---
 
-The vault seam is config-selected the same way (`lib/vault/client.ts`, mirroring
-`backend/src/tools/vault.ts`). Unset ⇒ `MockVaultClient`, the default. Set all three contract vars and
-the app talks to the deployed vault through `RealVaultClient`: every write is a real Freighter-signed
-contract invocation, and Home's shares, value and frozen state are read from the chain.
+## Backend wiring
+
+Start the backend:
 
 ```bash
-pnpm -C packages/vault-client build:bindings   # required — bindings/dist is gitignored
+pnpm -C backend exec tsx src/http/server.ts
 ```
 
-then in `.env.local`:
+Copy the blank template:
 
 ```bash
-NEXT_PUBLIC_VAULT_CONTRACT_ID=C...             # the deployed vault
-NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+cp frontend/.env.example frontend/.env.local
 ```
 
-Connect **Freighter on Testnet** — the wallet popup must show a *contract invocation*, not a signed
-message; that is the smoke test that the swap took. The first deposit asks for two signatures (the
-one-time safety mandate, then the deposit itself). Two things are honest about real mode and worth
-saying out loud in a demo: with no keeper allocation yet a bucket has no active pool (Home handles it),
-and **total earned is 0** — the balance is real, on-chain yield has simply not accrued yet
-(`share_price` is pinned to the scale until mark-to-market NAV ships). A partial env (say, a contract
-id but no RPC URL) stays on the mock rather than half-building a client that fails in front of a user.
+Fill the values locally. Do not commit real deployment values.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Data sources
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| UI | Source |
+| --- | --- |
+| Home buckets | `GET /holdings` |
+| Earn page | `GET /earnings` |
+| Activity | `GET /activity` |
+| Add funds | `GET /funding` |
+| APY cards | `GET /rates` |
+| Wallet balance | Horizon account/trustline read |
+| Writes | Wallet-signed `RealVaultClient` calls |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+If the backend or live contract env is not configured, the app falls back to local demo mode.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Commands
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm -C frontend typecheck
+pnpm -C frontend lint
+pnpm -C frontend test
+pnpm -C frontend e2e
+pnpm -C frontend build
+```
+
+---
+
+## Notes
+
+- This README intentionally does not publish project-specific env values.
+- Use [`frontend/.env.example`](.env.example) for env names.
+- `NEXT_PUBLIC_*` values are public at runtime, but deployment-specific values should still live in
+  local env files or hosting dashboards.
