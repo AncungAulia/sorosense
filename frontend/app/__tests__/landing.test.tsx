@@ -3,7 +3,8 @@ import Landing from "../page";
 import { WalletError, USER_CLOSED_MODAL } from "../../lib/wallet-error";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace }) }));
 const connect = vi.fn();
 // hydrated: true, address: null — a disconnected-but-hydrated session, so the STE-43 forward guard
 // in Landing doesn't short-circuit these onConnect-flow tests (see app/__tests__/page.test.tsx for
@@ -12,29 +13,34 @@ vi.mock("../../hooks/useWallet", () => ({ useWallet: () => ({ connect, address: 
 
 beforeEach(() => {
   push.mockReset();
+  replace.mockReset();
   connect.mockReset();
+  localStorage.clear();
+  localStorage.setItem("soro.onboarding.done", "1");
 });
 
 test("navigates to /home after a successful connect", async () => {
   connect.mockResolvedValue(undefined);
   render(<Landing />);
-  fireEvent.click(screen.getByText("Connect wallet"));
-  await waitFor(() => expect(push).toHaveBeenCalledWith("/home"));
+  fireEvent.click(await screen.findByText("Connect wallet"));
+  await waitFor(() => expect(replace).toHaveBeenCalledWith("/home"));
 });
 
 test("surfaces a readable message on failure — no [object Object], no navigation", async () => {
   connect.mockRejectedValue(new WalletError("Freighter is locked", 5));
   render(<Landing />);
-  fireEvent.click(screen.getByText("Connect wallet"));
+  fireEvent.click(await screen.findByText("Connect wallet"));
   expect(await screen.findByText("Freighter is locked")).toBeInTheDocument();
   expect(push).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
 });
 
 test("stays silent when the user just closes the wallet picker", async () => {
   connect.mockRejectedValue(new WalletError("The user closed the modal.", USER_CLOSED_MODAL));
   render(<Landing />);
-  fireEvent.click(screen.getByText("Connect wallet"));
+  fireEvent.click(await screen.findByText("Connect wallet"));
   await waitFor(() => expect(connect).toHaveBeenCalled());
   expect(push).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
   expect(screen.queryByText("The user closed the modal.")).not.toBeInTheDocument();
 });
