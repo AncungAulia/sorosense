@@ -207,7 +207,7 @@ export function Hero() {
         </div>
 
         <div
-          className={`relative z-10 flex min-h-[100svh] flex-col items-center justify-start px-6 pt-[104px] text-center sm:px-10 md:items-start md:justify-center md:pt-[72px] md:text-left lg:pl-[89px] xl:pl-[121px] ${
+          className={`relative z-10 flex min-h-[100svh] flex-col items-center justify-start px-6 pt-[118px] text-center sm:px-10 md:items-start md:justify-center md:pt-[72px] md:text-left lg:pl-[89px] xl:pl-[121px] ${
             ready ? "is-ready" : ""
           }`}
         >
@@ -235,21 +235,21 @@ export function Hero() {
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/75 md:mx-0 md:mt-7 md:text-xl">
             <span className="mask-line">
               <span style={{ animationDelay: "0.96s" }}>
-                The stablecoins you hold, earning the safest and highest yield on
-                Stellar.
+                deposit your stablecoins and earn the safest yield on Stellar,
+                automatically.
               </span>
             </span>
           </p>
           {/* mobile button — smaller so it clears the phone */}
           <div className="reveal-up mt-5 md:hidden" style={{ animationDelay: "1.06s" }}>
-            <Button href="#" variant="blueSolid" size="sm">
-              Get started
+            <Button href="https://app.sorosense.xyz" variant="blueSolid" size="sm">
+              Launch App
             </Button>
           </div>
           {/* desktop button */}
           <div className="reveal-up mt-8 hidden md:block" style={{ animationDelay: "1.06s" }}>
-            <Button href="#" variant="blueSolid">
-              Get started
+            <Button href="https://app.sorosense.xyz" variant="blueSolid">
+              Launch App
             </Button>
           </div>
         </div>
@@ -258,26 +258,26 @@ export function Hero() {
       {/* Earn — white; the phone flew in on the left. The section is taller than
           a viewport and its copy is pinned (sticky) so it holds for a beat
           (EARN_DWELL) to be read before the phone moves on to Protect. */}
-      <section className="feature-section relative min-h-[100svh] bg-white">
+      <section id="earn" className="feature-section relative min-h-[100svh] bg-white">
         <div
           ref={earnCopyRef}
-          className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_28px)] text-center sm:px-10 md:items-end md:justify-center md:py-0 md:pt-[72px] md:text-right lg:pr-[89px] xl:pr-[121px]"
+          className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_32px)] text-center sm:px-10 md:items-end md:justify-center md:py-0 md:pt-[72px] md:text-right lg:pr-[89px] xl:pr-[121px]"
         >
           {/* headline group — top on mobile, right block on desktop */}
           <div className="max-w-[86vw] text-ink sm:max-w-2xl md:-translate-y-[25px]">
-            <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+            <p className="font-display text-[2rem] font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
               Earn
             </p>
 
             <div className="mt-3 flex items-baseline justify-center gap-x-2 tabular-nums sm:gap-x-2.5 md:justify-end">
-              <span className="text-xl text-muted sm:text-2xl md:text-3xl">up to</span>
-              <span className="font-display text-5xl font-normal leading-none sm:text-6xl md:text-8xl">
+              <span className="text-lg text-muted sm:text-2xl md:text-3xl">up to</span>
+              <span className="font-display text-[3.75rem] font-normal leading-none sm:text-6xl md:text-8xl">
                 8.59%
               </span>
-              <span className="text-xl sm:text-2xl md:text-3xl">APY</span>
+              <span className="text-lg sm:text-2xl md:text-3xl">APY</span>
             </div>
 
-            <p className="mt-1 font-display text-3xl font-normal leading-tight tracking-tight sm:text-4xl md:text-6xl">
+            <p className="mt-1 font-display text-[2.15rem] font-normal leading-tight tracking-tight sm:text-4xl md:text-6xl">
               on your stablecoins
             </p>
 
@@ -288,7 +288,7 @@ export function Hero() {
           </div>
 
           {/* mobile: subtitle drops to the bottom, phone sits between */}
-          <p className="max-w-xs text-sm text-muted md:hidden">
+          <p className="max-w-[17rem] text-sm leading-relaxed text-muted md:hidden">
             The highest safe yield on Stellar right now, and always variable.
           </p>
         </div>
@@ -296,13 +296,13 @@ export function Hero() {
 
       {/* Protect — white; phone on the right, held for a read beat. */}
       <section className="feature-section relative min-h-[100svh] bg-white">
-        <div className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_28px)] text-center sm:px-10 md:items-start md:justify-center md:py-0 md:pt-[72px] md:text-left lg:pl-[89px] xl:pl-[121px]">
+        <div className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_32px)] text-center sm:px-10 md:items-start md:justify-center md:py-0 md:pt-[72px] md:text-left lg:pl-[89px] xl:pl-[121px]">
           {/* headline group — top on mobile, left block on desktop */}
           <div className="max-w-[86vw] text-ink sm:max-w-xl">
-            <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+            <p className="font-display text-[2rem] font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
               Protect
             </p>
-            <h2 className="mt-3 font-display text-[clamp(2.25rem,4.4vw,4.25rem)] font-normal leading-[1.05] tracking-tight">
+            <h2 className="mt-3 font-display text-[2.35rem] font-normal leading-[1.04] tracking-tight md:text-[clamp(2.25rem,4.4vw,4.25rem)]">
               Guarded around the clock.
             </h2>
             {/* desktop: subtitle stays grouped under the block */}
@@ -313,7 +313,7 @@ export function Hero() {
           </div>
 
           {/* mobile: subtitle drops to the bottom, phone sits between */}
-          <p className="max-w-xs text-base text-muted md:hidden">
+          <p className="max-w-[17rem] text-sm leading-relaxed text-muted md:hidden">
             Sentinel watches every pool and pulls your funds out the moment one
             turns dangerous.
           </p>
@@ -324,21 +324,21 @@ export function Hero() {
       <section className="feature-section relative min-h-[100svh] bg-white md:min-h-[180svh]">
         <div
           ref={simCopyRef}
-          className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between gap-6 px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_28px)] text-center sm:px-10 md:flex-row md:items-center md:justify-between md:py-0 md:pt-[72px] md:text-left lg:px-[89px] xl:px-[121px]"
+          className="feature-copy sticky top-0 z-10 flex h-[100svh] flex-col items-center justify-between gap-6 px-6 pt-[92px] pb-[calc(env(safe-area-inset-bottom,0px)_+_32px)] text-center sm:px-10 md:flex-row md:items-center md:justify-between md:py-0 md:pt-[72px] md:text-left lg:px-[89px] xl:px-[121px]"
         >
           {/* copy1 (left on desktop, top on mobile) */}
           <div className="max-w-sm text-ink">
-            <p className="font-display text-4xl font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
+            <p className="font-display text-[2rem] font-normal leading-none tracking-tight text-brand-ink md:text-5xl">
               Simulate
             </p>
-            <h2 className="mt-3 font-display text-[clamp(2.25rem,4.4vw,4.25rem)] font-normal leading-[1.05] tracking-tight">
+            <h2 className="mt-3 font-display text-[2.35rem] font-normal leading-[1.04] tracking-tight md:text-[clamp(2.25rem,4.4vw,4.25rem)]">
               See it before you deposit.
             </h2>
           </div>
 
           {/* copy2 (right on desktop, bottom on mobile) */}
           <div className="max-w-xs text-muted md:text-right">
-            <p className="text-base md:text-lg">
+            <p className="text-sm leading-relaxed md:text-lg">
               Enter any amount and any period, and get an exact projection of
               what you&apos;d earn.
             </p>

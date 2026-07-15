@@ -52,15 +52,15 @@ const POSES: Pose[] = [HERO, EARN, PROTECT, SIMULATE];
    The full 360° spin is kept only on that entrance; the Protect -> Simulate
    turn is dropped (nothing moves there on mobile). */
 const HERO_M: Pose = {
-  pos: new THREE.Vector3(-0.1153, 0.8, 0.0555),
+  pos: new THREE.Vector3(-0.1153, 0.66, 0.0555),
   rot: new THREE.Vector3(1.57, 0, 3.42),
-  scale: 1.75, // 2.5 × 0.70
+  scale: 1.62,
   spin: 0,
 };
 const PARK_M = {
   pos: new THREE.Vector3(-0.1022, 0.72, -0.0011),
   rot: new THREE.Vector3(1.67, 0.02, -2.86),
-  scale: 1.944, // 2.7 × 0.72
+  scale: 1.58,
 };
 const EARN_M: Pose = { ...PARK_M, spin: 1 }; // keep the hero -> Earn full turn
 const PROTECT_M: Pose = { ...PARK_M, spin: 0 };

@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "./Button";
 
 const links = [
-  { href: "#how", label: "How it works" },
-  { href: "#security", label: "Security" },
-  { href: "#faq", label: "FAQ" },
+  { href: "#earn", label: "Earn" },
+  { href: "#risk", label: "Risk" },
+  { href: "#safety", label: "Safety" },
 ];
+
+const APP_URL = "https://app.sorosense.xyz";
 
 const DARK_GLASS = "rgba(22,17,13,0.72)"; // warm dark glass over hero + Risk
 const DARK_PANEL = "#161310"; // solid dark for the mobile menu
@@ -113,7 +115,7 @@ export function Nav() {
       style={glass && dark ? { backgroundColor: DARK_GLASS } : undefined}
     >
       <nav
-        className={`mx-auto grid h-[72px] max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-6 transition-colors duration-300 ${
+        className={`mx-auto grid h-[72px] max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-5 transition-colors duration-300 sm:px-6 ${
           dark ? "text-cloud" : "text-ink"
         }`}
       >
@@ -135,7 +137,7 @@ export function Nav() {
         {/* Right */}
         <div className="flex items-center justify-end gap-3">
           <div className="hidden sm:block">
-            <Button href="#" size="sm" variant="blue">
+            <Button href={APP_URL} size="sm" variant="blue">
               Launch app
             </Button>
           </div>
@@ -146,7 +148,7 @@ export function Nav() {
             aria-label="Toggle menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border md:hidden ${
+            className={`-mr-1.5 inline-flex h-10 w-10 items-center justify-center rounded-full border md:hidden ${
               dark ? "border-white/30" : "border-ink/15"
             }`}
           >
@@ -195,7 +197,7 @@ export function Nav() {
                 {l.label}
               </a>
             ))}
-            <Button href="#" variant="blue" className="mt-3 w-full">
+            <Button href={APP_URL} variant="blue" className="mt-3 w-full">
               Launch app
             </Button>
           </div>

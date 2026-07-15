@@ -151,7 +151,8 @@ function ChartReconstruction() {
         if (!chart || !line) return;
         const vh = window.innerHeight || 1;
         const top = chart.getBoundingClientRect().top;
-        const p = clamp((vh - top) / (vh * 0.9), 0, 1);
+        const mobile = window.innerWidth < 768;
+        const p = clamp((vh - top) / (vh * (mobile ? 0.58 : 0.9)), 0, 1);
         const len = line.getTotalLength();
         line.style.strokeDashoffset = `${len * (1 - p)}`;
         if (areaRef.current) areaRef.current.style.opacity = `${p}`;
@@ -176,13 +177,13 @@ function ChartReconstruction() {
 
   return (
     <section
-      className="flex min-h-screen flex-col items-center px-6 pb-[16vh] pt-[9vh]"
+      className="flex min-h-screen flex-col items-center px-6 pb-[12vh] pt-[7vh] md:pb-[16vh] md:pt-[9vh]"
       style={{ backgroundColor: CHARCOAL_CSS }}
     >
       <p className="font-display text-2xl font-normal tracking-tight text-white/50 md:text-3xl">How it happened</p>
 
-      <div ref={chartRef} className="mt-[9vh] w-full max-w-6xl md:mt-[13vh]">
-        <svg viewBox={mobile ? "300 0 700 400" : "0 0 1000 400"} className="w-full" fill="none">
+      <div ref={chartRef} className="mt-[6vh] w-full max-w-6xl md:mt-[13vh]">
+        <svg viewBox={mobile ? "300 0 700 400" : "0 0 1000 400"} className="w-full max-h-[38svh]" fill="none">
           <defs>
             <linearGradient id="riskFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor={RED} stopOpacity="0.3" />
@@ -218,7 +219,7 @@ function ChartReconstruction() {
           </g>
         </svg>
 
-        <p className="mt-6 text-center text-xs text-white/35">
+        <p className="mt-5 text-center text-xs text-white/35 md:mt-6">
           Reconstructed from the February 2026 YieldBlox incident. Sources:{" "}
           <a
             href="https://rekt.news/yieldblox-rekt"
@@ -242,7 +243,7 @@ function ChartReconstruction() {
       </div>
 
       {/* the reflective punch — same gap as the eyebrow, reveals line by line */}
-      <div ref={storyRef} className="mt-[10vh] max-w-2xl text-center text-xl leading-relaxed text-white/75 md:mt-[13vh] md:text-2xl">
+      <div ref={storyRef} className="mt-[7vh] max-w-2xl text-center text-[1.65rem] leading-snug text-white/75 md:mt-[13vh] md:text-2xl md:leading-relaxed">
         {STORY_LINES.map((line, i) => (
           <p key={i} className={`story-line ${storyActive ? "in" : ""}`} style={{ transitionDelay: `${i * 0.14}s` }}>
             {line}
@@ -289,7 +290,7 @@ export function RiskSection() {
       `}</style>
 
       {/* pinned: grey -> night, then the notifications pile up */}
-      <section ref={pinRef} className="relative" style={{ height: "230vh" }}>
+      <section id="risk" ref={pinRef} className="relative" style={{ height: "230vh" }}>
         <div
           className="sticky top-0 flex h-screen flex-col overflow-hidden px-6 pb-20 pt-28"
           style={{ backgroundColor: mix(PAPER, CHARCOAL, night) }}

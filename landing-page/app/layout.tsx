@@ -9,9 +9,9 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "SoroSense — Stablecoin yield, guarded around the clock",
+  title: "SoroSense - deposit your stablecoins and earn the safest yield on Stellar, automatically.",
   description:
-    "Non-custodial stablecoin yield on Stellar. Deposit what you already hold; an AI agent finds the safest-highest yield while a Sentinel guards your funds around the clock.",
+    "deposit your stablecoins and earn the safest yield on Stellar, automatically.",
 };
 
 export const viewport: Viewport = {

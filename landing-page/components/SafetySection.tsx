@@ -31,7 +31,7 @@ export function SafetySection() {
   }, []);
 
   return (
-    <section ref={ref} className="relative overflow-hidden bg-cloud">
+    <section id="safety" ref={ref} className="relative overflow-hidden bg-cloud">
       <style>{`
         .sfy-card { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
         .sfy-in .sfy-card { opacity: 1; transform: none; }

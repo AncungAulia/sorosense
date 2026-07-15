@@ -1,7 +1,7 @@
 "use client";
 
 /* CTA — the closing invite (2D). Just the copy: a big headline, one-line sub,
-   and Get started, centred on white, revealed with a slide-up + blur (the Risk
+   and Launch App, centred on white, revealed with a slide-up + blur (the Risk
    story-line style) when it scrolls into view. Sits between Safety and Footer. */
 
 import { useEffect, useRef, useState } from "react";
@@ -41,8 +41,8 @@ export function CtaSection() {
           Put your stablecoins to work.
         </p>
         <div className={`cta-line ${shown ? "in" : ""} mt-9`} style={{ transitionDelay: ".16s" }}>
-          <Button href="#" variant="blueSolid">
-            Get started
+          <Button href="https://app.sorosense.xyz" variant="blueSolid">
+            Launch App
           </Button>
         </div>
       </div>
