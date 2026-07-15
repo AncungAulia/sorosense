@@ -17,6 +17,7 @@ the frozen cross-track contract the backend and frontend build against.
 | `contracts/vault/src/guard.rs` | Keeper role + pause checks |
 | `contracts/vault/src/blend.rs` | Blend pool client seam (`contractimport`-style) |
 | `contracts/mock_pool/` | Blend **test-double** for deterministic `cargo test` |
+| `contracts/yield_pool/` | Accruing demo yield pool used by the live testnet demo |
 | `scripts/deploy.ts` | Build + deploy + init on testnet |
 | `scripts/bindings.ts` | Generate the TS client into `packages/vault-client/bindings/` |
 
@@ -131,12 +132,18 @@ npx tsx smart-contract/scripts/bindings.ts
 | Upgradable | yes — admin-governed `upgrade(new_wasm_hash)` (storage preserved) |
 | Explorer | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCK5G4FQ53Y7TIQY6CZLOSLCF5DKL44XV2LNFKCMHTSCWNWEAI3D457Y) |
 
-Deployed with `__constructor(admin, keeper, config)` and verified live: a consent write/read smoke test **and** an on-chain `upgrade` tx both succeeded. Full record in [`deployments/testnet.json`](deployments/testnet.json). Token + Blend-pool wiring happens at U20 integration. The upgrade key should move behind a timelock/multisig before mainnet (deferred). (Testnet resets ~quarterly — redeploy via the script below.)
+Deployed with `__constructor(admin, keeper, config)` and verified live: consent write/read, live
+upgrade, faucet asset mint, deposit, allocation, and rising share-price smoke tests all have records
+in [`deployments/testnet.json`](deployments/testnet.json). The current testnet setup is wired with
+self-issued USDC/EURC SACs plus accruing demo yield pools. The upgrade key should move behind a
+timelock/multisig before mainnet (deferred). Testnet resets periodically; redeploy via the scripts
+below.
 
 ## Deploy to testnet
 
-Fill the deploy seam vars in `.env` (see `.env.example`): `ADMIN_SECRET`,
-`KEEPER_SECRET`, `USDC_SAC`/`EURC_SAC`, `BLEND_POOL_USD`/`BLEND_POOL_EUR`.
+Fill the deploy seam vars in `.env` (see `.env.example`): admin/keeper identities or secrets,
+`KEEPER_SECRET`, `USDC_SAC`/`EURC_SAC`, and `YIELD_POOL_USD`/`YIELD_POOL_EUR` (or legacy
+`BLEND_POOL_USD`/`BLEND_POOL_EUR`).
 
 ```bash
 npx tsx smart-contract/scripts/deploy.ts
@@ -146,16 +153,24 @@ npx tsx smart-contract/scripts/deploy.ts
 The demo can re-point a bucket at an engineered risky pool without redeploying via
 the admin `set_configured_pool` (the origin U21 Sentinel-trigger seam).
 
-## Testnet faucet assets + demo pools (STE-46)
+## Testnet faucet assets + demo pools
 
 The demo uses **self-issued** assets coded USDC/EURC wrapped as SAC (not real Circle
-tokens) and `mock_pool` test-doubles (real Blend testnet rejects non-Circle assets).
+tokens). The original `mock_pool` test doubles remain available for deterministic contract tests; the
+current live demo uses accruing `yield_pool` contracts so `share_price` can rise on testnet.
 After a testnet reset, re-provision them and wire the vault:
 
 ```bash
 npx tsx smart-contract/scripts/faucet-assets.ts
 # issues USDC/EURC SACs, deploys+init two mock_pools, set_token/set_pool_allowed/
 # set_configured_pool, writes USDC_SAC/EURC_SAC/BLEND_POOL_* to .env
+```
+
+Then deploy and wire the accruing demo pools:
+
+```bash
+npx tsx smart-contract/scripts/deploy-yield-pool.ts
+# deploys yield_pool contracts, allowlists them, configures active demo pools, writes YIELD_POOL_*
 ```
 
 The issuer **secret** (`stellar keys show <ISSUER_IDENTITY>`) is what the backend
