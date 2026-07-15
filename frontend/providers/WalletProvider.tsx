@@ -17,6 +17,7 @@ type Ctx = {
 export const WalletContext = createContext<Ctx | null>(null);
 const KEY = "soro.wallet";
 const NAME_KEY = "soro.wallet.name";
+const ID_KEY = "soro.wallet.id";
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null | undefined>(undefined);
@@ -59,6 +60,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         window.localStorage.removeItem(KEY);
         window.localStorage.removeItem(NAME_KEY);
+        window.localStorage.removeItem(ID_KEY);
       } catch {
         // storage unavailable — nothing to clear.
       }
@@ -75,6 +77,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setWalletName(name);
     window.localStorage.setItem(KEY, addr);
     window.localStorage.setItem(NAME_KEY, name);
+    window.localStorage.setItem(ID_KEY, wallet.getWalletId());
   }, []);
 
   const disconnect = useCallback(async () => {
@@ -83,6 +86,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setWalletName(null);
     window.localStorage.removeItem(KEY);
     window.localStorage.removeItem(NAME_KEY);
+    window.localStorage.removeItem(ID_KEY);
   }, []);
 
   return (

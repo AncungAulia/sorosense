@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.5.0",
+    "@reown/appkit": "^1.8.22",
     "@sorosense/vault-client": "workspace:*",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "^14.6.1",
+    "@walletconnect/universal-provider": "^2.23.10",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"

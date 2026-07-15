@@ -13,5 +13,6 @@ const E2E = process.env.NEXT_PUBLIC_E2E === "1";
 
 export const connect = E2E ? e2e.connect : real.connect;
 export const getAddress = E2E ? e2e.getAddress : real.getAddress;
+export const getWalletId = E2E ? (() => "e2e") : real.getWalletId;
 export const signTransaction = E2E ? e2e.signTransaction : real.signTransaction;
 export const disconnect = E2E ? e2e.disconnect : real.disconnect;

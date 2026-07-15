@@ -33,9 +33,44 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/utils", () => ({
   defaultModules: () => [],
 }));
 
+vi.mock("@creit.tech/stellar-wallets-kit/modules/wallet-connect", () => ({
+  WalletConnectModule: vi.fn(function WalletConnectModule() {
+    return { productId: "wallet_connect", productName: "WalletConnect" };
+  }),
+  WalletConnectTargetChain: { TESTNET: "stellar:testnet" },
+}));
+
+vi.mock("@walletconnect/universal-provider", () => ({
+  UniversalProvider: {
+    init: vi.fn(async () => ({
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(async () => undefined),
+      request: vi.fn(async () => undefined),
+      session: undefined,
+    })),
+  },
+}));
+
+vi.mock("@reown/appkit/core", () => ({
+  createAppKit: vi.fn(() => ({
+    open: vi.fn(),
+    close: vi.fn(),
+  })),
+}));
+
+vi.mock("@reown/appkit/networks", () => ({
+  mainnet: { id: 1, name: "mainnet" },
+}));
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  // The normal browser unit tests exercise the Stellar Wallets Kit path. Tests
+  // that need the Freighter mobile WalletConnect branch can opt in explicitly.
+  Object.defineProperty(window, "stellar", {
+    configurable: true,
+    value: undefined,
+  });
 });
 
 test("connect() returns the selected wallet's address and product name", async () => {
