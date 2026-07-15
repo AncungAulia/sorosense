@@ -7,6 +7,13 @@ pool turns unsafe.
 
 APAC Stellar Hackathon - DeFi & Ecosystem Composability track
 
+| Resource | Link |
+| --- | --- |
+| Site | https://sorosense.xyz |
+| GitHub | https://github.com/AncungAulia/sorosense |
+| Video | https://drive.google.com/drive/folders/1rWPd16_q5_nct4L4Dc6yRdjl0oaG9l3t?usp=sharing |
+| Deck | https://canva.link/ykib0tnnny60uh8 |
+
 ---
 
 ## The problem
