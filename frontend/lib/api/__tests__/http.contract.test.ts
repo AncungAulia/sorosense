@@ -188,17 +188,20 @@ describeContract("the backend read surface, through the real client", () => {
     }
   });
 
-  it("GET /activity decodes as FeedEntry[], and the real rows map to real feed items", async () => {
+  it("GET /activity decodes as FeedEntry[], with account rows scoped away from global agent rows", async () => {
     const { apiGet } = await import("../client");
 
-    const result = await apiGet<FeedEntry[]>("/activity", { depositor: DEPOSITOR });
+    const accountResult = await apiGet<FeedEntry[]>("/activity", { depositor: DEPOSITOR });
+    const agentResult = await apiGet<FeedEntry[]>("/activity", { actor: "agent" });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(accountResult.ok).toBe(true);
+    expect(agentResult.ok).toBe(true);
+    if (!accountResult.ok || !agentResult.ok) return;
 
-    // Both sources are really there: the agent's own log, and the user action derived from an event.
-    const agent = result.value.find((e) => e.actor === "agent");
-    const user = result.value.find((e) => e.actor === "you");
+    // Account-scoped rows come from the depositor's own actions. Global agent rows still read.
+    const user = accountResult.value.find((e) => e.actor === "you");
+    const agent = agentResult.value.find((e) => e.actor === "agent");
+    expect(accountResult.value.find((e) => e.actor === "agent")).toBeUndefined();
     expect(agent).toBeDefined();
     expect(user).toBeDefined();
     if (!agent || !user) return;
@@ -218,12 +221,12 @@ describeContract("the backend read surface, through the real client", () => {
     expect(agent.depositor).toBeUndefined();
 
     // The feed arrives most-recent-first, by the backend's monotonic seq — the order we render in.
-    expect([...result.value].map((e) => e.seq)).toEqual(
-      [...result.value].map((e) => e.seq).sort((a, b) => b - a),
+    expect([...accountResult.value].map((e) => e.seq)).toEqual(
+      [...accountResult.value].map((e) => e.seq).sort((a, b) => b - a),
     );
 
     // And the real rows, through the real mapper, are the rows the list renders: the agent's freeze is
-    // flagged and lands in Automated; the user's deposit lands in Yours.
+    // flagged and lands in Agent; the user's deposit lands in Yours.
     const now = 3_600_000 + 2_000;
     expect(itemFromEntry(agent, now)).toEqual({
       id: agent.seq,
