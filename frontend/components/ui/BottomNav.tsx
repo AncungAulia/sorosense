@@ -29,7 +29,7 @@ export function BottomNav() {
           const active = path === t.href;
           return (
             <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined}
-              className={`flex h-[52px] flex-col items-center justify-center gap-[3px] rounded-[18px] border border-transparent px-[18px] text-[11px] font-medium ${active ? "border-white bg-card text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]" : "text-faint"}`}>
+              className={`flex h-[52px] flex-col items-center justify-center gap-[3px] rounded-[18px] border px-[18px] text-[11px] font-medium transition-colors ${active ? "border-white bg-card text-ink [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_10px_22px_-14px_rgba(17,19,22,.28)]" : "border-transparent text-faint hover:text-muted"}`}>
               <Icon>{t.icon}</Icon>{t.label}
             </Link>
           );

@@ -20,10 +20,10 @@ function renderActivity() {
 test("activity page filters to Yours", async () => {
   const user = userEvent.setup();
   await renderActivity();
-  expect(screen.getByText(/Switched to DeFindex/)).toBeInTheDocument();
+  expect(screen.getByText("Moved to better yield")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Yours" }));
-  expect(screen.queryByText(/Switched to DeFindex/)).not.toBeInTheDocument();
-  expect(screen.getByText(/Moved \$500 to your wallet/)).toBeInTheDocument();
+  expect(screen.queryByText("Moved to better yield")).not.toBeInTheDocument();
+  expect(screen.getByText("Withdraw")).toBeInTheDocument();
 });
 
 test("AE1 — only the proposed-exit row has a Review action (auto-compound/rebalance never prompt)", async () => {

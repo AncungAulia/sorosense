@@ -15,20 +15,17 @@ function setup(onReview = vi.fn()) {
 
 test("tabs filter the list by cat; Yours hides agent rows, Agent hides user rows", async () => {
   const user = setup();
-  // getActivity() fixture: "you" rows include "Moved $500...", "auto" rows include "Switched to DeFindex..."
-  expect(screen.getByText(/Switched to DeFindex/)).toBeInTheDocument();
-  expect(screen.getByText(/Moved \$500/)).toBeInTheDocument();
+  // getActivity() fixture: "you" rows include Withdraw, "auto" rows include agent moves.
+  expect(screen.getByText("Moved to better yield")).toBeInTheDocument();
+  expect(screen.getByText("Withdraw")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Yours" }));
-  expect(screen.queryByText(/Switched to DeFindex/)).toBeNull();
-  expect(screen.getByText(/Moved \$500/)).toBeInTheDocument();
+  expect(screen.queryByText("Moved to better yield")).toBeNull();
+  expect(screen.getByText("Withdraw")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Agent" }));
-  expect(screen.getByText(/Switched to DeFindex/)).toBeInTheDocument();
-  expect(screen.queryByText(/Moved \$500/)).toBeNull();
+  expect(screen.getByText("Moved to better yield")).toBeInTheDocument();
+  expect(screen.queryByText("Withdraw")).toBeNull();
 
-  // R11: the true forbidden risk-tier tokens. "safe exit" is the vetted ACTION name (the fixture's
-  // visible "Proposed safe exit from EURC pool" is legit copy, not a risk label) — same call as the
-  // Plan-1 desktop e2e regex. Assert the tokens that must NEVER appear on any surface.
-  expect(screen.queryByText(/\b(risk|score|sentinel)\b/i)).toBeNull();
+  expect(screen.queryByText(/\b(risk|score|sentinel|rebalanced|froze|compound|sign mandate|proposed exit)\b/i)).toBeNull();
 });

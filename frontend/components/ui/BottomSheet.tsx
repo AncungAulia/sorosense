@@ -1,8 +1,18 @@
-import type { ReactNode } from "react";
+"use client";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+
 export function BottomSheet({
   open, onClose, children, label,
 }: { open: boolean; onClose: () => void; children: ReactNode; label?: string }) {
-  return (
+  const [mounted, setMounted] = useState(false);
+  // Mount flag gates createPortal to client-only; SSR has no document.body.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       <div
         data-testid="scrim"
@@ -20,6 +30,7 @@ export function BottomSheet({
         <div className="mx-auto mb-4 mt-1.5 h-[5px] w-10 rounded-full bg-black/10" />
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

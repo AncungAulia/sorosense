@@ -28,12 +28,12 @@ test("an unknown panel value reads as null", () => {
 test("open pushes ?panel=", () => {
   h.search = "";
   const { result } = renderHook(() => usePanel());
-  act(() => result.current.open("add-funds"));
-  expect(h.push).toHaveBeenCalledWith("/home?panel=add-funds");
+  act(() => result.current.open("deposit"));
+  expect(h.push).toHaveBeenCalledWith("/home?panel=deposit");
 });
 
 test("close replaces back to the bare path", () => {
-  h.search = "panel=add-funds";
+  h.search = "panel=deposit";
   const { result } = renderHook(() => usePanel());
   act(() => result.current.close());
   expect(h.replace).toHaveBeenCalledWith("/home");
