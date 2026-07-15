@@ -25,7 +25,7 @@ function renderAccount(client = new MockVaultClient()) {
 test("shows the identicon, a truncated address, and the connected wallet", async () => {
   renderAccount();
   expect(await screen.findByLabelText("Wallet identicon")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /GABC…K3X9/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /GABC\.\.\.K3X9/ })).toBeInTheDocument();
   expect(screen.getByText("Connected via Freighter")).toBeInTheDocument();
 });
 
@@ -44,7 +44,7 @@ test("copying the address raises a toast", async () => {
   // throws. Object.defineProperty is the permitted adaptation of test *setup* (not assertions).
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   renderAccount();
-  await user.click(screen.getByRole("button", { name: /GABC…K3X9/ }));
+  await user.click(screen.getByRole("button", { name: /GABC\.\.\.K3X9/ }));
   expect(writeText).toHaveBeenCalledWith(ADDRESS);
   expect(await screen.findByText("Address copied")).toBeInTheDocument();
 });

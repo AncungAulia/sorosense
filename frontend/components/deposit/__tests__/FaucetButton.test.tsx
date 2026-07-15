@@ -109,7 +109,7 @@ test("a 200 mint toasts success and asks the caller to re-read the balance", asy
 
   await user.click(screen.getByRole("button", { name: "Get test USDC" }));
 
-  await waitFor(() => expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("Successfully minted 1000.00 USDC")).toBeInTheDocument());
   expect(onMinted).toHaveBeenCalledTimes(1);
   expect(trustline).not.toHaveBeenCalled();
 });
@@ -127,7 +127,7 @@ test("a 409 signs a changeTrust, then retries the mint EXACTLY once", async () =
   expect(trustline).toHaveBeenCalledWith("USDC", ADDRESS, sign);
   // The retry is bounded: two mint attempts, never a loop against a rate-limited endpoint.
   expect(faucetCalls()).toHaveLength(2);
-  expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument();
+  expect(screen.getByText("Successfully minted 1000.00 USDC")).toBeInTheDocument();
 });
 
 test("a declined changeTrust signature toasts and attempts NO mint", async () => {

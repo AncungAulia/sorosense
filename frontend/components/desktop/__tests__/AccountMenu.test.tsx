@@ -91,7 +91,7 @@ test("Activity row opens the activity panel; copy pill writes the address and sh
   expect(openPanel).toHaveBeenCalledWith("activity");
   // reopen (Activity click closed it) and copy
   await user.click(screen.getByRole("button", { name: "Account" }));
-  await user.click(screen.getByText("GABC…K3X9"));
+  await user.click(screen.getByRole("button", { name: "Copy address" }));
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith("GABCDEF12345678K3X9");
   expect(await screen.findByText("Copied")).toBeInTheDocument();
 });

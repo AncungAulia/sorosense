@@ -36,7 +36,7 @@ export async function addTrustline(
 ): Promise<string> {
   const asset = assetFor(sym);
   if (!asset) {
-    throw new Error(`no issuer configured for ${sym} — cannot build a trustline`);
+    throw new Error(`no issuer configured for ${sym}. Cannot build a trustline`);
   }
 
   const server = new Horizon.Server(horizonUrl());
