@@ -71,7 +71,7 @@ describe('POST /faucet', () => {
     expect(minter.mint).not.toHaveBeenCalled();
   });
 
-  it('rate-limits repeat requests from the same address (429)', async () => {
+  it('rate-limits repeat requests from the same address and currency (429)', async () => {
     let t = 1_000_000;
     const minter = fakeMinter();
     const app = boot(minter, { rateLimitMs: 60_000, now: () => t });
@@ -79,6 +79,14 @@ describe('POST /faucet', () => {
     expect((await post(app, { address: ADDR, currency: 'USD' })).status).toBe(429); // same clock, within window
     t += 60_001; // cooldown elapsed
     expect((await post(app, { address: ADDR, currency: 'USD' })).status).toBe(200);
+  });
+
+  it('does not let a USDC claim block the EURC faucet row', async () => {
+    const minter = fakeMinter();
+    const app = boot(minter, { rateLimitMs: 60_000, now: () => 1_000_000 });
+    expect((await post(app, { address: ADDR, currency: 'USD' })).status).toBe(200);
+    expect((await post(app, { address: ADDR, currency: 'EUR' })).status).toBe(200);
+    expect(minter.mint).toHaveBeenCalledTimes(2);
   });
 
   it('returns a changeTrust hint (409) when the recipient has no trustline', async () => {

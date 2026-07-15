@@ -45,7 +45,8 @@ function bad(c: Context, message: string, status: 400 | 404 | 409 | 429): Respon
 
 /**
  * Mount `POST /faucet` on the app. Call this only when faucet env is present (see `server.ts`), so the
- * route simply does not exist on mainnet. Rate-limits per address in-memory (one backend process).
+ * route simply does not exist on mainnet. Rate-limits per address+currency in-memory (one backend
+ * process), so claiming USDC does not block the EURC faucet row.
  */
 export function mountFaucet(app: Hono, config: FaucetConfig): void {
   const amount = config.amount ?? DEFAULT_AMOUNT;
@@ -69,7 +70,8 @@ export function mountFaucet(app: Hono, config: FaucetConfig): void {
       return bad(c, "unsupported currency: faucet mints USD or EUR only", 400);
     }
 
-    const last = lastMintAt.get(address);
+    const limitKey = `${address}:${currency}`;
+    const last = lastMintAt.get(limitKey);
     if (last !== undefined && now() - last < rateLimitMs) {
       return bad(c, 'rate limited: try again later', 429);
     }
@@ -83,7 +85,7 @@ export function mountFaucet(app: Hono, config: FaucetConfig): void {
       );
     }
 
-    lastMintAt.set(address, now());
+    lastMintAt.set(limitKey, now());
     // Response carries only the public tx hash — never the issuer secret.
     return c.json({ ok: true, hash: result.hash, currency, amount: amount.toString() });
   });

@@ -51,11 +51,13 @@ describe('Activity feed e2e — a full journey, real objects', () => {
     for (const row of all) expect(row.detail).not.toMatch(RISK_WORDS);
   });
 
-  it('with no user events the Yours tab is empty but the agent feed still reads', () => {
+  it('with no user events the account-scoped feed is empty but the global agent feed still reads', () => {
     const log = new ActivityLog();
     log.append({ currency: 'USD', kind: 'allocated', detail: 'USD -> Blend USDC' });
     const deps = { log, userEvents: [] };
     expect(getActivity({ depositor: 'alice', actor: 'you' }, deps)).toEqual([]);
+    expect(getActivity({ depositor: 'alice' }, deps)).toEqual([]);
+    expect(getActivity({ depositor: 'alice', actor: 'agent' }, deps)).toEqual([]);
     expect(getActivity({ actor: 'agent' }, deps)).toHaveLength(1);
   });
 });
