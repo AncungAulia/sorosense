@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Currency } from "@sorosense/vault-client";
-import { Card, Segmented } from "../ui";
-import { Bars } from "../earn/Bars";
+import { Card, CountUp, Segmented } from "../ui";
 import { PERIOD_DAYS, simulate, simulateCurve, type PeriodName } from "../../lib/earn/simulate";
 
 /** The picker offers USD and EUR only (R3) — MXN has no user-facing control on any surface. */
@@ -31,6 +30,7 @@ const MAX = 1_000_000;
  * six-hour blocks, one bar per day, ~2.5-day blocks, and mock-2's twenty for the year.
  */
 const BAR_COUNT: Record<PeriodName, number> = { day: 4, week: 7, month: 12, year: 20 };
+const CHART_H = 118;
 
 /** `.hstep button` — the same dimensional treatment as `.icobtn`: white edge, card fill, soft shadow. */
 const STEP_BUTTON =
@@ -38,6 +38,13 @@ const STEP_BUTTON =
 
 const money = (n: number, currency: Currency) =>
   `${SYMBOL[currency]}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const progressLabel = (period: PeriodName, index: number, count: number) => {
+  if (period === "day") return `${Math.round(((index + 1) * 24) / count)}h`;
+  if (period === "week") return `Day ${index + 1}`;
+  if (period === "month") return `Day ${Math.round(((index + 1) * 30) / count)}`;
+  return `Month ${index + 1}`;
+};
 
 /**
  * The deterministic earnings simulator (R15). The user picks a CURRENCY — never a pool, never a risk
@@ -55,6 +62,7 @@ export function Simulator({
 }) {
   const [amount, setAmount] = useState(1000);
   const [period, setPeriod] = useState<PeriodName>("year");
+  const [hover, setHover] = useState<number | null>(null);
 
   const periodDays = PERIOD_DAYS[period];
   const { projectedEarnings } = simulate({ currency, amount, periodDays, apy });
@@ -62,6 +70,8 @@ export function Simulator({
   // maximum, but the curve is not self-similar under time rescaling — a one-year horizon is visibly
   // convex where a one-day horizon is near-linear — so the bars redraw, not just re-count.
   const curve = simulateCurve({ currency, amount, periodDays, apy }, BAR_COUNT[period]);
+  const max = curve.reduce((m, v) => (v > m ? v : m), 0) || 1;
+  const hv = hover !== null ? curve[hover] : undefined;
   const step = (delta: number) => setAmount((a) => Math.min(MAX, Math.max(MIN, a + delta)));
 
   return (
@@ -93,11 +103,40 @@ export function Simulator({
       />
 
       <p className="mb-0.5 mt-4 text-[15px] font-medium text-muted">You would earn</p>
-      <div data-testid="projection" className="text-[38px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]">
-        {money(projectedEarnings, currency)}
-      </div>
+      <CountUp
+        value={projectedEarnings}
+        format={(n) => money(n, currency)}
+        className="block text-[38px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]"
+      />
+      <span data-testid="projection" className="sr-only">{money(projectedEarnings, currency)}</span>
 
-      <Bars values={curve} />
+      <div className="relative my-3.5">
+        <div
+          data-testid="bars"
+          aria-hidden="true"
+          className="flex items-end gap-1"
+          style={{ height: CHART_H }}
+          onMouseLeave={() => setHover(null)}
+        >
+          {curve.map((v, i) => (
+            <div
+              key={i}
+              data-testid="bar"
+              onMouseEnter={() => setHover(i)}
+              style={{ height: `${8 + (v / max) * (CHART_H - 8)}px`, animationDelay: `${i * 26}ms` }}
+              className="grow-bar min-h-[6px] flex-1 rounded-t-[5px] rounded-b-[2px] [background:linear-gradient(180deg,#22c55e,var(--color-pos))] transition-[height,opacity] duration-500 hover:opacity-[.82]"
+            />
+          ))}
+        </div>
+        {hv !== undefined && (
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[125%] whitespace-nowrap rounded-[10px] border border-line bg-white px-2.5 py-1.5 text-[12.5px] font-semibold [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_8px_18px_-10px_rgba(17,19,22,.18)]"
+            style={{ left: `${((hover! + 0.5) / curve.length) * 100}%`, top: `${CHART_H * (1 - hv / max)}px` }}
+          >
+            {progressLabel(period, hover!, curve.length)} · <span className="text-pos">+{money(hv, currency)}</span>
+          </div>
+        )}
+      </div>
 
       <Segmented
         options={PERIODS}

@@ -119,7 +119,7 @@ export function GrowthCard({
         <div data-testid="growth-zero" className="flex flex-col items-center gap-2 px-4 py-9 text-center">
           <span className="text-[15px] font-semibold">No earnings yet</span>
           <span className="max-w-[260px] text-[13.5px] leading-snug text-muted">
-            Your deposits are allocated and safe. Yield shows up here as it accrues — nothing is hidden.
+            Your deposits are allocated and safe. Yield shows up here as it accrues. Nothing is hidden.
           </span>
         </div>
       )}

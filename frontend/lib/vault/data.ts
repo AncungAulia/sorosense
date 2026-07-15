@@ -8,6 +8,12 @@ export interface ActivityItem {
   id: number; cat: "you" | "auto"; kind: string; detail: string; when: string; flag?: boolean; review?: boolean;
 }
 
+/** Buckets live in the app. CETES/MXN remains a coming-soon funding option, not an active bucket. */
+export const ACTIVE_BUCKET_CURRENCIES: readonly Currency[] = ["USD", "EUR"];
+export function isActiveBucketCurrency(currency: Currency): boolean {
+  return ACTIVE_BUCKET_CURRENCIES.includes(currency);
+}
+
 /**
  * Fundable stablecoins only — no explore/RWA catalog (R19).
  *

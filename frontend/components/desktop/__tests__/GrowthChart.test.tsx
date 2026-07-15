@@ -6,6 +6,7 @@
  * communicate that — it reads as a chart that failed to load. The card says it in words instead.
  */
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { GrowthChart } from "../GrowthChart";
 
 const EARNED = [
@@ -33,6 +34,36 @@ test("an all-zero month list renders the honest zero-state, not three floor-heig
   expect(screen.getByTestId("growth-zero")).toBeInTheDocument();
   expect(screen.getByText("No earnings yet")).toBeInTheDocument();
   expect(screen.queryByTestId("bars")).toBeNull();
+});
+
+test("before the first deposit it renders a compact earnings simulator", async () => {
+  render(
+    <GrowthChart
+      monthly={[]}
+      hasDeposit={false}
+      simulation={{
+        currency: "USD",
+        setCurrency: vi.fn(),
+        amount: 1000,
+        period: "year",
+        setPeriod: vi.fn(),
+        projectedEarnings: 82,
+        curve: [10, 20, 30],
+        max: 30,
+        step: vi.fn(),
+      }}
+    />,
+  );
+
+  expect(screen.getByTestId("growth-simulator")).toBeInTheDocument();
+  expect(screen.queryByText("Simulate earnings")).toBeNull();
+  expect(screen.getByText("You would earn")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "USDC" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("group", { name: "Simulation period" })).toBeInTheDocument();
+  const bar = screen.getByRole("button", { name: "Month 2 $20.00" });
+  await userEvent.hover(bar);
+  expect(screen.getAllByText((_, el) => el?.textContent === "Month 2 · +$20.00").length).toBeGreaterThan(0);
+  expect(screen.queryByTestId("growth-zero")).toBeNull();
 });
 
 test("an empty month list renders the zero-state and does not throw", () => {

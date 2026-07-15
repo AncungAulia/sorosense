@@ -43,8 +43,8 @@ test("both actions route back into the existing deposit/withdraw flows", async (
   const user = userEvent.setup();
   await renderFunded();
   await user.click(screen.getByRole("button", { name: "Deposit" }));
-  expect(push).toHaveBeenCalledWith("/add-funds");
-  await user.click(screen.getByRole("button", { name: "Move to wallet" }));
+  expect(push).toHaveBeenCalledWith("/deposit");
+  await user.click(screen.getByRole("button", { name: "Withdraw" }));
   expect(push).toHaveBeenCalledWith("/withdraw");
 });
 

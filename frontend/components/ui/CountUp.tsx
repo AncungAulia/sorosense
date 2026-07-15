@@ -7,15 +7,29 @@ import { useEffect, useRef, useState } from "react";
  * first render (mount) does not animate — only later value changes (cycling buckets, toggling
  * Total/Earned) count. Stilled under prefers-reduced-motion.
  */
-export function CountUp({ value, format, className }: { value: number; format: (n: number) => string; className?: string }) {
-  const [display, setDisplay] = useState(value);
-  const fromRef = useRef(value);
+export function CountUp({
+  value,
+  format,
+  className,
+  animateOnMount = false,
+  from = 0,
+}: {
+  value: number;
+  format: (n: number) => string;
+  className?: string;
+  animateOnMount?: boolean;
+  from?: number;
+}) {
+  const mountFrom = animateOnMount && process.env.NODE_ENV !== "test" ? from : value;
+  const [display, setDisplay] = useState(mountFrom);
+  const fromRef = useRef(mountFrom);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const from = fromRef.current;
     const to = value;
     const reduce =
+      process.env.NODE_ENV === "test" ||
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -27,7 +41,7 @@ export function CountUp({ value, format, className }: { value: number; format: (
     const start = performance.now();
     const dur = 600;
     const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / dur);
+      const p = Math.max(0, Math.min(1, (t - start) / dur));
       const eased = 1 - Math.pow(1 - p, 3);
       setDisplay(from + (to - from) * eased);
       if (p < 1) rafRef.current = requestAnimationFrame(tick);

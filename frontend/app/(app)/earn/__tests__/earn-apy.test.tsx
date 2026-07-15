@@ -60,6 +60,19 @@ const EUR_ROW = {
   frozen: true,
 };
 
+const MXN_ROW = {
+  currency: "MXN",
+  name: "Etherfuse CETES",
+  venue: "Etherfuse",
+  kind: "rwa",
+  tags: ["Etherfuse", "CETES"],
+  apy: 5.57,
+  shares: "0",
+  value: "0",
+  valueUsd: 0,
+  frozen: false,
+};
+
 type Row = typeof USD_ROW;
 
 /**
@@ -208,4 +221,27 @@ test("a backend that dies mid-demo degrades the funded hero to the fixture, neve
   await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
   expect(screen.getByText(/8\.59% APY/)).toBeInTheDocument();
   expect(logged).toHaveBeenCalled();
+});
+
+test("the funded bucket selector never offers MXN while CETES is coming soon", async () => {
+  const user = userEvent.setup();
+  fetchMock.mockImplementation(routeTo([USD_ROW, EUR_ROW, MXN_ROW]));
+  useWallet.mockReturnValue({ address: "GUSER", isConnected: true });
+  const client = new MockVaultClient();
+  await seedVault(client, "GUSER");
+  render(
+    <VaultProvider client={client}>
+      <EarnPage />
+    </VaultProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByText("Total earned")).toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Switch bucket" })).toHaveTextContent("All buckets");
+  await user.click(screen.getByRole("button", { name: "Switch bucket" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Switch bucket" })).toHaveTextContent("USD bucket"));
+  await user.click(screen.getByRole("button", { name: "Switch bucket" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Switch bucket" })).toHaveTextContent("EUR bucket"));
+  await user.click(screen.getByRole("button", { name: "Switch bucket" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Switch bucket" })).toHaveTextContent("All buckets"));
+  expect(document.body.textContent).not.toMatch(/MXN|CETES/);
 });

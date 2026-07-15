@@ -7,11 +7,12 @@ import { formatCurrency, UNIT } from "../../lib/vault/units";
 import { netApyOf, feeLabel } from "../../lib/vault/fee";
 import { Button, Card, CountUp, Segmented, Skeleton } from "../ui";
 import { useActivity } from "../../hooks/useActivity";
+import { useApyResolver } from "../../hooks/useApy";
 import { usePendingExit } from "../../hooks/usePendingExit";
 import { BucketRow } from "../bucket/BucketRow";
 import { ActivityList } from "../activity/ActivityList";
 import { FreezeBar } from "../desktop/FreezeBar";
-import { GrowthChart } from "../desktop/GrowthChart";
+import { GrowthChart, SimulationAmountStepper, useGrowthSimulation } from "../desktop/GrowthChart";
 import { SafeExitDialog } from "../desktop/SafeExitDialog";
 import { AddFundsDrawer } from "../desktop/AddFundsDrawer";
 import { WithdrawDrawer } from "../desktop/WithdrawDrawer";
@@ -60,9 +61,35 @@ export function rangeSeries(chart: readonly ChartPoint[], range: Range, fallback
 
 const money = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function CoinStackIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-ink-2" aria-hidden="true">
+      <ellipse cx="12" cy="6" rx="7" ry="3" />
+      <path d="M5 6v5c0 1.7 3.1 3 7 3s7-1.3 7-3V6" />
+      <path d="M5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+    </svg>
+  );
+}
+
+function EmptyBucketsState() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-5 py-8 text-center">
+      <div className="grid h-12 w-12 place-items-center rounded-full border border-line bg-white [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_10px_22px_-16px_rgba(17,19,22,.2)]">
+        <CoinStackIcon />
+      </div>
+      <p className="mt-3 text-[13.5px] font-semibold text-ink">No deposits yet</p>
+      <p className="mt-1 max-w-[220px] text-[12.5px] leading-snug text-muted">
+        Deposit your money to create your first earning bucket.
+      </p>
+    </div>
+  );
+}
+
 export function DesktopOverview() {
   const { loading, buckets, totalUsd } = useBuckets();
   const { view } = useEarnings();
+  const apyOf = useApyResolver();
+  const simulation = useGrowthSimulation(apyOf);
   const { panel, open, close } = usePanel();
 
   const [mode, setMode] = useState<Mode>("Total");
@@ -111,13 +138,15 @@ export function DesktopOverview() {
 
   const headlineNum = mode === "Total" ? sel.valueNum : sel.earnedUsd;
   const headlineFmt = mode === "Total" ? sel.fmt : money;
+  const hasDeposit = buckets.length > 0;
+  const agentActivity = hasDeposit ? activity.filter((item) => item.cat === "auto") : [];
 
   return (
     <>
       <div className="stagger">
       {pend && <FreezeBar onReview={() => open("safe-exit")} />}
 
-      <section className="mb-4 grid grid-cols-[minmax(290px,0.78fr)_1.3fr] overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)]" aria-label="Your value">
+      <section className="mb-4 grid overflow-hidden rounded-card border border-white bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.03),0_14px_34px_-22px_rgba(17,19,22,.16)] lg:grid-cols-[minmax(285px,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(330px,0.78fr)_1.3fr]" aria-label="Your value">
       {/* LEFT */}
       <div className="flex min-w-0 flex-col px-7 py-6">
         <div className="mb-[18px] flex items-center justify-between gap-3">
@@ -165,18 +194,21 @@ export function DesktopOverview() {
             </div>
 
             <div className="mt-3 text-[13.5px] [font-variant-numeric:tabular-nums]">
-              <span className="text-pos">{sel.apy.toFixed(2)}% APY</span>
-              <span className="text-muted">{sel.sub}</span>
-              {sel.isAll && <span className="text-faint"> ≈ USD</span>}
+              <span className={hasDeposit ? "text-pos" : "hidden"}>{sel.apy.toFixed(2)}% APY</span>
+              <span className={hasDeposit ? "text-muted" : "hidden"}>{sel.sub}</span>
+              {!hasDeposit && <span className="font-semibold text-muted">Deposit to start earning</span>}
+              {hasDeposit && sel.isAll && <span className="text-faint"> ≈ USD</span>}
             </div>
-            <div className="mt-0.5 text-[12px] text-faint [font-variant-numeric:tabular-nums]">
-              {netApyOf(sel.apy).toFixed(2)}% after {feeLabel} performance fee
-            </div>
+            {hasDeposit && (
+              <div className="mt-0.5 text-[12px] text-faint [font-variant-numeric:tabular-nums]">
+                {netApyOf(sel.apy).toFixed(2)}% after {feeLabel} performance fee
+              </div>
+            )}
 
             <div className="mt-[22px] flex flex-col" aria-label="Breakdown">
               <div className="flex items-baseline justify-between gap-[14px] py-[10px]">
                 <span className="text-[13px] text-muted">Earned this month</span>
-                <span className="text-[14.5px] font-semibold tracking-[-.01em] text-pos [font-variant-numeric:tabular-nums]">
+                <span className={`text-[14.5px] font-semibold tracking-[-.01em] [font-variant-numeric:tabular-nums] ${hasDeposit ? "text-pos" : "text-muted"}`}>
                   ~{money(earnedThisMonth)}
                   <span className="ml-0.5 text-xs font-medium text-faint"> USD</span>
                 </span>
@@ -186,8 +218,8 @@ export function DesktopOverview() {
         )}
 
         <div className="mt-auto flex gap-2.5 pt-6">
-          <Button className="flex-1" onClick={() => open("add-funds")}>Add funds</Button>
-          <Button variant="glass" className="flex-1" onClick={() => open("move-to-wallet")}>Move to wallet</Button>
+          <Button className="flex-1" onClick={() => open("deposit")}>Deposit</Button>
+          <Button variant="glass" className="flex-1" onClick={() => open("withdraw")}>Withdraw</Button>
         </div>
       </div>
 
@@ -208,9 +240,9 @@ export function DesktopOverview() {
       </div>
     </section>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* Buckets */}
-        <Card className="flex flex-col px-5 py-[18px]" aria-label="Buckets">
+        <Card className="flex min-h-[266px] flex-col px-5 py-[18px]" aria-label="Buckets">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-[13px] font-semibold text-muted">Buckets</h2>
           </div>
@@ -228,16 +260,21 @@ export function DesktopOverview() {
               ))}
             </div>
           ) : buckets.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+            <EmptyBucketsState />
           ) : (
             <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} divider={false} />)}</div>
           )}
         </Card>
 
         {/* Growth — monthly earnings bar chart (this year) */}
-        <Card className="flex flex-col px-5 py-[18px]" aria-label="Growth">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-muted">Growth</h2>
+        <Card className="flex min-h-[266px] flex-col px-5 py-[18px]" aria-label="Growth">
+          <div className={loading || view.hasDeposit ? "mb-6 flex items-center justify-between" : "mb-2 flex items-center justify-between gap-3"}>
+            <h2 className="text-[13px] font-semibold text-muted">
+              {loading || view.hasDeposit ? "Growth" : "Simulate earnings"}
+            </h2>
+            {!loading && !view.hasDeposit && (
+              <SimulationAmountStepper amount={simulation.amount} currency={simulation.currency} step={simulation.step} />
+            )}
           </div>
           {loading ? (
             <div className="mt-2 flex h-[132px] items-end gap-[5px]">
@@ -246,12 +283,12 @@ export function DesktopOverview() {
               ))}
             </div>
           ) : (
-            <GrowthChart monthly={view.monthly} />
+            <GrowthChart monthly={view.monthly} hasDeposit={view.hasDeposit} simulation={simulation} />
           )}
         </Card>
 
         {/* Agent */}
-        <Card className="flex flex-col px-5 py-[18px]" aria-label="Agent">
+        <Card className="flex min-h-[266px] flex-col px-5 py-[18px] lg:col-span-2 xl:col-span-1" aria-label="Agent">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-[13px] font-semibold text-muted">Agent</h2>
             <button
@@ -262,15 +299,23 @@ export function DesktopOverview() {
               View all
             </button>
           </div>
-          <ActivityList items={activity.slice(0, 3)} loading={activityLoading} onReview={() => open("safe-exit")} reviewed={!pend} divider={false} />
+          <ActivityList
+            items={agentActivity.slice(0, 3)}
+            loading={activityLoading}
+            onReview={() => open("safe-exit")}
+            reviewed={!pend}
+            divider={false}
+            emptyTitle="No agent activity yet"
+            emptyDescription="Deposit first; automated moves will show here."
+          />
         </Card>
       </div>
       </div>
 
       <SafeExitDialog open={panel === "safe-exit"} onClose={close} />
 
-      <AddFundsDrawer open={panel === "add-funds"} onClose={close} />
-      <WithdrawDrawer open={panel === "move-to-wallet"} onClose={close} />
+      <AddFundsDrawer open={panel === "deposit"} onClose={close} />
+      <WithdrawDrawer open={panel === "withdraw"} onClose={close} />
       <ActivityDrawer open={panel === "activity"} onClose={close} onReview={() => open("safe-exit")} />
     </>
   );

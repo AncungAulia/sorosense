@@ -23,7 +23,7 @@ test("shows a zero balance, the simulator, and a route into deposit", async () =
   expect(screen.getByText("Simulate earnings")).toBeInTheDocument();
   expect(screen.getByText("No lockup, move to your wallet anytime")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Start earning" }));
-  expect(push).toHaveBeenCalledWith("/add-funds");
+  expect(push).toHaveBeenCalledWith("/deposit");
 });
 
 test("the hero APY tracks the simulator's currency", async () => {

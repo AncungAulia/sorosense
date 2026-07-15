@@ -6,9 +6,9 @@ import { useVault } from "./useVault";
 import { apiEnabled } from "../lib/api/config";
 import { apiGet } from "../lib/api/client";
 import type { Pool } from "../lib/api/types";
-import { STABLECOINS, getPoolMeta } from "../lib/vault/data";
+import { ACTIVE_BUCKET_CURRENCIES, STABLECOINS, getPoolMeta } from "../lib/vault/data";
 
-const CURRENCIES: readonly Currency[] = ["USD", "EUR", "MXN"];
+const CURRENCIES = ACTIVE_BUCKET_CURRENCIES;
 
 export interface PendingExitView {
   currency: Currency;

@@ -22,10 +22,19 @@ test("home renders buckets, activity preview and a View all link", async () => {
   const client = new MockVaultClient();
   await seedVault(client, "GUSER");
   render(<VaultProvider client={client}><ToastProvider><HomePage /></ToastProvider></VaultProvider>);
-  await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
-  expect(screen.getByRole("button", { name: "Add funds" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("USD Bucket")).toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Deposit" })).toBeInTheDocument();
   expect(screen.getByText("View all activity")).toBeInTheDocument();
   expect(screen.getByText("Your earning is paused")).toBeInTheDocument(); // EUR pool seeded frozen
+});
+
+test("mobile Agent preview hides View all until there are more than three agent rows", async () => {
+  useWallet.mockReturnValue({ address: null, isConnected: false });
+  render(<VaultProvider client={new MockVaultClient()}><ToastProvider><HomePage /></ToastProvider></VaultProvider>);
+
+  await waitFor(() => expect(screen.getByText("No deposits yet")).toBeInTheDocument());
+  expect(screen.getByText("No agent activity yet")).toBeInTheDocument();
+  expect(screen.queryByText("View all activity")).toBeNull();
 });
 
 test("tapping the freeze banner opens the exit approval sheet", async () => {
@@ -59,7 +68,7 @@ test("desktop hero: eyebrow, flat Total segmented pressed, 'Earned this month' s
   expect(total).toHaveAttribute("aria-pressed", "true");
   expect(total).not.toHaveClass("bg-white"); // flat segmented, not a white raised pill
   expect(screen.getByText(/Earned this month/i)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Add funds" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Deposit" })).toBeInTheDocument();
   // ExitApproval's own copy legitimately says "safe exit" (invisible-safety wording); it's mounted
   // but aria-hidden (sheet closed), so scope this check to the visible page, not the hidden dialog.
   expect(screen.queryByText(/\b(risk|score|Safe|Watch|Sentinel)\b/i, { ignore: '[aria-hidden="true"] *' })).toBeNull();

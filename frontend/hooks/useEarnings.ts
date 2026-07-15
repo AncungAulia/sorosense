@@ -8,7 +8,7 @@ import { apiEnabled } from "../lib/api/config";
 import { apiGet, toBigInt } from "../lib/api/client";
 import type { EarningsResponse } from "../lib/api/types";
 import { getContributions } from "../lib/vault/contributions";
-import { getFxRateToUsd } from "../lib/vault/data";
+import { getFxRateToUsd, isActiveBucketCurrency } from "../lib/vault/data";
 import { UNIT } from "../lib/vault/units";
 import { buildEarningsFixture, type ChartPoint, type MonthlyEarned } from "../lib/earnings/fixtures";
 
@@ -77,12 +77,14 @@ function viewFromResponse(res: EarningsResponse): EarningsView {
     balanceUsd: res.balanceUsd,
     apy: res.apy,
     earnedUsd: res.earnedUsd,
-    buckets: res.buckets.map((b) => ({
-      currency: b.currency,
-      nativeValue: toBigInt(b.nativeValue),
-      usdValue: b.usdValue,
-      earnedUsd: b.earnedUsd,
-    })),
+    buckets: res.buckets
+      .filter((b) => isActiveBucketCurrency(b.currency))
+      .map((b) => ({
+        currency: b.currency,
+        nativeValue: toBigInt(b.nativeValue),
+        usdValue: b.usdValue,
+        earnedUsd: b.earnedUsd,
+      })),
     chart: res.chart,
     monthly: res.monthly,
   };
