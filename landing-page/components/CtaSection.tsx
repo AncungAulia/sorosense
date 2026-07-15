@@ -41,7 +41,7 @@ export function CtaSection() {
           Put your stablecoins to work.
         </p>
         <div className={`cta-line ${shown ? "in" : ""} mt-9`} style={{ transitionDelay: ".16s" }}>
-          <Button href="https://app.sorosense.xyz" variant="blueSolid">
+          <Button href="https://app.sorosense.xyz" target="_blank" rel="noreferrer" variant="blueSolid">
             Launch App
           </Button>
         </div>

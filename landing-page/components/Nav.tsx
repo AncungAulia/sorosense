@@ -137,7 +137,7 @@ export function Nav() {
         {/* Right */}
         <div className="flex items-center justify-end gap-3">
           <div className="hidden sm:block">
-            <Button href={APP_URL} size="sm" variant="blue">
+            <Button href={APP_URL} target="_blank" rel="noreferrer" size="sm" variant="blue">
               Launch app
             </Button>
           </div>
@@ -197,7 +197,7 @@ export function Nav() {
                 {l.label}
               </a>
             ))}
-            <Button href={APP_URL} variant="blue" className="mt-3 w-full">
+            <Button href={APP_URL} target="_blank" rel="noreferrer" variant="blue" className="mt-3 w-full">
               Launch app
             </Button>
           </div>

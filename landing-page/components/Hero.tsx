@@ -242,13 +242,13 @@ export function Hero() {
           </p>
           {/* mobile button — smaller so it clears the phone */}
           <div className="reveal-up mt-5 md:hidden" style={{ animationDelay: "1.06s" }}>
-            <Button href="https://app.sorosense.xyz" variant="blueSolid" size="sm">
+            <Button href="https://app.sorosense.xyz" target="_blank" rel="noreferrer" variant="blueSolid" size="sm">
               Launch App
             </Button>
           </div>
           {/* desktop button */}
           <div className="reveal-up mt-8 hidden md:block" style={{ animationDelay: "1.06s" }}>
-            <Button href="https://app.sorosense.xyz" variant="blueSolid">
+            <Button href="https://app.sorosense.xyz" target="_blank" rel="noreferrer" variant="blueSolid">
               Launch App
             </Button>
           </div>
