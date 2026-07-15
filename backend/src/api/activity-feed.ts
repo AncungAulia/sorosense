@@ -64,20 +64,6 @@ function compareRows(a: FeedEntry, b: FeedEntry): number {
 export function getActivity(query: ActivityQuery, deps: ActivityFeedDeps): FeedEntry[] {
   const { depositor, actor, currency, limit = 50 } = query;
 
-  const agentRows: FeedEntry[] = deps.log.list(currency).map((e) => ({
-    seq: e.id,
-    actor: e.actor,
-    currency: e.currency,
-    kind: e.kind,
-    detail: e.detail,
-    ts: e.ts,
-  }));
-
-  // Chain-decoded keeper actions (real mode). Empty offline, where the in-memory `log` carries them.
-  const chainAgentRows: FeedEntry[] = deriveAgentActivity(deps.agentEvents ?? [])
-    .filter((r) => currency === undefined || r.currency === undefined || r.currency === currency)
-    .map((r) => ({ seq: r.seq, actor: r.actor, currency: r.currency, kind: r.kind, detail: r.detail, ts: r.ts }));
-
   const userRows: FeedEntry[] = deriveUserActivity(deps.userEvents)
     .filter((r) => (depositor === undefined || r.depositor === depositor))
     .filter((r) => (currency === undefined || r.currency === currency))
@@ -90,6 +76,46 @@ export function getActivity(query: ActivityQuery, deps: ActivityFeedDeps): FeedE
       ts: r.ts,
       depositor: r.depositor,
     }));
+
+  const userCurrencies = new Set(userRows.map((r) => r.currency).filter((c): c is Currency => c !== undefined));
+  const firstUserSeq = userRows.reduce((min, r) => Math.min(min, r.seq), Number.POSITIVE_INFINITY);
+  const firstCurrencySeq = new Map<Currency, number>();
+  for (const row of userRows) {
+    if (row.currency === undefined) continue;
+    firstCurrencySeq.set(row.currency, Math.min(firstCurrencySeq.get(row.currency) ?? Number.POSITIVE_INFINITY, row.seq));
+  }
+
+  const matchesDepositorScope = (r: { currency?: Currency }): boolean => {
+    if (depositor === undefined) return true;
+    if (r.currency === undefined) return userCurrencies.size > 0;
+    return userCurrencies.has(r.currency);
+  };
+  const happenedAfterDepositorEnteredScope = (r: { seq: number; currency?: Currency }): boolean => {
+    if (depositor === undefined) return true;
+    if (r.currency === undefined) return Number.isFinite(firstUserSeq) && r.seq >= firstUserSeq;
+    const firstSeq = firstCurrencySeq.get(r.currency);
+    return firstSeq !== undefined && r.seq >= firstSeq;
+  };
+
+  const agentRows: FeedEntry[] = deps.log
+    .list(currency)
+    .map((e) => ({
+      seq: e.id,
+      actor: e.actor,
+      currency: e.currency,
+      kind: e.kind,
+      detail: e.detail,
+      ts: e.ts,
+    }))
+    .filter(matchesDepositorScope)
+    .filter(happenedAfterDepositorEnteredScope);
+
+  // Chain-decoded keeper actions (real mode). Empty offline, where the in-memory `log` carries them.
+  const chainAgentRows: FeedEntry[] = deriveAgentActivity(deps.agentEvents ?? [])
+    .filter((r) => currency === undefined || r.currency === undefined || r.currency === currency)
+    .filter(matchesDepositorScope)
+    .filter(happenedAfterDepositorEnteredScope)
+    .map((r) => ({ seq: r.seq, actor: r.actor, currency: r.currency, kind: r.kind, detail: r.detail, ts: r.ts }));
 
   const merged = [...agentRows, ...chainAgentRows, ...userRows]
     .filter((r) => (actor === undefined || r.actor === actor))
