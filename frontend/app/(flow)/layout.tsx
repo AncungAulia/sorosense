@@ -5,7 +5,7 @@ import { AuthGate } from "../../components/AuthGate";
 import { useIsDesktop } from "../../hooks/useIsDesktop";
 
 /**
- * Desktop has no full-page flows — Add funds / Move to wallet / Activity are drawers on the Overview,
+ * Desktop has no full-page flows — Deposit / Withdraw / Activity are drawers on the Overview,
  * and there is no desktop design for these routes. A desktop visitor who reaches a (flow) URL (typed,
  * bookmarked, or a stale deep link) is sent to /home with the matching drawer open; anything else
  * falls back to /home. Mobile is untouched: `useIsDesktop` is false there, so children render as
@@ -13,8 +13,8 @@ import { useIsDesktop } from "../../hooks/useIsDesktop";
  * byte-identical — desktop UI never navigates here (it uses `open(panel)`), only manual URLs do.
  */
 const PANEL_ROUTES: { match: (path: string) => boolean; to: string }[] = [
-  { match: (p) => p === "/add-funds" || p.startsWith("/deposit"), to: "/home?panel=add-funds" },
-  { match: (p) => p === "/withdraw", to: "/home?panel=move-to-wallet" },
+  { match: (p) => p === "/add-funds" || p === "/deposit" || p.startsWith("/deposit/"), to: "/home?panel=deposit" },
+  { match: (p) => p === "/withdraw", to: "/home?panel=withdraw" },
   { match: (p) => p === "/account/activity", to: "/home?panel=activity" },
 ];
 

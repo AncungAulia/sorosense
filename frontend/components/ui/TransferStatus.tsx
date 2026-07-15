@@ -3,10 +3,8 @@ import { Button } from "./Button";
 import type { TransferPhase } from "../../hooks/useTransferFlow";
 
 /**
- * The sending → success → error status view for a deposit/withdraw. Presentational: the caller owns
- * the phase (via useTransferFlow) and the handlers. Mobile renders it full-screen for all phases;
- * the desktop drawers render it only for `sending`/`error` (success there closes + toasts). Copy is
- * invisible-safe — no risk/Sentinel wording.
+ * Desktop drawer status view for deposit/withdraw: sending -> success | error.
+ * Mobile flows keep their own full-page status screens.
  */
 export function TransferStatus({
   phase,
@@ -36,35 +34,68 @@ export function TransferStatus({
   onBack?: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-6 py-12 text-center" role="status" aria-live="polite">
+    <div className="flex flex-1 flex-col items-center px-6 py-10 text-center" role="status" aria-live="polite">
       {phase === "sending" && (
-        <>
-          <span aria-hidden className="h-[52px] w-[52px] animate-spin rounded-full border-[3px] border-line border-t-ink" />
-          <div className="text-[15px] font-medium text-muted">{sendingLabel}</div>
-        </>
+        <div className="mt-20 flex flex-col items-center">
+          <div className="relative grid h-[132px] w-[132px] place-items-center rounded-full bg-[rgba(17,19,22,.04)]">
+            <div className="grid h-[102px] w-[102px] place-items-center rounded-full bg-[rgba(17,19,22,.055)]">
+              <div className="grid h-[70px] w-[70px] place-items-center rounded-full bg-card [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_18px_36px_-22px_rgba(17,19,22,.34)]">
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.1}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className="animate-[send-plane_1.15s_ease-in-out_infinite] text-ink"
+                >
+                  <path d="M21 3 10 14" />
+                  <path d="m21 3-7 18-4-7-7-4 18-7Z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <h2 className="mt-7 text-[21px] font-semibold leading-tight tracking-[-.01em]">{sendingLabel}</h2>
+          <p className="mt-2 max-w-[270px] text-sm leading-relaxed text-muted">Keep this screen open until it is sent.</p>
+        </div>
       )}
 
       {phase === "success" && (
         <>
-          <div className="fade-in grid h-[66px] w-[66px] place-items-center rounded-full bg-[rgba(22,163,74,.12)] text-pos">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+          <div className="mt-12 grid h-[158px] w-[158px] place-items-center rounded-full bg-[rgba(22,163,74,.07)]">
+            <div className="grid h-[124px] w-[124px] place-items-center rounded-full bg-[rgba(22,163,74,.13)]">
+              <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-pos text-white [box-shadow:0_18px_38px_-18px_rgba(22,163,74,.9)]">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
           </div>
-          <div className="text-lg font-semibold">{successTitle}</div>
-          {successMessage && <p className="max-w-[260px] text-sm leading-relaxed text-muted">{successMessage}</p>}
-          <Button className="mt-2" onClick={onDone}>{doneLabel}</Button>
+          <h2 className="mt-6 text-[22px] font-semibold leading-tight tracking-[-.01em]">{successTitle}</h2>
+          {successMessage && <p className="mt-2 max-w-[270px] text-[14.5px] leading-relaxed text-muted">{successMessage}</p>}
+          <Button className="mt-auto" onClick={onDone}>{doneLabel}</Button>
         </>
       )}
 
       {phase === "error" && (
         <>
-          <div className="grid h-[66px] w-[66px] place-items-center rounded-full bg-[rgba(192,69,59,.12)] text-neg">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          <div className="mt-12 grid h-[158px] w-[158px] place-items-center rounded-full bg-[rgba(192,69,59,.07)]">
+            <div className="grid h-[124px] w-[124px] place-items-center rounded-full bg-[rgba(192,69,59,.12)]">
+              <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-neg text-white [box-shadow:0_18px_38px_-18px_rgba(192,69,59,.78)]">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </div>
+            </div>
           </div>
-          <div className="text-lg font-semibold">{errorTitle}</div>
-          {errorMessage && <p className="max-w-[260px] text-sm leading-relaxed text-muted">{errorMessage}</p>}
-          <div className="mt-2 flex w-full max-w-[280px] flex-col gap-2.5">
-            <Button onClick={onRetry}>{retryLabel}</Button>
-            <Button variant="glass" onClick={onBack}>{backLabel}</Button>
+          <h2 className="mt-6 text-[22px] font-semibold leading-tight tracking-[-.01em]">{errorTitle}</h2>
+          {errorMessage && <p className="mt-2 max-w-[280px] text-[14.5px] leading-relaxed text-muted">{errorMessage}</p>}
+          <div className="mt-auto flex w-full flex-col gap-2.5">
+            {onRetry && <Button onClick={onRetry}>{retryLabel}</Button>}
+            <Button variant={onRetry ? "glass" : "ink"} onClick={onBack}>{backLabel}</Button>
           </div>
         </>
       )}

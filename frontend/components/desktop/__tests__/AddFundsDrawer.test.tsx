@@ -25,7 +25,7 @@ function setup() {
   return { sign, client, onClose };
 }
 
-test("pick USDC → deposit through consent → drawer closes on success, no risk words", async () => {
+test("pick USDC -> deposit through consent -> drawer shows success status, no risk words", async () => {
   const user = userEvent.setup();
   const { sign, client, onClose } = setup();
   // Step 1: stablecoin list.
@@ -39,12 +39,15 @@ test("pick USDC → deposit through consent → drawer closes on success, no ris
   await user.click(screen.getByRole("button", { name: /agree & sign/i }));
   await waitFor(() => expect(sign).toHaveBeenCalledTimes(2)); // consent + deposit
   await waitFor(async () => expect(await client.balanceOf("GNEW", "USD")).toBeGreaterThan(0n));
-  // Desktop: success closes the drawer + a toast (no in-drawer done screen).
-  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  // Desktop now mirrors mobile: success stays in the drawer until the final action.
+  await waitFor(() => expect(screen.getByText("Deposit Success")).toBeInTheDocument());
+  expect(onClose).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Back to Home" }));
+  expect(onClose).toHaveBeenCalled();
   expect(screen.queryByText(/\b(risk|score|sentinel)\b/i)).toBeNull();
 });
 
-test("with no Horizon/API env the fixture balance renders and the faucet slot stays empty", async () => {
+test("with no Horizon/API env the fixture balance renders and no account faucet appears in the drawer", async () => {
   const user = userEvent.setup();
   const fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);
@@ -52,11 +55,23 @@ test("with no Horizon/API env the fixture balance renders and the faucet slot st
 
   await user.click(screen.getByRole("button", { name: /USDC/ }));
 
-  // The reserved faucet slot renders nothing off-network: no dead control, and no request either.
-  expect(screen.getByText("$9,076.00 USDC")).toBeInTheDocument();
+  // Faucet minting lives in Account now: the deposit drawer has no dead control and no request either.
+  expect(screen.getAllByText((_, el) => el?.textContent === "$9,076.00 USDC").length).toBeGreaterThan(0);
   expect(screen.queryByRole("button", { name: /Get test/ })).toBeNull();
   expect(fetchSpy).not.toHaveBeenCalled();
   vi.unstubAllGlobals();
+});
+
+test("CETES is visible but unavailable in the desktop drawer", async () => {
+  const user = userEvent.setup();
+  setup();
+
+  const cetes = screen.getByRole("button", { name: /CETES/i });
+  expect(cetes).toBeDisabled();
+  expect(screen.getByText("Coming soon")).toBeInTheDocument();
+
+  await user.click(cetes);
+  expect(screen.queryByText("Deposit CETES")).toBeNull();
 });
 
 /**
@@ -78,7 +93,7 @@ test("a rejected deposit keeps the drawer open, toasts nothing, and records no c
   await user.click(screen.getByRole("button", { name: "Deposit" }));
   await user.click(screen.getByRole("button", { name: /agree & sign/i }));
 
-  await waitFor(() => expect(screen.getByText("Couldn't complete")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("Deposit Failed")).toBeInTheDocument());
   expect(onClose).not.toHaveBeenCalled(); // the drawer stays put — nothing was deposited
   expect(screen.queryByText("Deposited. Agent is allocating.")).toBeNull();
   expect(await client.balanceOf("GNEW", "USD")).toBe(shares);

@@ -1,12 +1,3 @@
-/**
- * The deposit keypad with the **network configured** (R6): a real Horizon trustline balance and a live
- * faucet. Both gates are module-scope env reads (`lib/wallet/balance.ts`, `lib/api/config.ts`), so they
- * are set in `vi.hoisted` — before this file's imports — and the whole file runs in that one state.
- * `DepositKeypad.test.tsx` is the mirror image: no env, fixture balance, no faucet control.
- *
- * Horizon is driven by a recorded `GET /accounts/{id}` body; the faucet by the backend's real response
- * shapes. `changeTrust` is mocked (it signs and submits a real XDR through the SDK's own transport).
- */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockVaultClient } from "@sorosense/vault-client";
@@ -23,6 +14,7 @@ vi.hoisted(() => {
   process.env.NEXT_PUBLIC_USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
   process.env.NEXT_PUBLIC_EURC_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 });
+
 afterAll(() => {
   delete process.env.NEXT_PUBLIC_API_URL;
   delete process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL;
@@ -31,7 +23,6 @@ afterAll(() => {
 });
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), back: vi.fn() }) }));
-vi.mock("../../../lib/wallet/changeTrust", () => ({ addTrustline: vi.fn(async () => "trustline-hash") }));
 const useWallet = vi.fn();
 vi.mock("../../../hooks/useWallet", () => ({ useWallet: () => useWallet() }));
 
@@ -49,16 +40,12 @@ function account(balances: unknown[]): Response {
     headers: { "content-type": "application/json" },
   });
 }
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
-/** Route by URL: Horizon reads and faucet posts land on the same global `fetch`. */
-function route(handlers: { horizon: () => Response; faucet?: () => Response }) {
+function route(handlers: { horizon: () => Response }) {
   fetchMock.mockImplementation((url: string) =>
-    Promise.resolve(String(url).includes("/accounts/") ? handlers.horizon() : handlers.faucet!()),
+    Promise.resolve(String(url).includes("/accounts/") ? handlers.horizon() : new Response("not found", { status: 404 })),
   );
 }
 
@@ -92,7 +79,7 @@ test("a Horizon account holding 250 USDC renders 250.00 and drives the quick-fil
   route({ horizon: () => account([XLM_LINE, USDC_LINE("250.0000000")]) });
   const user = setup();
 
-  await waitFor(() => expect(screen.getByText("$250.00")).toBeInTheDocument()); // not the 9,076 fixture
+  await waitFor(() => expect(screen.getByText("$250.00")).toBeInTheDocument());
   expect(screen.queryByText("$9,076.00")).toBeNull();
 
   await user.click(screen.getByRole("button", { name: "Max" }));
@@ -101,12 +88,12 @@ test("a Horizon account holding 250 USDC renders 250.00 and drives the quick-fil
   expect(screen.getByTestId("keypad-value").textContent).toBe("25.00");
 });
 
-test("no USDC trustline renders a zero balance AND the faucet button — not a dead end", async () => {
+test("no USDC trustline renders a zero balance without the account faucet", async () => {
   route({ horizon: () => account([XLM_LINE]) });
   setup();
 
   await waitFor(() => expect(screen.getByText("$0.00")).toBeInTheDocument());
-  expect(screen.getByRole("button", { name: "Get test USDC" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Get test USDC|Mint/ })).toBeNull();
 });
 
 test("an unfunded account (Horizon 404) renders zero and does not throw", async () => {
@@ -117,30 +104,12 @@ test("an unfunded account (Horizon 404) renders zero and does not throw", async 
   expect(screen.getByRole("button", { name: "Deposit fund" })).toBeDisabled();
 });
 
-test("a Horizon that fails falls back to ZERO, never to the fixture (a fake balance is a lie on-network)", async () => {
+test("a Horizon that fails falls back to ZERO, never to the fixture", async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
   setup();
 
   await waitFor(() => expect(screen.getByText("$0.00")).toBeInTheDocument());
-  expect(screen.queryByText("$9,076.00")).toBeNull(); // the fixture must not resurface on-network
+  expect(screen.queryByText("$9,076.00")).toBeNull();
   expect(screen.getByRole("button", { name: "Deposit fund" })).toBeDisabled();
-});
-
-test("a successful mint re-reads the balance — the available line moves", async () => {
-  let minted = false;
-  route({
-    horizon: () => account(minted ? [XLM_LINE, USDC_LINE("1000.0000000")] : [XLM_LINE]),
-    faucet: () => {
-      minted = true;
-      return json({ ok: true, hash: "b0b0…", currency: "USD", amount: "10000000000" });
-    },
-  });
-  const user = setup();
-
-  await waitFor(() => expect(screen.getByText("$0.00")).toBeInTheDocument());
-  await user.click(screen.getByRole("button", { name: "Get test USDC" }));
-
-  await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
-  expect(screen.getByText(/Test USDC on the way/)).toBeInTheDocument();
 });

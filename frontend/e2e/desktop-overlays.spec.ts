@@ -2,29 +2,28 @@ import { expect, test } from "@playwright/test";
 import { keeper } from "./support/bridge";
 import { connectWallet, depositViaDrawer, expectDesktopHome, shot } from "./support/journey";
 
-test("desktop overlays: add-funds drawer, move-to-wallet, account dropdown, activity filter, safe-exit approve", async ({ page }) => {
+test("desktop overlays: deposit drawer, withdraw, account dropdown, activity filter, safe-exit approve", async ({ page }) => {
   await connectWallet(page);
   await expectDesktopHome(page);
 
-  // 1. Add funds through the drawer (first deposit surfaces the consent dialog).
+  // 1. Deposit through the drawer (first deposit surfaces the consent dialog).
   await depositViaDrawer(page, "EURC", "500");
-  await expect(page.getByText("Deposited. Agent is allocating.")).toBeVisible();
   // Scoped to the Buckets card: a bare page.getByText("EUR bucket") is a strict-mode violation once
   // the (aria-hidden, but not CSS-hidden) WithdrawDrawer is mounted — its "Choose bucket" button
   // contains the same bucket name text.
   await expect(page.getByLabel("Buckets").getByText("EUR bucket")).toBeVisible();
-  await shot(page, "desktop-02-add-funds");
+  await shot(page, "desktop-02-deposit");
 
-  // 2. Move to wallet through the drawer.
-  await page.getByRole("button", { name: "Move to wallet" }).click();
-  const wd = page.getByRole("dialog", { name: "Move to wallet" });
+  // 2. Withdraw through the drawer.
+  await page.getByRole("button", { name: "Withdraw" }).click();
+  const wd = page.getByRole("dialog", { name: "Withdraw" });
   await expect(wd).toBeVisible();
   await wd.getByLabel("Amount").fill("100");
-  await wd.getByRole("button", { name: "Move to wallet" }).click();
-  // Success closes the drawer (no in-drawer done step) + a global toast confirms.
+  await wd.getByRole("button", { name: "Withdraw" }).click();
+  await expect(wd.getByText("Withdrawal Success")).toBeVisible();
+  await wd.getByRole("button", { name: "Back to Home" }).click();
   await expect(wd).toBeHidden();
-  await expect(page.getByText("Withdrawal submitted.")).toBeVisible(); // global toast
-  await shot(page, "desktop-03-move-to-wallet");
+  await shot(page, "desktop-03-withdraw");
 
   // 3. Account dropdown.
   await page.getByRole("button", { name: "Account" }).click();

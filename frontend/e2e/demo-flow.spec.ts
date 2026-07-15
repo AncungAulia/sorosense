@@ -24,7 +24,7 @@ test("the demo journey: connect → simulate → deposit → agent works → app
 
   // 4. Deposit EURC through the consent sheet — the one-time auto-optimize mandate.
   await page.getByRole("button", { name: "Start earning" }).click();
-  await expect(page).toHaveURL(/\/add-funds$/);
+  await expect(page).toHaveURL(/\/deposit$/);
   await depositEurc(page, "500"); // ends on /home after the "Deposit sent" status screen (STE-48)
   await expect(page.getByText("EUR bucket")).toBeVisible();
   await expect(page.getByText("€500.00")).toBeVisible();
@@ -92,8 +92,8 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
   await expectNoRiskWording(page, "landing");
 
   await connectWallet(page);
-  await page.getByRole("button", { name: "Add funds" }).click();
-  await expect(page).toHaveURL(/\/add-funds$/);
+  await page.getByRole("button", { name: "Deposit" }).click();
+  await expect(page).toHaveURL(/\/deposit$/);
   await depositEurc(page, "500");
 
   // The paused/amber surfaces are the likeliest place for a risk word to slip in, so tour them
@@ -118,21 +118,21 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
   await expect(page).toHaveURL(/\/earn$/);
   await expectNoRiskWording(page, "/earn (funded)");
 
-  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await page.getByRole("button", { name: "Withdraw" }).click();
   await expect(page).toHaveURL(/\/withdraw$/);
   await expectNoRiskWording(page, "/withdraw");
   await page.goBack();
   await expect(page).toHaveURL(/\/earn$/);
 
   await page.getByRole("button", { name: "Deposit" }).click();
-  await expect(page).toHaveURL(/\/add-funds$/);
-  await expectNoRiskWording(page, "/add-funds");
+  await expect(page).toHaveURL(/\/deposit$/);
+  await expectNoRiskWording(page, "/deposit");
 
   await page.getByRole("button", { name: /^EURC/ }).click();
   await expect(page).toHaveURL(/\/deposit\/eurc$/);
   await expectNoRiskWording(page, "/deposit/eurc (pool paused)");
   await page.goBack();
-  await expect(page).toHaveURL(/\/add-funds$/);
+  await expect(page).toHaveURL(/\/deposit$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/earn$/);
 
@@ -151,8 +151,8 @@ test("no user surface exposes a risk label, tier, or score", async ({ page }) =>
  */
 test("a rebalance never asks the user to approve anything", async ({ page }) => {
   await connectWallet(page);
-  await page.getByRole("button", { name: "Add funds" }).click();
-  await expect(page).toHaveURL(/\/add-funds$/);
+  await page.getByRole("button", { name: "Deposit" }).click();
+  await expect(page).toHaveURL(/\/deposit$/);
   await depositEurc(page, "500");
   await keeper(page, "allocate", "USD", "1000");
 
@@ -177,13 +177,13 @@ test("a rebalance never asks the user to approve anything", async ({ page }) => 
  */
 test("a completed withdrawal confirms itself on /home", async ({ page }) => {
   await connectWallet(page);
-  await page.getByRole("button", { name: "Add funds" }).click();
-  await expect(page).toHaveURL(/\/add-funds$/);
+  await page.getByRole("button", { name: "Deposit" }).click();
+  await expect(page).toHaveURL(/\/deposit$/);
   await depositEurc(page, "500");
 
   await page.getByRole("link", { name: "Earn" }).click();
   await expect(page).toHaveURL(/\/earn$/);
-  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await page.getByRole("button", { name: "Withdraw" }).click();
   await expect(page).toHaveURL(/\/withdraw$/);
 
   // A partial amount, never "Max": the vault is a module singleton shared with the specs above, so
@@ -192,11 +192,11 @@ test("a completed withdrawal confirms itself on /home", async ({ page }) => {
     await page.getByRole("button", { name: digit, exact: true }).click();
   }
   await expect(page.getByTestId("keypad-value")).toHaveText("100");
-  await page.getByRole("button", { name: "Move to wallet" }).click();
+  await page.getByRole("button", { name: "Withdraw" }).click();
 
-  // Success status screen (STE-48), then Done returns home.
-  await expect(page.getByText("Sent to your wallet")).toBeVisible();
-  await page.getByRole("button", { name: "Done" }).click();
+  // Success status screen (STE-48), then Back to Home returns home.
+  await expect(page.getByText("Withdrawal Success")).toBeVisible();
+  await page.getByRole("button", { name: "Back to Home" }).click();
   await expect(page).toHaveURL(/\/home$/);
   await shot(page, "09-withdraw-done");
 });
