@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "pnpm -C ../packages/vault-client build:bindings",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
