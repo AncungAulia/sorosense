@@ -12,6 +12,7 @@ vi.mock("../../lib/wallet", () => ({
   disconnect: vi.fn(async () => {}),
   signTransaction: vi.fn(async () => "SIGNED"),
   getAddress: vi.fn(async () => "GABC123"),
+  getWalletId: vi.fn(() => "freighter"),
 }));
 
 function Probe() {
