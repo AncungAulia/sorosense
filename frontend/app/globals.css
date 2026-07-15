@@ -36,6 +36,7 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="menuitem"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible, input:focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(17, 19, 22, 0.12);
   }
 }
 
@@ -54,6 +55,96 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
     animation: skeleton-shimmer 1.5s infinite;
   }
+
+  .transfer-status-screen {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .transfer-status-header {
+    margin-bottom: 1rem;
+  }
+  .transfer-status-hero {
+    margin-top: 2rem;
+  }
+  .transfer-status-icon-outer {
+    width: 158px;
+    height: 158px;
+  }
+  .transfer-status-icon-mid {
+    width: 124px;
+    height: 124px;
+  }
+  .transfer-status-icon-core {
+    width: 86px;
+    height: 86px;
+  }
+  .transfer-status-title {
+    margin-top: 1.5rem;
+  }
+  .transfer-status-details {
+    margin-top: 2.75rem;
+    padding-bottom: 112px;
+  }
+  .transfer-status-row {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .transfer-status-separator {
+    margin-top: 0.75rem;
+    padding-top: 1.25rem;
+  }
+  .transfer-status-cta {
+    position: sticky;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 2;
+    margin-top: auto;
+  }
+}
+
+@media (max-height: 760px) {
+  @layer components {
+    .transfer-status-header {
+      margin-bottom: 0.5rem;
+    }
+    .transfer-status-hero {
+      margin-top: 0.75rem;
+    }
+    .transfer-status-icon-outer {
+      width: 126px;
+      height: 126px;
+    }
+    .transfer-status-icon-mid {
+      width: 98px;
+      height: 98px;
+    }
+    .transfer-status-icon-core {
+      width: 68px;
+      height: 68px;
+    }
+    .transfer-status-icon-core svg {
+      width: 34px;
+      height: 34px;
+    }
+    .transfer-status-title {
+      margin-top: 1rem;
+      font-size: 20px;
+    }
+    .transfer-status-details {
+      margin-top: 1.5rem;
+      font-size: 14px;
+      padding-bottom: 102px;
+    }
+    .transfer-status-row {
+      padding-top: 0.65rem;
+      padding-bottom: 0.65rem;
+    }
+    .transfer-status-separator {
+      margin-top: 0.35rem;
+      padding-top: 0.85rem;
+    }
+    .transfer-status-cta {
+      margin-top: 0;
+    }
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after { animation: none; }
@@ -69,6 +160,10 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes grow-bar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes send-plane {
+  0%, 100% { transform: translate(-1px, 1px); opacity: .68; }
+  50% { transform: translate(2px, -2px); opacity: 1; }
+}
 
 .stagger > * { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger > *:nth-child(2) { animation-delay: 0.05s; }
@@ -79,7 +174,7 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
 .grow-bar { transform-origin: bottom; animation: grow-bar 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .stagger > *, .fade-in, .grow-bar { animation: none; }
+  .stagger > *, .fade-in, .grow-bar, .animate-\[send-plane_1\.15s_ease-in-out_infinite\] { animation: none; }
   .chart-line { animation: none; stroke-dashoffset: 0; }
 }
 
@@ -92,10 +187,15 @@ body { background: var(--color-bg); color: var(--color-ink); font-family: var(--
   from { opacity: 0; transform: translateX(28px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+@keyframes page-enter-prev {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 /* No fill-mode: the transform must NOT persist after the animation, or the
    wrapper would become the containing block for `fixed` children (e.g. the
    consent BottomSheet), reintroducing the closed-sheet-visible bug. */
 .page-enter { animation: page-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.page-enter-prev { animation-name: page-enter-prev; }
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter { animation: none; }

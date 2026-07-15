@@ -2,8 +2,9 @@
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export type Panel = "add-funds" | "move-to-wallet" | "activity" | "safe-exit";
-const PANELS: readonly Panel[] = ["add-funds", "move-to-wallet", "activity", "safe-exit"];
+export type Panel = "deposit" | "withdraw" | "activity" | "safe-exit";
+const PANELS: readonly Panel[] = ["deposit", "withdraw", "activity", "safe-exit"];
+const LEGACY_PANEL: Record<string, Panel> = { "add-funds": "deposit", "move-to-wallet": "withdraw" };
 
 /**
  * URL-backed desktop overlay state. The `?panel=` search param is the single source of truth, so
@@ -16,7 +17,7 @@ export function usePanel(): { panel: Panel | null; open: (name: Panel) => void; 
   const pathname = usePathname();
   const params = useSearchParams();
   const raw = params.get("panel");
-  const panel = PANELS.includes(raw as Panel) ? (raw as Panel) : null;
+  const panel = PANELS.includes(raw as Panel) ? (raw as Panel) : raw ? (LEGACY_PANEL[raw] ?? null) : null;
 
   const open = useCallback(
     (name: Panel) => {

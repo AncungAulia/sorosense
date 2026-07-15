@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 
 /**
  * Centered modal for a single focused decision (the safe-exit approval, and the deposit consent step
- * reused inside the add-funds drawer). Portaled to body, z-[70] (above every drawer). Centering is a
+ * reused inside the deposit drawer). Portaled to body, z-[70] (above every drawer). Centering is a
  * grid, never a transform (U14). Backdrop is a pointer-events-none overlay; clicks on the empty grid
  * area hit the wrapper itself, so `target === currentTarget` closes only on a true outside click.
  */

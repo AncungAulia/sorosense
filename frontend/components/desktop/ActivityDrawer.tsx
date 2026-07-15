@@ -10,6 +10,20 @@ const TABS = ["All", "Yours", "Agent"] as const;
 type Tab = (typeof TABS)[number];
 /** Tab → the ActivityItem.cat it filters to (All is the UI-only sentinel). */
 const TAB_CAT: Record<Tab, "you" | "auto" | null> = { All: null, Yours: "you", Agent: "auto" };
+const EMPTY_COPY: Record<Tab, { title: string; description: string }> = {
+  All: {
+    title: "No activity yet",
+    description: "Deposit first; your actions and automated updates will show here.",
+  },
+  Yours: {
+    title: "No account activity yet",
+    description: "Deposits and withdrawals will show here.",
+  },
+  Agent: {
+    title: "No agent activity yet",
+    description: "Deposit first; automated moves will show here.",
+  },
+};
 
 /**
  * Desktop activity drawer: mirrors the mobile Activity page (interface-map §8) but the hand-rolled
@@ -23,6 +37,7 @@ export function ActivityDrawer({ open, onClose, onReview }: { open: boolean; onC
   const [tab, setTab] = useState<Tab>("All");
   const cat = TAB_CAT[tab];
   const shown = cat === null ? items : items.filter((a) => a.cat === cat);
+  const empty = EMPTY_COPY[tab];
   return (
     <Drawer open={open} onClose={onClose} label="Activity">
       <div className="flex items-center justify-between border-b border-line px-[22px] pb-3.5 pt-5">
@@ -34,7 +49,15 @@ export function ActivityDrawer({ open, onClose, onReview }: { open: boolean; onC
       <div className="flex-1 overflow-auto px-[22px] py-5">
         <Segmented options={TABS} value={tab} onChange={setTab} label="Filter" variant="period" />
         <div className="mt-2">
-          <ActivityList items={shown} loading={loading} onReview={onReview} reviewed={!pend} divider={false} />
+          <ActivityList
+            items={shown}
+            loading={loading}
+            onReview={onReview}
+            reviewed={!pend}
+            divider={false}
+            emptyTitle={empty.title}
+            emptyDescription={empty.description}
+          />
         </div>
       </div>
     </Drawer>
