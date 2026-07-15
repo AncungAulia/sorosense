@@ -60,6 +60,7 @@ const ZERO_YIELD = {
   buckets: [
     { currency: "USD", nativeValue: "11160000000", usdValue: 1116, earnedUsd: 0 },
     { currency: "EUR", nativeValue: "30000000000", usdValue: 3435, earnedUsd: 0 },
+    { currency: "MXN", nativeValue: "0", usdValue: 0, earnedUsd: 0 },
   ],
   chart: [
     { ts: 1_700_000_000_000, valueUsd: 0, earnedUsd: 0 },
@@ -152,6 +153,7 @@ test("the view is the backend's response, verbatim — nothing is re-derived in 
   expect(screen.getByTestId("apy").textContent).toBe("5.71");
   // `nativeValue` arrives as a decimal string and is decoded with `toBigInt` — the one transformation.
   expect(screen.getByTestId("buckets").textContent).toBe("USD:11160000000:1116:0|EUR:30000000000:3435:0");
+  expect(screen.getByTestId("buckets").textContent).not.toContain("MXN");
   expect(screen.getByTestId("chart").textContent).toBe("1700000000000:0:0|1700000600000:4551:0");
   expect(screen.getByTestId("monthly").textContent).toBe("2026-06:0|2026-07:0");
 
@@ -160,6 +162,15 @@ test("the view is the backend's response, verbatim — nothing is re-derived in 
   expect(screen.getByTestId("apy").textContent).not.toBe("8.2");
   // …and the browser-memory cost basis was never even read.
   expect(readLedger).not.toHaveBeenCalled();
+});
+
+test("MXN/CETES rows from the backend are not active Earn buckets while CETES is coming soon", async () => {
+  fetchMock.mockImplementation(serve(ZERO_YIELD));
+  await renderFunded();
+
+  await waitFor(() => expect(screen.getByTestId("buckets")).toBeInTheDocument());
+  expect(screen.getByTestId("buckets").textContent).toBe("USD:11160000000:1116:0|EUR:30000000000:3435:0");
+  expect(screen.getByTestId("buckets").textContent).not.toMatch(/MXN|CETES/);
 });
 
 test("zero yield stays zero — the headline, every month, and every chart point (R10)", async () => {

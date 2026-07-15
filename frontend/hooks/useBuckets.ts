@@ -9,10 +9,10 @@ import { useRates } from "./useRates";
 import { apiEnabled } from "../lib/api/config";
 import { toBigInt } from "../lib/api/client";
 import type { Holding } from "../lib/api/types";
-import { getBucketMeta, getFxRateToUsd } from "../lib/vault/data";
+import { ACTIVE_BUCKET_CURRENCIES, getBucketMeta, getFxRateToUsd, isActiveBucketCurrency } from "../lib/vault/data";
 import { UNIT } from "../lib/vault/units";
 
-const CURRENCIES: readonly Currency[] = ["USD", "EUR", "MXN"];
+const CURRENCIES = ACTIVE_BUCKET_CURRENCIES;
 
 export interface BucketView {
   currency: Currency;
@@ -103,7 +103,7 @@ export function useBuckets(): { loading: boolean; error: string | null; buckets:
 
   const buckets = useMemo(() => {
     // Real mode: the backend's rows verbatim.
-    if (apiEnabled() && holdings !== null) return holdings.map(rowFromHolding);
+    if (apiEnabled() && holdings !== null) return holdings.filter((h) => isActiveBucketCurrency(h.currency)).map(rowFromHolding);
     // Offline: the seam's rows, whose `meta.apy` is the fixture. With the API off `rates` is `null`
     // too, so `apyFrom(null, null, …)` resolves to that same fixture and this stays byte-for-byte
     // today's behavior.

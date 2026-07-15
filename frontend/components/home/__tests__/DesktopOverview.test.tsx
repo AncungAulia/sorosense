@@ -98,7 +98,7 @@ test("the Overview renders a funded vault without throwing, and draws no wobble"
     </VaultProvider>,
   );
 
-  await waitFor(() => expect(screen.getByText("USD bucket")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("USD Bucket")).toBeInTheDocument());
   expect(screen.getByLabelText("Your value")).toBeInTheDocument();
   expect(screen.getByLabelText("Range")).toBeInTheDocument();
 });
@@ -117,7 +117,14 @@ test("an unfunded vault renders the Overview flat — no buckets, no chart, no c
     </VaultProvider>,
   );
 
-  await waitFor(() => expect(screen.getByText("No buckets yet. Add funds to start.")).toBeInTheDocument());
-  // Nothing earned, so the growth card states that rather than drawing floor-height stubs (R10).
-  expect(screen.getByTestId("growth-zero")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("No deposits yet")).toBeInTheDocument());
+  expect(screen.getByText("Deposit to start earning")).toBeInTheDocument();
+  expect(screen.queryByText(/performance fee/i)).toBeNull();
+  expect(screen.getByText("Deposit your money to create your first earning bucket.")).toBeInTheDocument();
+  expect(screen.getByText("No agent activity yet")).toBeInTheDocument();
+  expect(screen.getByText("Deposit first; automated moves will show here.")).toBeInTheDocument();
+  // Before the first deposit, Growth offers the same deterministic simulator as the Earn surface.
+  expect(screen.getByText("Simulate earnings")).toBeInTheDocument();
+  expect(screen.getByText("$1,000")).toBeInTheDocument();
+  expect(screen.getByTestId("growth-simulator")).toBeInTheDocument();
 });

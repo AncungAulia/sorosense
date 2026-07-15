@@ -16,7 +16,7 @@ test("earn stub routes to deposit and withdraw", async () => {
   const client = new MockVaultClient();
   await seedVault(client, "GUSER");
   render(<VaultProvider client={client}><EarnPage /></VaultProvider>);
-  await waitFor(() => expect(screen.getByRole("button", { name: "Move to wallet" })).toBeInTheDocument());
-  await user.click(screen.getByRole("button", { name: "Move to wallet" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Withdraw" })).toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "Withdraw" }));
   expect(push).toHaveBeenCalledWith("/withdraw");
 });

@@ -36,7 +36,7 @@ export function TotalHero({ buckets, totalUsd }: { buckets: BucketView[]; totalU
   return (
     <div className="py-[30px] text-center">
       <div className="text-[15px] font-medium text-muted">{v.label}</div>
-      <CountUp value={v.valueNum} format={v.fmt} className="mt-2 block text-[54px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]" />
+      <CountUp animateOnMount value={v.valueNum} format={v.fmt} className="mt-2 block text-[54px] font-semibold leading-none tracking-[-.02em] [font-variant-numeric:tabular-nums]" />
       <BucketToggle views={views} index={index} onCycle={() => setI((n) => (n + 1) % views.length)} />
     </div>
   );

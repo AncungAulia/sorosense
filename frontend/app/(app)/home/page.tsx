@@ -13,12 +13,37 @@ import { usePendingExit } from "../../../hooks/usePendingExit";
 import { useIsDesktop } from "../../../hooks/useIsDesktop";
 import { DesktopOverview } from "../../../components/home/DesktopOverview";
 
+function CoinStackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-ink-2" aria-hidden="true">
+      <ellipse cx="12" cy="6" rx="7" ry="3" />
+      <path d="M5 6v5c0 1.7 3.1 3 7 3s7-1.3 7-3V6" />
+      <path d="M5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+    </svg>
+  );
+}
+
+function EmptyBucketsMobile() {
+  return (
+    <div className="flex flex-col items-center px-5 py-7 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-full border border-line bg-white [box-shadow:0_1px_2px_rgba(17,19,22,.04),0_10px_22px_-16px_rgba(17,19,22,.2)]">
+        <CoinStackIcon />
+      </div>
+      <p className="mt-3 text-[13.5px] font-semibold text-ink">No deposits yet</p>
+      <p className="mt-1 max-w-[230px] text-[12.5px] leading-snug text-muted">Deposit your money to create your first earning bucket.</p>
+    </div>
+  );
+}
+
 function MobileHome() {
   const nav = useNav();
   const { loading, buckets, totalUsd } = useBuckets();
   const { loading: activityLoading, items: activity } = useActivity();
   const pend = usePendingExit();
   const [exitOpen, setExitOpen] = useState(false);
+  const agentActivity = buckets.length === 0 ? [] : activity.filter((item) => item.cat === "auto");
+  const agentPreview = agentActivity.slice(0, 3);
+  const hasMoreAgentActivity = agentActivity.length > 3;
 
   return (
     <div>
@@ -32,7 +57,7 @@ function MobileHome() {
         <TotalHero buckets={buckets} totalUsd={totalUsd} />
       )}
       {pend && <FreezeBanner onReview={() => setExitOpen(true)} />}
-      <Button className="mb-[22px]" onClick={() => nav.forward("/add-funds")}>Add funds</Button>
+      <Button className="mb-[22px]" onClick={() => nav.forward("/deposit")}>Deposit</Button>
 
       <h2 className="mx-1 mb-2 text-sm font-medium text-muted">Buckets</h2>
       <Card className="mb-[22px] px-5 py-1">
@@ -50,7 +75,7 @@ function MobileHome() {
             ))}
           </div>
         ) : buckets.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted">No buckets yet. Add funds to start.</div>
+          <EmptyBucketsMobile />
         ) : (
           <div className="fade-in">{buckets.map((b, i) => <BucketRow key={b.currency} bucket={b} first={i === 0} />)}</div>
         )}
@@ -58,12 +83,22 @@ function MobileHome() {
 
       <h2 className="mx-1 mb-2 text-sm font-medium text-muted">Agent</h2>
       <Card className="px-5 pb-2 pt-1">
-        <ActivityList items={activity.slice(0, 3)} loading={activityLoading} onReview={() => setExitOpen(true)} reviewed={!pend} />
-        <button onClick={() => nav.forward("/account/activity")}
-          className="mt-1.5 flex w-full items-center justify-center gap-[3px] border-t border-line pt-[13px] pb-[3px] text-[13.5px] font-medium text-muted">
-          View all activity
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-        </button>
+        <ActivityList
+          items={agentPreview}
+          loading={activityLoading}
+          onReview={() => setExitOpen(true)}
+          reviewed={!pend}
+          emptyTitle="No agent activity yet"
+          emptyDescription="Deposit first; automated moves will show here."
+        />
+        {hasMoreAgentActivity && (
+          <button
+            onClick={() => nav.forward("/account/activity")}
+            className="mt-1.5 flex w-full items-center justify-center border-t border-line pb-[3px] pt-[13px] text-[13.5px] font-medium text-muted"
+          >
+            View all activity
+          </button>
+        )}
       </Card>
       </div>
 
