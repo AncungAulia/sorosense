@@ -109,12 +109,6 @@ function applyPhonePose(g: THREE.Object3D, sp: number) {
   g.scale.setScalar(lerp(a.scale, b.scale, f));
 }
 
-// Phone x at `sp` — so the grounding shadow can follow it across the sections.
-function phoneXAt(sp: number) {
-  const { a, b, f } = segAt(sp, isMobile() ? MOBILE_POSES : POSES);
-  return lerp(a.pos.x, b.pos.x, f);
-}
-
 function setShadow(root: THREE.Object3D, cast: boolean, receive: boolean) {
   root.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -319,31 +313,6 @@ function GhostPhone({ progress }: { progress: { current: number } }) {
   );
 }
 
-/* Soft grounding shadow — fades in and follows the phone as it reaches Earn. */
-function Shadow({ progress }: { progress: { current: number } }) {
-  const ref = useRef<THREE.Mesh>(null);
-  const mat = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => {
-    const sp = progress.current;
-    const mesh = ref.current;
-    if (!mesh) return;
-    mesh.position.x = phoneXAt(sp);
-    const op = lerp(0, 0.5, clamp(sp, 0, 1)); // fade in over hero -> Earn, then hold
-    if (mat.current) mat.current.opacity = op;
-  });
-  return (
-    <mesh
-      ref={ref}
-      position={[0, 0.78, 0]}
-      rotation={[-Math.PI / 2, 0, 0]}
-      scale={[0.9, 0.32, 1]}
-    >
-      <circleGeometry args={[1, 64]} />
-      <meshBasicMaterial ref={mat} color="#1a1a2e" transparent opacity={0} depthWrite={false} />
-    </mesh>
-  );
-}
-
 // Shared across both canvases so the entrance camera is identical in each —
 // otherwise the table and phone fly in on separate clocks and the phone slides
 // against the table instead of staying glued to it. Resets on a full reload.
@@ -395,7 +364,7 @@ export function TableStage({ progress }: { progress: { current: number } }) {
   );
 }
 
-/* Overlay canvas — the phone (+ grounding shadow), transparent and fixed, so it
+/* Overlay canvas — the phone, transparent and fixed, so it
    flies across the hero frame into the next section. */
 export function PhoneStage({
   progress,
@@ -408,9 +377,8 @@ export function PhoneStage({
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
-  // No `shadows` here: nothing in this canvas receives a shadow map (the table
-  // lives in the other canvas), and the Earn grounding is a lightweight
-  // transparent mesh. Skipping the shadow pass is a big win.
+  // No `shadows` here: nothing in this canvas receives a shadow map because the
+  // table lives in the other canvas. Skipping the shadow pass is a big win.
   return (
     <Canvas
       frameloop="demand"
@@ -422,7 +390,6 @@ export function PhoneStage({
       <Lights />
       <Suspense fallback={null}>
         <Phone progress={progress} />
-        <Shadow progress={progress} />
         <CameraEntrance />
         <ReadySignal onReady={onReady} />
       </Suspense>
