@@ -19,9 +19,12 @@ export function TotalHero({ buckets, totalUsd }: { buckets: BucketView[]; totalU
     },
     ...buckets.map((b) => {
       const sym = b.currency === "EUR" ? "€" : "$";
+      // Name the currency bucket ("USD Bucket"), not the venue — a real `/holdings` row's `name` is the
+      // pool ("USDC SoroSense Pool"), which is not what the toggle lists. Capital B matches BucketRow.
+      const label = `${b.currency} Bucket`;
       return {
-        label: b.name,
-        name: b.name,
+        label,
+        name: label,
         currency: b.currency,
         text: formatCurrency(b.value, b.currency),
         valueNum: Number(b.value) / Number(UNIT),

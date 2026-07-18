@@ -113,15 +113,18 @@ export function DesktopOverview() {
     const perBucket = buckets.map((b) => {
       const earned = view.buckets.find((x) => x.currency === b.currency)?.earnedUsd ?? 0;
       const sym = b.currency === "EUR" ? "€" : "$";
+      // Name the currency bucket ("USD Bucket"), not the venue — a real `/holdings` row's `name` is the
+      // pool ("USDC SoroSense Pool"), which is not what this view labels. Capital B matches BucketRow.
+      const label = `${b.currency} Bucket`;
       return {
-        name: b.name,
+        name: label,
         isAll: false as const,
         valueText: formatCurrency(b.value, b.currency),
         valueNum: Number(b.value) / Number(UNIT),
         fmt: (n: number) => `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         earnedUsd: earned,
         apy: b.apy,
-        sub: ` · ${b.name}`,
+        sub: ` · ${label}`,
       };
     });
     return [all, ...perBucket];
